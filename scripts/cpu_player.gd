@@ -4,20 +4,20 @@ class_name CpuPlayer
 func choose_draw_source(hand: Array, discard_top: Dictionary) -> String:
 	if discard_top.is_empty():
 		return "deck"
-	var trial := hand.duplicate(true)
+	var trial: Array = hand.duplicate(true)
 	trial.append(discard_top)
-	var before := _best_score(RummyRules.find_actions(hand))
-	var after := _best_score(RummyRules.find_actions(trial))
+	var before: float = _best_score(RummyRules.find_actions(hand))
+	var after: float = _best_score(RummyRules.find_actions(trial))
 	return "discard" if after > before else "deck"
 
 func choose_action(hand: Array, hp: int, max_hp: int) -> Dictionary:
-	var actions := RummyRules.find_actions(hand)
+	var actions: Array = RummyRules.find_actions(hand)
 	if actions.is_empty():
 		return {}
 	var best: Dictionary = {}
-	var best_score := -9999.0
+	var best_score: float = -9999.0
 	for action in actions:
-		var score := _action_score(action, hp, max_hp)
+		var score: float = _action_score(action, hp, max_hp)
 		if score > best_score:
 			best_score = score
 			best = action
@@ -26,28 +26,32 @@ func choose_action(hand: Array, hp: int, max_hp: int) -> Dictionary:
 func choose_discard_index(hand: Array) -> int:
 	if hand.is_empty():
 		return -1
-	var best_idx := 0
-	var lowest_keep_score := 9999.0
+	var best_idx: int = 0
+	var lowest_keep_score: float = 9999.0
 	for i in range(hand.size()):
 		var card: Dictionary = hand[i]
-		var keep := 0.0
+		var keep: float = 0.0
 		for j in range(hand.size()):
-			if i == j: continue
+			if i == j:
+				continue
 			var other: Dictionary = hand[j]
-			if int(card.rank) == int(other.rank): keep += 4.0
+			if int(card.rank) == int(other.rank):
+				keep += 4.0
 			if str(card.suit) == str(other.suit):
-				var distance := abs(int(card.rank) - int(other.rank))
-				if distance == 1: keep += 3.0
-				elif distance == 2: keep += 1.0
+				var distance: int = absi(int(card.rank) - int(other.rank))
+				if distance == 1:
+					keep += 3.0
+				elif distance == 2:
+					keep += 1.0
 		if keep < lowest_keep_score:
 			lowest_keep_score = keep
 			best_idx = i
 	return best_idx
 
 func intent_text(hand: Array, hp: int, max_hp: int) -> String:
-	var actions := RummyRules.find_actions(hand)
-	var has_attack := false
-	var has_brace := false
+	var actions: Array = RummyRules.find_actions(hand)
+	var has_attack: bool = false
+	var has_brace: bool = false
 	for action in actions:
 		if action.action in [RummyRules.ActionType.STRIKE, RummyRules.ActionType.RALLY, RummyRules.ActionType.GRAND_MELD]:
 			has_attack = true
@@ -60,18 +64,23 @@ func intent_text(hand: Array, hp: int, max_hp: int) -> String:
 	return "BUILDING • watching the discard pile"
 
 func _best_score(actions: Array) -> float:
-	var result := 0.0
+	var result: float = 0.0
 	for action in actions:
-		result = max(result, _action_score(action, 40, 40))
+		result = maxf(result, _action_score(action, 40, 40))
 	return result
 
 func _action_score(action: Dictionary, hp: int, max_hp: int) -> float:
-	var size: int = action.cards.size()
+	var card_count: int = action.cards.size()
 	match action.action:
-		RummyRules.ActionType.GRAND_MELD: return 30.0 + size
-		RummyRules.ActionType.RALLY: return 18.0 + size
-		RummyRules.ActionType.STRIKE: return 15.0 + size * 1.5
+		RummyRules.ActionType.GRAND_MELD:
+			return 30.0 + float(card_count)
+		RummyRules.ActionType.RALLY:
+			return 18.0 + float(card_count)
+		RummyRules.ActionType.STRIKE:
+			return 15.0 + float(card_count) * 1.5
 		RummyRules.ActionType.BRACE:
 			return 22.0 if hp <= int(max_hp * 0.35) else 7.0
-		RummyRules.ActionType.PREP: return 5.0
-		_: return 0.0
+		RummyRules.ActionType.PREP:
+			return 5.0
+		_:
+			return 0.0
