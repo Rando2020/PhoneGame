@@ -16,7 +16,8 @@ func choose_action(hand: Array, hp: int, max_hp: int) -> Dictionary:
 		return {}
 	var best: Dictionary = {}
 	var best_score: float = -9999.0
-	for action in actions:
+	for raw_action in actions:
+		var action: Dictionary = raw_action
 		var score: float = _action_score(action, hp, max_hp)
 		if score > best_score:
 			best_score = score
@@ -50,22 +51,29 @@ func choose_discard_index(hand: Array) -> int:
 
 func intent_text(hand: Array, hp: int, max_hp: int) -> String:
 	var actions: Array = RummyRules.find_actions(hand)
-	var has_attack: bool = false
 	var has_brace: bool = false
-	for action in actions:
-		if action.action in [RummyRules.ActionType.STRIKE, RummyRules.ActionType.RALLY, RummyRules.ActionType.GRAND_MELD]:
-			has_attack = true
-		if action.action == RummyRules.ActionType.BRACE:
+	var best_attack: Dictionary = {}
+	var best_attack_score: float = -9999.0
+	for raw_action in actions:
+		var action: Dictionary = raw_action
+		var action_type: int = int(action.action)
+		if action_type == RummyRules.ActionType.BRACE:
 			has_brace = true
-	if hp <= int(max_hp * 0.35) and has_brace:
-		return "DEFENSIVE POSTURE • may BRACE"
-	if has_attack:
-		return "THREAT RISING • likely offensive meld"
-	return "BUILDING • watching the discard pile"
+		if action_type in [RummyRules.ActionType.STRIKE, RummyRules.ActionType.RALLY, RummyRules.ActionType.GRAND_MELD]:
+			var attack_score: float = _action_score(action, hp, max_hp)
+			if attack_score > best_attack_score:
+				best_attack_score = attack_score
+				best_attack = action
+	if hp <= int(float(max_hp) * 0.35) and has_brace:
+		return "DEFENSIVE • Croak can BRACE this turn"
+	if not best_attack.is_empty():
+		return "DANGER • %s possible • consider BRACE" % RummyRules.action_name(int(best_attack.action))
+	return "BUILDING • no complete attack visible yet"
 
 func _best_score(actions: Array) -> float:
 	var result: float = 0.0
-	for action in actions:
+	for raw_action in actions:
+		var action: Dictionary = raw_action
 		result = maxf(result, _action_score(action, 40, 40))
 	return result
 
@@ -79,7 +87,7 @@ func _action_score(action: Dictionary, hp: int, max_hp: int) -> float:
 		RummyRules.ActionType.STRIKE:
 			return 15.0 + float(card_count) * 1.5
 		RummyRules.ActionType.BRACE:
-			return 22.0 if hp <= int(max_hp * 0.35) else 7.0
+			return 22.0 if hp <= int(float(max_hp) * 0.35) else 7.0
 		RummyRules.ActionType.PREP:
 			return 5.0
 		_:
