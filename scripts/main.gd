@@ -342,8 +342,8 @@ func _end_player_turn_without_discard() -> void:
 	call_deferred("_cpu_turn")
 
 func _resolve_player_action(cards: Array, action: int) -> void:
-	var name := rules.action_name(action)
-	_log("[color=#ffd166][b]%s![/b][/color] %s" % [name, _cards_text(cards)])
+	var action_label: String = rules.action_name(action)
+	_log("[color=#ffd166][b]%s![/b][/color] %s" % [action_label, _cards_text(cards)])
 	if action == rules.ActionType.BRACE:
 		_player_brace(cards)
 		sound.defend()
@@ -396,7 +396,7 @@ func _offense_damage(cards: Array, action: int, is_player: bool) -> int:
 		else: cpu_prepared_suit = ""
 	return base
 
-func _apply_player_suit_offense(cards: Array, action: int) -> void:
+func _apply_player_suit_offense(cards: Array, _action: int) -> void:
 	var seen: Array[String] = []
 	for card in cards:
 		var suit := str(card.suit)
@@ -484,9 +484,9 @@ func _resolve_cpu_action(cards: Array, action: int) -> void:
 		sound.meld()
 
 func _damage_player(amount: int) -> void:
-	var blocked := min(player_block, amount)
+	var blocked: int = mini(player_block, amount)
 	player_block -= blocked
-	var dealt := amount - blocked
+	var dealt: int = amount - blocked
 	player_hp -= dealt
 	_log("You take [b]%d[/b] damage%s." % [dealt, " (%d blocked)" % blocked if blocked > 0 else ""])
 	if dealt > 0 and player_thorns > 0:
@@ -495,9 +495,9 @@ func _damage_player(amount: int) -> void:
 	sound.hit()
 
 func _damage_cpu(amount: int) -> void:
-	var blocked := min(cpu_block, amount)
+	var blocked: int = mini(cpu_block, amount)
 	cpu_block -= blocked
-	var dealt := amount - blocked
+	var dealt: int = amount - blocked
 	cpu_hp -= dealt
 	_log("Croak takes [b]%d[/b] damage%s." % [dealt, " (%d blocked)" % blocked if blocked > 0 else ""])
 	if dealt > 0 and cpu_thorns > 0:
@@ -675,10 +675,10 @@ func _show_relic_choice() -> void:
 		b.custom_minimum_size.y = 92
 		modal_content.add_child(b)
 
-func _choose_relic(name: String) -> void:
-	if not relics.has(name): relics.append(name)
+func _choose_relic(relic_name: String) -> void:
+	if not relics.has(relic_name): relics.append(relic_name)
 	_start_battle()
-	_log("Relic active: [color=#ffd166]%s[/color]." % name)
+	_log("Relic active: [color=#ffd166]%s[/color]." % relic_name)
 
 func _show_run_end() -> void:
 	_clear_modal()
@@ -735,10 +735,10 @@ func _save() -> void:
 	config.set_value("progress", "vitality", vitality_rank)
 	config.save("user://meldlings_save.cfg")
 
-func _label(text: String, size: int, color: Color) -> Label:
+func _label(text: String, font_size: int, color: Color) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return label
