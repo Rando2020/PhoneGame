@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "starter_roster": [
+    {
+      "id": "cinderkit",
+      "name": "Cinderkit",
+      "suit": "hearts",
+      "role": "burn / pressure",
+      "passive": "Kindling: Heart cards in offensive melds apply Burn.",
+      "brace": "Warmth: +4 Block and cleanse 2 Burn.",
+      "meld": "Flare: Heart Runs focus damage and Burn.",
+      "future_evolutions": ["Cinderfox", "Blazetail", "Solvulpes"]
+    },
+    {
+      "id": "glimbug",
+      "name": "Glimbug",
+      "suit": "diamonds",
+      "role": "economy / hand value",
+      "passive": "Shiny Things: long Diamond melds create extra value.",
+      "brace": "Bargain: +3 Block and future hand manipulation.",
+      "meld": "Cash Out: long Diamond Runs produce Essence during prototype play.",
+      "future_evolutions": ["Glimmerwing", "Vaultbeetle", "Auricrown"]
+    },
+    {
+      "id": "mosshell",
+      "name": "Mosshell",
+      "suit": "clubs",
+      "role": "block / thorns",
+      "passive": "Thick Hide: Clubs naturally generate Block.",
+      "brace": "Tuck In: +5 Block and 3 Thorns.",
+      "meld": "Overgrowth: Club offense also grants Block.",
+      "future_evolutions": ["Grovetort", "Elderbark", "Worldback"]
+    },
+    {
+      "id": "noxling",
+      "name": "Noxling",
+      "suit": "spades",
+      "role": "hex / disruption",
+      "passive": "Bad Omen: Spade interactions build Hex pressure.",
+      "brace": "Fade: +2 Block and remove 1 Hex.",
+      "meld": "Nightfall: Spade offense converts Hex into bonus damage.",
+      "future_evolutions": ["Noxshade", "Dreadwing", "Umbrafang"]
+    }
+  ],
+  "planned_roster": {
+    "hearts": ["Cinderkit", "Pipflare", "Charling"],
+    "diamonds": ["Glimbug", "Tinklet", "Prismite"],
+    "clubs": ["Mosshell", "Croaklet", "Sprig"],
+    "spades": ["Noxling", "Wisp", "Hexkit"]
+  },
+  "planned_fusions": ["heart_spade", "heart_diamond", "heart_club", "diamond_spade", "diamond_club", "club_spade"]
+}
