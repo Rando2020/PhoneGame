@@ -30,14 +30,15 @@ func _play_sequence(notes: Array) -> void:
 	stream.mix_rate = SAMPLE_RATE
 	stream.stereo = false
 	var bytes: PackedByteArray = PackedByteArray()
-	for note in notes:
+	for raw_note in notes:
+		var note: Array = raw_note
 		var frequency: float = float(note[0])
 		var duration: float = float(note[1])
 		var volume: float = float(note[2])
 		var sample_count: int = int(float(SAMPLE_RATE) * duration)
 		for i in range(sample_count):
-			var phase: float = fmod(float(i) * frequency / float(SAMPLE_RATE), 1.0)
-			var square: float = 1.0 if phase < 0.5 else -1.0
+			var phase_value: float = fmod(float(i) * frequency / float(SAMPLE_RATE), 1.0)
+			var square: float = 1.0 if phase_value < 0.5 else -1.0
 			var denominator: float = maxf(1.0, float(sample_count))
 			var envelope: float = 1.0 - (float(i) / denominator) * 0.55
 			var sample: int = int(128.0 + square * 127.0 * volume * envelope)

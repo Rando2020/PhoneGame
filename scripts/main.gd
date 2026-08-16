@@ -422,6 +422,7 @@ func _apply_player_suit_offense(cards: Array, _action: int) -> void:
 
 func _cpu_turn() -> void:
 	if battle_over: return
+	# CPU guard lasts through the player's turn, then expires before Croak acts again.
 	cpu_block = 0
 	cpu_thorns = 0
 	_apply_turn_start_status(false)

@@ -45,6 +45,7 @@ static func action_name(action: int) -> String:
 static func find_actions(hand: Array) -> Array:
 	var results: Array = []
 	var n := hand.size()
+	# Prototype hands stay small, so exhaustive combinations are clear and deterministic.
 	for mask in range(1, 1 << n):
 		var picked: Array = []
 		for i in range(n):
