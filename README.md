@@ -23,7 +23,7 @@ The current vertical slice includes:
 
 ## Run It on PC
 
-1. Install Godot 4.3+.
+1. Install **Godot 4.7.1 stable** or a compatible newer stable Godot 4 release.
 2. Clone this repository.
 3. Import `project.godot` into Godot.
 4. Press **F6/F5** or the Play button.
@@ -37,11 +37,11 @@ The UI is designed at a 720×1280 portrait viewport and uses Godot Controls, so 
 
 ### Android
 
-Install Godot's Android build template plus the Android SDK/JDK, then create an Android export preset in **Project → Export**. Touch works through the same Button input used on desktop.
+Install the matching Godot export templates, OpenJDK 17, and the Android SDK, then create an Android export preset in **Project → Export**. Touch works through the same Button input used on desktop. For Google Play distribution, configure a signed Android App Bundle (AAB).
 
 ### iPhone / iPad
 
-Create an iOS export preset in Godot. Final iOS signing/export requires macOS with Xcode and an Apple developer provisioning setup.
+Install the matching Godot export templates and create an iOS export preset. Final iOS export/signing requires a Mac with Xcode plus the Apple Team ID and unique bundle identifier used by your developer account.
 
 ### Desktop
 
