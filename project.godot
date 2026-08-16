@@ -5,7 +5,7 @@ config_version=5
 [application]
 config/name="Meldlings"
 run/main_scene="res://scenes/Main.tscn"
-config/features=PackedStringArray("4.3")
+config/features=PackedStringArray("4.7")
 boot_splash/bg_color=Color(0.055, 0.047, 0.094, 1)
 boot_splash/show_image=false
 
