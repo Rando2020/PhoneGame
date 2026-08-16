@@ -11,7 +11,7 @@ signal drag_started(card_view: CardView)
 
 enum State { NORMAL, SELECTED, VALID, INVALID, DIM }
 
-const PIXEL_SCALE := 2
+static var PIXEL_SCALE: int = 2
 
 var rank: int = 1
 var suit: String = "S"
