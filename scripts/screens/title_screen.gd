@@ -55,6 +55,12 @@ func build() -> void:
 		game.goto("select"))
 	col.add_child(play)
 
+	var rules := UIKit.button("HOW TO PLAY", 18, 50)
+	rules.pressed.connect(func():
+		audio().sfx("ui_click")
+		game.goto("rules"))
+	col.add_child(rules)
+
 	var opts := UIKit.button("Options", 18, 50)
 	opts.pressed.connect(func():
 		audio().sfx("ui_click")
