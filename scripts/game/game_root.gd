@@ -104,6 +104,7 @@ func _make(id: String) -> Screen:
 		"rest": return RestScreen.new()
 		"gameover": return GameOverScreen.new()
 		"options": return OptionsScreen.new()
+		"rules": return RulesScreen.new()
 	return null
 
 
