@@ -32,6 +32,8 @@ PAL = {
     "ghost":   ((34, 20, 52), (76, 44, 108), (108, 68, 150), (144, 104, 186), (194, 164, 224), (120, 220, 210)),
     "jester":  ((46, 18, 42), (126, 38, 90), (170, 60, 120), (206, 98, 156), (238, 158, 198), (232, 182, 76)),
     "king":    ((30, 26, 44), (64, 58, 94), (94, 86, 134), (130, 122, 176), (180, 174, 212), (232, 182, 76)),
+    "nib":     ((28, 34, 48), (58, 84, 112), (84, 122, 156), (120, 166, 200), (176, 214, 240), (240, 190, 120)),
+    "muggins": ((44, 30, 20), (108, 72, 44), (146, 100, 62), (184, 138, 92), (222, 188, 146), (200, 120, 90)),
 }
 
 PIPS = {
@@ -106,6 +108,25 @@ def stamp(img, grid, x0, y0, c, white=WHITE):
                 px(img, x0 + i, y0 + j, white)
 
 
+def shadow(img, cx, y, rx, ry=2, a=90):
+    """Soft contact shadow so creatures sit on a surface instead of floating."""
+    for j in range(-ry, ry + 1):
+        for i in range(-rx, rx + 1):
+            if (i / max(1, rx)) ** 2 + (j / max(1, ry)) ** 2 <= 1.0:
+                px_, py_ = cx + i, y + j
+                if 0 <= px_ < img.size[0] and 0 <= py_ < img.size[1]:
+                    if img.getpixel((px_, py_))[3] == 0:
+                        img.putpixel((px_, py_), (12, 10, 20, a))
+
+
+def specular(img, cx, cy, pal):
+    """A two-pixel gleam on the upper-left, the classic 16-bit read for volume."""
+    for (dx, dy) in ((0, 0), (1, 0), (0, 1)):
+        x, y = cx + dx, cy + dy
+        if 0 <= x < img.size[0] and 0 <= y < img.size[1] and img.getpixel((x, y))[3]:
+            img.putpixel((x, y), (255, 255, 255, 235))
+
+
 def outline(img, c):
     w, h = img.size
     filled = [[img.getpixel((x, y))[3] > 0 for x in range(w)] for y in range(h)]
@@ -124,7 +145,8 @@ def outline(img, c):
 
 
 # ------------------------------------------------------------------ features
-def eyes(img, cx, y, spread, pal, ew=5, eh=6, brow=False, pupil_in=0, sclera=WHITE):
+def eyes(img, cx, y, spread, pal, ew=5, eh=6, brow=False, pupil_in=0, sclera=WHITE,
+         shape="round", lash=False):
     """Big readable eyes: sclera with clipped corners, solid pupil, glint."""
     for s in (-1, 1):
         ex = cx + s * spread
@@ -136,14 +158,24 @@ def eyes(img, cx, y, spread, pal, ew=5, eh=6, brow=False, pupil_in=0, sclera=WHI
             continue
         for j in range(eh):
             for i in range(ew):
-                if (j in (0, eh - 1)) and (i in (0, ew - 1)):
+                if shape == "round" and (j in (0, eh - 1)) and (i in (0, ew - 1)):
+                    continue
+                if shape == "sharp" and (j == 0 and i in (0, ew - 1)):
+                    continue
+                if shape == "sleepy" and j == 0:
                     continue
                 px(img, left + i, y + j, sclera)
+        if lash:
+            for i in range(ew):
+                px(img, left + i, y - 1, pal[0])
+            px(img, left + (ew if s > 0 else -1), y - 1, pal[0])
         pxx = left + (ew - 2) // 2 + (pupil_in * -s)
         for j in range(3):
             for i in range(2):
                 px(img, pxx + i, y + 2 + j, BLACK)
         px(img, pxx, y + 2, WHITE)
+        # second, smaller catchlight low in the eye
+        px(img, pxx + 1, y + 4, (255, 255, 255, 170))
         if brow:
             span = ew + 2
             for i in range(span):
@@ -175,7 +207,8 @@ def feet(img, cx, y, spread, pal, w=4, h=2):
 
 # ------------------------------------------------------------------ meldlings
 def meldling(size, pal_key, pip, hws, y0, eye_y, eye_spread, mouth_kind,
-             crest_y, foot_spread, ears=None):
+             crest_y, foot_spread, ears=None, eye_shape="round", lash=False,
+             eye_w=5, eye_h=6, tuft=0, belly=False):
     pal = PAL[pal_key]
     img = new_img(size, size)
     cx = size // 2
@@ -185,59 +218,107 @@ def meldling(size, pal_key, pip, hws, y0, eye_y, eye_spread, mouth_kind,
     body(img, cx, y0, hws, pal)
     feet(img, cx, y0 + len(hws), foot_spread, pal)
     stamp(img, PIPS[pip], cx - 3, crest_y, pal[1])
-    eyes(img, cx, eye_y, eye_spread, pal)
+    if belly:
+        # a lighter belly patch gives the body a front and a back
+        n = len(hws)
+        for i in range(int(n * 0.35), int(n * 0.88)):
+            hw = max(1, hws[i] - 4)
+            for x in range(cx - hw, cx + hw):
+                px(img, x, y0 + i, pal[4])
+    if tuft:
+        for i in range(tuft):
+            px(img, cx - 1 + (i % 2), y0 - 1 - i, pal[3])
+            px(img, cx + (i % 2), y0 - 2 - i, pal[4])
+    specular(img, cx - hws[0] - 2, y0 + 2, pal)
+    eyes(img, cx, eye_y, eye_spread, pal, ew=eye_w, eh=eye_h,
+         shape=eye_shape, lash=lash)
     blush(img, cx, eye_y + 5, eye_spread + 3, pal)
     mouth(img, cx, eye_y + 7, mouth_kind, pal)
     outline(img, pal[0])
+    shadow(img, cx, y0 + len(hws) + 3, max(6, hws[len(hws) // 2] - 1), 2)
     return img
 
 
 def draw_pip():
+    # TALL and NARROW — a standing sliver
     return meldling(32, "spade", "S",
-                    [3, 5, 7, 8, 9, 10, 10, 11, 11, 11, 11, 11, 10, 10, 9, 9, 8, 7, 6, 4],
-                    y0=9, eye_y=14, eye_spread=5, mouth_kind="cat",
-                    crest_y=1, foot_spread=4)
+                    [2, 4, 5, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 7, 6, 6, 5, 4, 3],
+                    y0=6, eye_y=12, eye_spread=4, mouth_kind="cat",
+                    crest_y=0, foot_spread=3,
+                    eye_shape="sharp", eye_w=5, eye_h=7, tuft=3, belly=True)
 
 
 def draw_thump():
+    # WIDE and SQUAT — a boulder
     return meldling(32, "heart", "H",
-                    [4, 7, 9, 11, 12, 12, 13, 13, 13, 12, 12, 11, 10, 9, 8, 6, 4],
-                    y0=11, eye_y=16, eye_spread=6, mouth_kind="o",
-                    crest_y=3, foot_spread=5)
+                    [7, 11, 13, 14, 15, 15, 15, 15, 14, 13, 11, 8],
+                    y0=14, eye_y=18, eye_spread=7, mouth_kind="o",
+                    crest_y=5, foot_spread=7,
+                    eye_shape="round", eye_w=6, eye_h=6, lash=True, belly=True)
 
 
 def draw_clover():
+    # PEAR — narrow shoulders, heavy base, with leaf ears
     return meldling(32, "club", "C",
-                    [3, 5, 6, 7, 8, 9, 9, 10, 10, 10, 10, 10, 10, 9, 9, 8, 7, 6, 5, 4],
-                    y0=9, eye_y=15, eye_spread=5, mouth_kind="smile",
-                    crest_y=1, foot_spread=4, ears=(9, 4, 3))
+                    [3, 4, 5, 6, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 13, 12, 11, 9, 6],
+                    y0=10, eye_y=15, eye_spread=4, mouth_kind="smile",
+                    crest_y=2, foot_spread=6, ears=(8, 3, 3),
+                    eye_shape="round", eye_w=5, eye_h=6, tuft=2, belly=True)
 
 
 def draw_facet():
+    # ANGULAR — a hard crystal, straight tapers, no curves
     return meldling(32, "diamond", "D",
-                    [2, 4, 6, 7, 9, 10, 11, 12, 12, 12, 11, 11, 10, 9, 8, 6, 5, 3],
-                    y0=10, eye_y=15, eye_spread=5, mouth_kind="smol",
-                    crest_y=2, foot_spread=4)
+                    [1, 3, 5, 7, 9, 11, 12, 13, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2],
+                    y0=7, eye_y=14, eye_spread=5, mouth_kind="smol",
+                    crest_y=0, foot_spread=3,
+                    eye_shape="sharp", eye_w=5, eye_h=5)
+
+
+def draw_nib():
+    # THE CUT — a thin blade of a creature, sharp and upright
+    return meldling(32, "nib", "S",
+                    [1, 2, 3, 4, 5, 5, 6, 6, 7, 7, 7, 7, 7, 6, 6, 6, 5, 5, 4, 4, 3, 2],
+                    y0=6, eye_y=13, eye_spread=3, mouth_kind="smol",
+                    crest_y=0, foot_spread=2,
+                    eye_shape="sharp", eye_w=4, eye_h=7)
+
+
+def draw_muggins():
+    # THE THIEF — low, wide and lopsided, with a sack of a body
+    return meldling(32, "muggins", "C",
+                    [5, 9, 11, 12, 13, 14, 14, 14, 13, 13, 12, 10, 7],
+                    y0=13, eye_y=17, eye_spread=6, mouth_kind="cat",
+                    crest_y=4, foot_spread=6, ears=(11, 2, 2),
+                    eye_shape="sleepy", eye_w=6, eye_h=6, belly=True)
 
 
 # ------------------------------------------------------------------ enemies
-def draw_deadwood(size=36):
+def draw_deadwood(size=38):
     pal = PAL["wood"]
     img = new_img(size, size)
     cx = size // 2
-    hws = [5, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 15, 16]
-    body(img, cx, 10, hws, pal)
+    hws = [4, 5, 6, 7, 8, 8, 9, 9, 10, 10, 11, 12, 12, 13, 14, 15, 16, 17]
+    body(img, cx, 9, hws, pal)
+    # a crown of jagged branches, varied length so the silhouette is spiky
     for s in (-1, 1):
-        for i in range(5):
-            for dy in range(2):
-                px(img, cx + s * (7 + i), 13 - i // 2 + dy, pal[2] if dy == 0 else pal[1])
-    for i in range(6):
-        for y in range(20, 27):
-            if (y + i * 3) % 5 == 0:
-                px(img, cx - 10 + i * 4, y, pal[1])
-    eyes(img, cx, 17, 6, pal, ew=5, eh=5, brow=True, sclera=(250, 232, 176))
-    mouth(img, cx, 25, "fang", pal)
+        for k, (dx, up, ln) in enumerate(((5, 4, 5), (8, 7, 4), (11, 3, 3))):
+            for i in range(ln):
+                px(img, cx + s * (dx + i // 2), 10 - up - i, pal[2])
+                px(img, cx + s * (dx + i // 2), 11 - up - i, pal[1])
+    # bark grain
+    for i in range(7):
+        for y in range(18, 28):
+            if (y * 2 + i * 5) % 7 == 0:
+                px(img, cx - 12 + i * 4, y, pal[1])
+    # roots
+    for s in (-1, 1):
+        for i in range(4):
+            px(img, cx + s * (10 + i), 27 - i // 2, pal[1])
+    eyes(img, cx, 16, 6, pal, ew=5, eh=5, brow=True, sclera=(250, 232, 176))
+    mouth(img, cx, 24, "fang", pal)
     outline(img, pal[0])
+    shadow(img, cx, 29, 15, 2)
     return img
 
 
@@ -252,14 +333,20 @@ def draw_shuffler(size=36):
         for x in range(cx - hw, cx + hw):
             if ((x + i * 2) // 3) % 2 == 0:
                 px(img, x, y, pal[1] if i > 1 else pal[2])
-    for (ox, oy) in ((-14, 9), (13, 6), (-13, 21)):
-        for j in range(5):
-            for i in range(4):
-                c = WHITE if 0 < i < 3 and 0 < j < 4 else pal[4]
-                px(img, cx + ox + i, oy + j, c)
+    # orbiting card shards, drawn as actual little cards with a pip
+    for (ox, oy, sui) in ((-15, 8, "S"), (13, 5, "H"), (-13, 22, "D")):
+        for j in range(7):
+            for i in range(5):
+                edge = i in (0, 4) or j in (0, 6)
+                px(img, cx + ox + i, oy + j, pal[0] if edge else WHITE)
+        col = (200, 70, 70, 255) if sui in ("H", "D") else pal[0]
+        px(img, cx + ox + 2, oy + 3, col)
+        px(img, cx + ox + 2, oy + 2, col)
+    specular(img, cx - 9, 8, pal)
     eyes(img, cx, 13, 6, pal, ew=5, eh=6, brow=True, sclera=(200, 250, 240))
     mouth(img, cx, 21, "snarl", pal)
     outline(img, pal[0])
+    shadow(img, cx, 31, 9, 2, a=55)      # faint: it hovers
     return img
 
 
@@ -281,13 +368,19 @@ def draw_jokester(size=36):
     for x in range(cx - 9, cx + 9):
         px(img, x, 11, pal[1])
         px(img, x, 12, pal[2])
+    # ruff collar
+    for i in range(9):
+        r = 2 if i % 2 == 0 else 3
+        disc(img, cx - 8 + i * 2, 26, r, pal[4] if i % 2 == 0 else pal[3])
+    specular(img, cx - 8, 14, pal)
     eyes(img, cx, 16, 5, pal, ew=5, eh=5, brow=True, pupil_in=1, sclera=(250, 232, 176))
     mouth(img, cx, 23, "grin", pal)
     outline(img, pal[0])
+    shadow(img, cx, 30, 11, 2)
     return img
 
 
-def draw_kingpin(size=44):
+def draw_kingpin(size=48):
     pal = PAL["king"]
     img = new_img(size, size)
     cx = size // 2
@@ -301,9 +394,20 @@ def draw_kingpin(size=44):
     for i in range(2):
         for x in range(cx - 17 + i, cx + 17 - i):
             px(img, x, 20 + i, pal[1])
+    # cape sweeping behind the shoulders
+    for s in (-1, 1):
+        for i in range(9):
+            for j in range(3):
+                px(img, cx + s * (16 + j), 22 + i, pal[1] if j else pal[2])
+    # sceptre
+    for y in range(12, 30):
+        px(img, cx + 19, y, GOLD_D)
+    disc(img, cx + 19, 11, 2, GOLD)
+    specular(img, cx - 13, 15, pal)
     eyes(img, cx, 21, 8, pal, ew=6, eh=7, brow=True, sclera=(252, 208, 120))
     mouth(img, cx, 31, "snarl", pal)
     outline(img, pal[0])
+    shadow(img, cx, 36, 18, 3)
     return img
 
 
@@ -392,6 +496,8 @@ def build_strip(builder, frames):
 
 
 ROSTER = [
+    ("nib", draw_nib, "Meldling / unlockable"),
+    ("muggins", draw_muggins, "Meldling / unlockable"),
     ("pip", draw_pip, "Meldling / Spades"),
     ("thump", draw_thump, "Meldling / Hearts"),
     ("clover", draw_clover, "Meldling / Clubs"),
