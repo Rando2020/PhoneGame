@@ -1,79 +1,109 @@
 # Meldlings
 
-**Learn Rummy. Master Rummy. Break Rummy. Make your own rules.**
+**A cribbage roguelite.** Keep four of six, then the cut decides.
 
-Meldlings is a portrait-first creature card roguelite prototype built in Godot 4. Both sides play from the same deck, use Rummy-derived card relationships, and trigger creature abilities through the cards they commit.
+Open `meldlings.html` in any browser. One file, no server, no install, works
+offline on a phone.
 
-## First Blood Prototype
-
-The current vertical slice includes:
-
-- Shared 52-card deck and discard pile
-- Player vs CPU rival using the same legality rules
-- **PAIR → BRACE** for defense
-- **2-card run → PREP** for setup
-- **3+ run → STRIKE** for focused offense
-- **3+ set → RALLY** for multi-suit attacks
-- **4-suit set → GRAND MELD**
-- HP, Block, Burn, Hex and Thorns
-- CPU intent clues
-- Post-win relic choice
-- Persistent Essence and a capped Vitality upgrade
-- Runtime-generated 8-bit-inspired square-wave sound effects
-
-## Run It on PC
-
-1. Install **Godot 4.7.1 stable** or a compatible newer stable Godot 4 release.
-2. Clone this repository.
-3. Import `project.godot` into Godot.
-4. Press **F6/F5** or the Play button.
-5. Mouse clicks simulate touch input. Press **R** to restart the battle.
-
-No external assets, plugins or packages are required for the prototype.
-
-## Mobile Targets
-
-The UI is designed at a 720×1280 portrait viewport and uses Godot Controls, so the same scene can target desktop and mobile.
-
-### Android
-
-Install the matching Godot export templates, OpenJDK 17, and the Android SDK, then create an Android export preset in **Project → Export**. Touch works through the same Button input used on desktop. For Google Play distribution, configure a signed Android App Bundle (AAB).
-
-### iPhone / iPad
-
-Install the matching Godot export templates and create an iOS export preset. Final iOS export/signing requires a Mac with Xcode plus the Apple Team ID and unique bundle identifier used by your developer account.
-
-### Desktop
-
-Godot can export the same project to Windows, macOS and Linux. Desktop is the recommended playtest target while combat math is changing quickly.
-
-## Project Structure
-
-```text
-PhoneGame/
-├─ project.godot
-├─ scenes/
-│  └─ Main.tscn
-├─ scripts/
-│  ├─ main.gd
-│  ├─ rummy_rules.gd
-│  ├─ cpu_player.gd
-│  └─ sound_manager.gd
-├─ data/
-│  └─ meldlings.json
-├─ assets/
-│  └─ meldlings/
-└─ docs/
-   ├─ GAME_DESIGN.md
-   └─ ROADMAP.md
+```
+Count it. Cut it. Break it.
 ```
 
-## Design Rule
+---
 
-Any major mechanic should do at least one of three things:
+## The game
 
-1. Teach a Rummy concept.
-2. Reward mastery of a Rummy concept.
-3. Let the player intelligently break a Rummy concept.
+You're dealt six cards and keep four. The two you throw go to your **Crib**, which
+holds exactly four and scores for you at the end of the round. **Only then** is a
+starter card cut — so every keep is a bet on what's still live in the deck, not a
+lookup.
 
-See `docs/GAME_DESIGN.md` for the combat foundation and `docs/ROADMAP.md` for planned evolutions, Fusion, co-op and multiplayer.
+Score is `base × mult`, counted aloud the way cribbage always has been:
+*fifteen two, fifteen four, and a pair is six.* Charms multiply it, Marks sit on
+individual cards, and Reckonings raise a whole scoring category forever.
+
+- **5 Acts × 5 Rounds.** Every fifth round is a **Spoiler** that breaks a rule.
+- **17 Spoilers**, drawn per run, each aligned to a suit — cards of that suit score
+  weakly against it, the opposing suit scores strongly.
+- **43 Charms** across four qualities: Worn, Keen, Gleaming, Hallowed. Five slots.
+- **6 Marks** on cards: Sunlit, Brittle, Mimic, Offering, Minted, Fickle.
+- **6 Meldlings**, two unlockable.
+- **5 Streets** of difficulty, each unlocked by clearing the last.
+
+## Repository layout
+
+```
+meldlings.html      the built game — this is the deliverable
+web/                source: engine, UI, audio, and the test harnesses
+assets/             pixel art (cards, marks, creatures, icons, backs) + audio
+tools/              Python generators; re-run to regenerate any asset
+docs/               design notes and audit reports, newest last
+godot-legacy/       STALE — an abandoned combat prototype, kept for reference only
+```
+
+### Source files that matter
+
+| file | what it is |
+|---|---|
+| `web/cribbage.js` | exact cribbage scoring + expected-value search |
+| `web/cribrogue.js` | run, round, charms, Marks, Spoilers, economy |
+| `web/meta.js` | achievements, Streets, Pegs, Lenses, run history |
+| `web/cribrogue_ui.js` | the play screen, shop, Peddler |
+| `web/cascade.js` | the scoring cascade |
+| `web/audio.js` | the whole 16-bit synth — no audio files anywhere |
+| `web/tutorial.js` | six-beat tutorial |
+
+## Building
+
+```bash
+python3 tools/build_web.py      # bundles web/ + assets/ into meldlings.html
+```
+
+Everything is inlined as base64, which is why the game is a single file.
+
+## Testing
+
+```bash
+node web/runtest.js     # drives every screen against a DOM shim — run this first
+node web/cribtest.js    # scoring correctness, dopamine density, skill gap
+node web/cribsim.js     # full 25-round runs per Meldling
+node web/pick2.js       # sweep the difficulty ladder
+node web/uiaudit.js     # vertical layout budget on a 390x844 phone
+```
+
+`runtest.js` is the important one. It loads the built bundle and plays through the
+whole game headlessly; it catches the reference errors that simulation can't.
+
+## Regenerating art and audio
+
+```bash
+python3 tools/make_cards.py      # 52 cards, marks, frames, atlas
+python3 tools/make_creatures.py  # Meldlings + Spoilers, 3 animations each
+python3 tools/make_marks.py      # card mark overlays
+python3 tools/make_backs.py      # card back skins
+python3 tools/make_icons.py      # scoring category icons
+python3 tools/make_items.py      # charm quality plaques
+```
+
+Palettes and silhouettes are data at the top of each script.
+
+## Balance
+
+All dials live at the top of `web/cribrogue.js`: `CRIB_LADDER`, `CHARM_SLOTS`,
+`CRIB_SIZE`, `BOSS_POOL`, `CRIB_DECKS`, `CCHARMS`.
+
+Current: ladder ×1.18, clear rates **14 / 14 / 23 / 23%** across the four starting
+Meldlings on First Street.
+
+After changing anything, re-sweep:
+
+```bash
+GS=1.18 N=50 node web/pick2.js
+```
+
+## Status
+
+The web build is playable and tested. `godot-legacy/` is **not** the current game —
+it's an HP-combat prototype from before the design settled on cribbage, kept only
+because its asset pipeline is shared. A Godot port of the cribbage game has not been
+written yet.

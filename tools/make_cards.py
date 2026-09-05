@@ -16,8 +16,10 @@ PANEL     = (255, 250, 242, 255)
 INK       = (35, 32, 43, 255)
 INK_SOFT  = (92, 86, 104, 255)
 RED       = (198, 58, 58, 255)
+RED_HI    = (232, 108, 104, 255)
 RED_DARK  = (143, 38, 38, 255)
 BLK       = (44, 43, 58, 255)
+BLK_HI    = (96, 94, 118, 255)
 BLK_DARK  = (26, 25, 36, 255)
 GOLD      = (232, 182, 76, 255)
 GOLD_DARK = (168, 124, 40, 255)
@@ -46,11 +48,90 @@ FONT = {
 NARROW_1 = ["..#", ".##", "..#", "..#", "..#", "..#", ".###"]
 
 # ---------------------------------------------------------------- 7x7 pips
+# Redrawn: the club now separates into three visible lobes, the spade has a
+# waisted shoulder, and the heart has a softer cleft.
 PIPS = {
-    "H": [".##.##.", "#######", "#######", "#######", ".#####.", "..###..", "...#..."],
+    "H": [".##.##.", "#######", "#######", ".#####.", ".#####.", "..###..", "...#..."],
     "D": ["...#...", "..###..", ".#####.", "#######", ".#####.", "..###..", "...#..."],
-    "S": ["...#...", "..###..", ".#####.", "#######", "#######", "...#...", "..###.."],
-    "C": ["..###..", "..###..", "#######", "#######", "#.###.#", "...#...", "..###.."],
+    "S": ["...#...", "..###..", ".#####.", "#######", "#######", ".#.#.#.", "..###.."],
+    "C": ["..###..", ".#####.", "#.###.#", "#######", "##.#.##", "...#...", "..###.."],
+}
+# Larger centre pips (11x11) for the Ace, hand-drawn to keep lobes readable
+PIPS_BIG = {
+    "H": [".###...###.", "###########", "###########", "###########", "###########",
+          ".#########.", "..#######..", "...#####...", "....###....", ".....#.....",
+          "..........."],
+    "D": [".....#.....", "....###....", "...#####...", "..#######..", ".#########.",
+          "###########", ".#########.", "..#######..", "...#####...", "....###....",
+          ".....#....."],
+    "S": [".....#.....", "....###....", "...#####...", "..#######..", ".#########.",
+          "###########", "###########", ".#########.", "...##.##...", "..#######..",
+          "..........."],
+}
+
+
+def _club_big(w=13, h=13):
+    """Hand-drawn clubs never read at this size, so build it from real discs."""
+    g = [["." for _ in range(w)] for _ in range(h)]
+
+    def disc(cx, cy, r):
+        for y in range(h):
+            for x in range(w):
+                if (x - cx) ** 2 + (y - cy) ** 2 <= r * r + r // 2:
+                    g[y][x] = "#"
+
+    disc(6, 3, 3)      # top lobe
+    disc(2, 7, 3)      # left lobe
+    disc(10, 7, 3)     # right lobe
+    for y in range(6, 11):             # stem
+        for x in range(5, 8):
+            g[y][x] = "#"
+    for x in range(3, 10):             # flared base
+        g[11][x] = "#"
+    for x in range(4, 9):
+        g[12][x] = "#"
+    return ["".join(r) for r in g]
+
+
+PIPS_BIG["C"] = _club_big()
+
+# ---------------------------------------------------------------- 5x7 font
+FONT = {
+    "A": [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+    "2": [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"],
+    "3": ["####.", "....#", "....#", ".###.", "....#", "....#", "####."],
+    "4": ["#...#", "#...#", "#...#", "#####", "....#", "....#", "....#"],
+    "5": ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
+    "6": [".###.", "#...#", "#....", "####.", "#...#", "#...#", ".###."],
+    "7": ["#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#..."],
+    "8": [".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###."],
+    "9": [".###.", "#...#", "#...#", ".####", "....#", "#...#", ".###."],
+    "0": [".###.", "#..##", "#.#.#", "##..#", "#...#", "#...#", ".###."],
+    "J": ["..###", "....#", "....#", "....#", "#...#", "#...#", ".###."],
+    "Q": [".###.", "#...#", "#...#", "#...#", "#.#.#", "#..#.", ".##.#"],
+    "K": ["#...#", "#..#.", "#.#..", "##...", "#.#..", "#..#.", "#...#"],
+}
+NARROW_1 = ["..#", ".##", "..#", "..#", "..#", "..#", ".###"]
+
+# ---------------------------------------------------------------- 7x7 pips
+# Redrawn: the club now separates into three visible lobes, the spade has a
+# waisted shoulder, and the heart has a softer cleft.
+PIPS = {
+    "H": [".##.##.", "#######", "#######", ".#####.", ".#####.", "..###..", "...#..."],
+    "D": ["...#...", "..###..", ".#####.", "#######", ".#####.", "..###..", "...#..."],
+    "S": ["...#...", "..###..", ".#####.", "#######", "#######", ".#.#.#.", "..###.."],
+    "C": ["..###..", ".#####.", "#.###.#", "#######", "##.#.##", "...#...", "..###.."],
+}
+# Larger, more graceful pips for the centre of the card
+PIPS_BIG = {
+    "H": ["..###.###..", ".#########.", "###########", "###########",
+          ".#########.", "..#######..", "...#####...", "....###....", ".....#....."],
+    "D": [".....#.....", "....###....", "...#####...", "..#######..", ".#########.",
+          "..#######..", "...#####...", "....###....", ".....#....."],
+    "S": [".....#.....", "....###....", "...#####...", "..#######..", ".#########.",
+          "###########", "###########", "...##.##...", "..#######.."],
+    "C": ["....###....", "...#####...", "..##.#.##..", ".##..#..##.", "###########",
+          "###.###.###", "....###....", "....###....", "..#######.."],
 }
 CROWN = [
     "#.....#.....#",
@@ -68,6 +149,26 @@ RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 
 
 # ---------------------------------------------------------------- helpers
+def blit_pip(img, glyph, x, y, color, hi, flip=False):
+    """Draw a pip, then rim-light any pixel whose up-left neighbour is empty."""
+    rows = glyph[::-1] if flip else glyph
+    grid = []
+    for row in rows:
+        grid.append(row[::-1] if flip else row)
+    filled = set()
+    for j, row in enumerate(grid):
+        for i, ch in enumerate(row):
+            if ch == "#":
+                filled.add((i, j))
+    for (i, j) in filled:
+        lit = (i - 1, j - 1) not in filled and (i, j - 1) not in filled
+        c = hi if lit else color
+        px = x + i
+        py = y + j
+        if 0 <= px < img.size[0] and 0 <= py < img.size[1]:
+            img.putpixel((px, py), c)
+
+
 def blit(img, glyph, x, y, color, flip=False):
     """Draw a list-of-strings bitmap at x,y. flip=True rotates 180."""
     rows = glyph[::-1] if flip else glyph
@@ -159,6 +260,7 @@ MID_Y = 49
 
 def draw_face(rank, suit):
     color = RED if suit in RED_SUITS else BLK
+    hi = RED_HI if suit in RED_SUITS else BLK_HI
     shade = RED_DARK if suit in RED_SUITS else BLK_DARK
     img = blank_card()
 
@@ -174,42 +276,56 @@ def draw_face(rank, suit):
 
     # ---- corner indices (top-left, and mirrored bottom-right)
     blit(img, rg, 6, 7, color)
-    blit(img, pip, 6 + max(0, (rw - 7) // 2), 16, color)
+    blit_pip(img, pip, 6 + max(0, (rw - 7) // 2), 16, color, hi)
     blit(img, rg, W - 6 - rw, H - 7 - 7, color, flip=True)
-    blit(img, pip, W - 6 - max(7, rw) + max(0, (rw - 7) // 2), H - 16 - 7, color, flip=True)
+    blit_pip(img, pip, W - 6 - max(7, rw) + max(0, (rw - 7) // 2), H - 16 - 7, color, hi, flip=True)
 
     # ---- centre
     if rank == "A":
-        # decorative lozenge around a single pip
         cx, cy = W // 2, 49
-        for k in range(13):
-            for (dx, dy) in ((k, 12 - k), (-k, 12 - k), (k, k - 12), (-k, k - 12)):
-                if abs(dx) + abs(dy) == 12:
-                    px, py = cx + dx, cy + dy
-                    if 4 < px < W - 4 and 4 < py < H - 4:
-                        img.putpixel((px, py), shade)
-        blit(img, pip, cx - 3, cy - 3, color)
+        for span, col in ((13, shade), (10, hi)):
+            for dx in range(-span, span + 1):
+                dy = span - abs(dx)
+                for py in (cy + dy, cy - dy):
+                    px = cx + dx
+                    if 5 < px < W - 5 and 5 < py < H - 5:
+                        img.putpixel((px, py), col)
+        # The proven 7x7 pip: the oversized variants read badly for clubs, and a
+        # consistent, legible ace beats an ornate one.
+        blit_pip(img, pip, cx - 3, cy - 3, color, hi)
     elif rank in ("J", "Q", "K"):
         cx = W // 2
+        # framed panel so court cards read as portraits, not letters
+        for x in range(18, W - 18):
+            img.putpixel((x, 26), shade)
+            img.putpixel((x, H - 27), shade)
+        for y in range(26, H - 26):
+            img.putpixel((18, y), shade)
+            img.putpixel((W - 19, y), shade)
+        for x in range(19, W - 19):
+            for y in range(27, H - 27):
+                img.putpixel((x, y), PANEL)
         # crown
-        blit(img, CROWN, cx - 6, 30, GOLD_DARK)
+        blit(img, CROWN, cx - 6, 31, GOLD_DARK)
         for j, row in enumerate(CROWN):
             for i, ch in enumerate(row):
-                if ch == "#" and j < 5:
-                    img.putpixel((cx - 6 + i, 30 + j), GOLD)
-        # big rank letter (3x scale of the 5x7 glyph)
+                if ch == "#" and j < 4:
+                    img.putpixel((cx - 6 + i, 31 + j), GOLD)
+        # big rank letter, with a soft shadow
         g = FONT[rank]
         for j, row in enumerate(g):
             for i, ch in enumerate(row):
                 if ch == "#":
                     for oy in range(3):
                         for ox in range(3):
-                            img.putpixel((cx - 7 + i * 3 + ox, 44 + j * 3 + oy), color)
-        blit(img, pip, cx - 3, 68, color)
+                            px, py = cx - 7 + i * 3 + ox, 43 + j * 3 + oy
+                            if 19 < px < W - 19 and 27 < py < H - 27:
+                                img.putpixel((px, py), color)
+        blit_pip(img, pip, cx - 3, 66, color, hi)
     else:
         for (x, key) in LAYOUTS[rank]:
             y = ROW[key]
-            blit(img, pip, x, y, color, flip=(y > MID_Y))
+            blit_pip(img, pip, x, y, color, hi, flip=(y > MID_Y))
 
     return img
 
