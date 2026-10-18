@@ -38,7 +38,25 @@ var _paid := false   ## round-end Glim already added (the web adds it once, on r
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	start_run()
+	show_front_door("title")
+
+
+## The web's Cb select state: kept here so the front door remembers the last
+## Street and Meldling between runs, as the web does.
+var cb := {"step": "title", "mode": "", "street": null, "meld_idx": 0}
+var front: FrontDoor
+
+
+## The title and the select steps. `step` "" keeps where the player was.
+func show_front_door(step := "") -> void:
+	_clear()
+	_set_screen("front")
+	if step != "":
+		cb.step = step
+	front = FrontDoor.new()
+	_page.add_child(front)
+	front.open(cb)
+	front.begin.connect(start_run, CONNECT_ONE_SHOT)
 
 
 ## A fresh run. Tests may pass a prepared run.
@@ -289,6 +307,8 @@ func _round_end_effects() -> void:
 	if rd.won and not _paid:
 		run.essence += rd.essence_earned
 		_paid = true
+	if not rd.won:
+		RunRecord.record(run, run.round_index() - 1, rd.score)
 
 
 func _render_round_end() -> void:
@@ -337,13 +357,15 @@ func _render_round_end() -> void:
 		_place_buttons(["shop"])
 	else:
 		y = _line(y, "Reached Act %d, Round %d." % [run.act, run.round], 20, DIM)
+		y = _line(y, RunRecord.line(), 18, GOLD)
 		_button("new_run", "NEW RUN", true, _new_run)
-		_place_buttons(["new_run"])
+		_button("title", "Title", false, func(): show_front_door("title"))
+		_place_buttons(["new_run", "title"])
 
 
+## Web "New Run": back to the select steps, where the player left them.
 func _new_run() -> void:
-	seed += 1
-	start_run()
+	show_front_door()
 
 
 # ------------------------------------------------------------------ shop
@@ -385,6 +407,7 @@ func _run_won_effects() -> void:
 	Achv.add_pegs(_won_pegs)
 	Achv.log_run({"deck": run.meldling, "reached": total, "street": run.street.id,
 		"score": 0, "cleared": true, "when": int(Time.get_unix_time_from_system() * 1000.0)})
+	RunRecord.record(run, total, 0)
 
 
 func show_run_won() -> void:

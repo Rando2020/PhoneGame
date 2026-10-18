@@ -32,7 +32,8 @@ in Godot: intro, keep and count, cut ceremony, round end, shop, next round, run 
 | shop | `cribrogue_ui.js` showCribShop | `ui/shop/shop_screen.gd` | charms, cards, reroll, Reckonings, selling, slot limits |
 | run flow | cribRoundIntro, cribRoundEnd, NEXT ROUND, cribRunWon | `ui/run_flow.gd` (main scene) | wager, WALK AWAY, SKIP, boss intro, round end, run won, endless |
 | The Play (pegging) | showPegging, renderPegging, pegLay | `ui/peg/peg_session.gd`, `peg_view.gd`, in `keep_screen.gd` | entered after the count exactly when the web does; tap to lay, tap to hurry the Spoiler |
-| rest of UI, audio | `cribrogue_ui.js`, `app.js`, `audio.js` | none | not started: title/street menus (showCribSelect), Peddler, collection, save and resume mid-run, audio, particles, creature sprites |
+| front door | showTitle (PLAY only), showCribSelect, Meta.record/line | `ui/front/front_door.gd`, `run_record.gd`, in `run_flow.gd` (opens on the title) | roads, Streets, Trials, Meldling carousel; NEW RUN and Title return here |
+| rest of UI, audio | `cribrogue_ui.js`, `app.js`, `audio.js` | none | not started: Deeds, Gallery, Peddler, Record, How to play, guided first round, theme, save and resume mid-run, audio, particles, creature sprites |
 
 ## Parity test
 
@@ -69,6 +70,8 @@ godot --headless --path godot --script res://tests/cut_test.gd        # cut tier
 godot --headless --path godot --script res://tests/shop_test.gd       # 40 JS shop scenarios replayed by click
 godot --headless --path godot --script res://tests/run_flow_test.gd   # whole runs by click vs the web's call order
 godot --headless --path godot --script res://tests/peg_test.gd        # The Play vs JS fixture playui, by click
+godot --headless --path godot --script res://tests/front_door_test.gd # every select path by click vs JS fixture selectui
+xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/front_shot.gd # /tmp/front_*.png
 xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/peg_shot.gd   # /tmp/peg_*.png
 xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/flow_shot.gd  # /tmp/flow_*.png
 xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/shop_shot.gd  # /tmp/shop_*.png
@@ -244,12 +247,29 @@ by value, so the swaps never persisted and both sides silently ran on reset
 saves. Fixed with a shared Dictionary; the comparison now checks WHICH systems
 are unlocked, not how many. A run with The Play owned found it.
 
+## The front door (ported 2026-10-18)
+
+RunFlow opens on the title. PLAY goes to the web's select steps; the choice
+builds the run exactly as the web's buttons do (Daily: seeded by the date, deck
+from the seed; Five Acts: Street then Meldling, unseeded; Long Count: Meldling
+only, on whatever Street was chosen LAST, as the web's Cb.street; Trials: First
+Street). Fixture `selectui` (4 saves) records what the web opens, its stats
+line and 84 runs; `front_door_test` clicks every path and compares the run.
+Mutations caught: wrong Daily deck, Long Count ignoring the last Street, wrong
+Meldling locks, Trial dropped, the stats line's JS remainder. A script that
+fails to compile still hangs the runner (the test can't load); always run
+tests under `timeout`.
+
 ## Found, not fixed: Ziah's call
 
 | what | where | detail |
 |---|---|---|
 | Skips are dead | web and Godot | `skipProgress`/`skips` are never incremented, so SKIP THIS ROUND only appears if something sets `run.skips`. DEPTH.md and SUBTRACTION.md describe overshoot accrual (100 x overshoot / target toward a Skip; 100 = one Skip). The web's round-end line still reads a leftover `run.surplus`. Restoring it is a balance change: simulate first |
 | `noCashOut` is dead | web and Godot | merged in `rules()` but never read; the web ends a round the moment the target falls. So Stink Hole and Skunk Line's "every round runs full" does nothing. Godot now matches the web (it used to honour the rule, which was a parity break) |
+| The Daily never locks | web and Godot | `Achv.recordDaily` is never called, so the Daily is replayable all day and its streak never grows |
+| Best Long Count never saved | web and Godot | `Achv.setEndless` is never called; the road always says "Best round 0" |
+| Lost runs aren't in the history | web and Godot | `logRun` only runs on a won run |
+| "Best Act 1-0" | web and Godot | lose on round 1 only and the title line reads Act 1-0 (JS remainder of -1) |
 | em dashes in game copy | web and Godot | the shop-full line ("Every charm slot is spoken for..."), the skip flash ("Round skipped...") and The Gathering's text each contain one. Godot copies the web exactly |
 
 ## Port bugs found by UI tests

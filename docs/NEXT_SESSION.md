@@ -21,8 +21,8 @@ If an older prompt is pasted instead of this one, trust this file and PORT.md.
 Source of truth: GitHub Rando2020/PhoneGame (main). Clone it; work on a
 branch; open a PR. godot/ is the port, web/ the patched web game, docs/ these
 docs. If the repo and the docs disagree, trust the tests, then the code.
-State (PR #3 port-sync, then PR #4 the-play stacked on it; if not merged,
-clone the-play. Verified from a fresh clone):
+State (PRs stack: #3 port-sync, #4 the-play, #5 front-door; if not merged,
+clone front-door. Verified from a fresh clone):
 - Engine proven identical to the JS: 78 full runs, 4000 hands, 1800 pegging
   cases. All seven original engine bugs fixed both sides; balance shipped
   (Clover Ascended Mimic, Usury x2, The Collector redesigned).
@@ -32,27 +32,28 @@ clone the-play. Verified from a fresh clone):
   round (in_run, round_finished). Shop: ui/shop/shop_screen.gd. Cut
   ceremony: ui/cut/. The Play: ui/peg/ (PegSession logic, PegView screen),
   entered by KeepScreen after the count exactly as the web's afterCount.
+  Front door: ui/front/ (title PLAY, roads, Streets, Trials, Meldlings);
+  RunFlow opens on it, NEW RUN and Title return to it.
 - Web fix pending Ziah's OK: the round end paid the Crib twice
   (web/cribend.patch; clear rates were 4-6 points higher than simulated).
 - Tests green, mutation-tested: parity, cache, card, cascade, cut, shop,
-  peg, run_flow, screen_test_shapes, screen_test_play, screen_leak.
-- Not ported: title and street/Meldling select (showCribSelect), Peddler,
-  History, Deeds, audio, particles, creature sprites.
+  peg, front_door, run_flow, screen_test_shapes, screen_test_play,
+  screen_leak.
+- Not ported: title extras (Deeds, Gallery, Peddler, Record, How to play,
+  theme), the guided first round, audio, particles, creature sprites.
 - Ziah ran the port on his phone: it works. Speed and safe areas unmeasured.
 - The sandbox has ONE CPU core.
 </context>
 
 <task>
-1. The front door (web showCribSelect 38-220): road/street choice, Meldling
-   choice, mode (endless), CONTINUE/Back, then RunFlow.start_run with that
-   choice; NEW RUN returns here. Read Meta.record, the street unlock rules and
-   the guided first round (tutorial.js guideStart) first. Done = a test picks
-   every unlocked street/Meldling by click and the run starts exactly as
-   CribRun.new(meld, street) in the JS (add a JS fixture at the END if the
-   choice logic has rules), layout at 3 shapes, renders checked by eye.
-2. The Peddler (meta shop for Pegs, showPeddler 221-259). Same bar.
-3. If time remains: creature sprites (assets/meldlings/*_idle.png strips)
-   on the intro, round end and The Play.
+1. The Peddler (meta shop for Pegs, web showPeddler 221-259) as a title icon.
+   Read Achv pegs, lenses and card backs first. Done = a JS fixture (at the
+   END) of purchases made the web's way, a test buying by click that matches
+   it, layout at 3 shapes, renders checked by eye.
+2. The guided first round (tutorial.js guideStart/guideShow): PLAY on a fresh
+   save starts it, as the web does. Same bar (the beats appear at the same
+   moments; the stacked deal matches).
+3. If time remains: Deeds and Record (history) screens from the title.
 </task>
 
 <open_decisions>
@@ -67,9 +68,11 @@ Ask Ziah in ONE short message at the start:
    web too. Implement it in both, or reword the Streets?
 4. The web's game copy has em dashes (shop full, round skipped, The
    Gathering's text). Change them in both?
-5. iOS kills backgrounded apps; the web has no mid-run save. Add save and
+5. The Daily never locks and the best Long Count is never saved (in the web
+   too: recordDaily/setEndless are never called). Wire them up in both?
+6. iOS kills backgrounded apps; the web has no mid-run save. Add save and
    resume mid-run (new feature, Godot first, then web)?
-6. Any reaction to the shipped balance (Clover Ascended 9.9%, Usury 28.0%,
+7. Any reaction to the shipped balance (Clover Ascended 9.9%, Usury 28.0%,
    The Collector 22.0% when owned early)?
 </open_decisions>
 
@@ -97,6 +100,10 @@ Ask Ziah in ONE short message at the start:
 - GDScript lambdas capture locals BY VALUE; assignments inside don't persist.
   Shared state goes in a Dictionary.
 - CardView.pop() ends at scale 1; don't use it on a scaled card.
+- A test file that names a class which fails to compile can't load, so it
+  hangs: run every test under `timeout`.
+- Front-door pages render in open(): FrontDoor uses
+  set_anchors_and_offsets_preset so its size is right immediately.
 - Settling a round is order-sensitive: The Play's splice must happen before
   settle (Crib's Own Cut pops the same stock).
 - GDScript: `var x := 0` is a typed int; Array.has compares Dictionaries by
