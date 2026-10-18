@@ -88,12 +88,15 @@ function dailySeed(key) {
 /* A seeded generator, so the same day deals the same cards for everybody. */
 function makeRng(seed) {
   let s = seed >>> 0;
-  return function () {
+  const rand = function () {
     s ^= s << 13; s >>>= 0;
     s ^= s >> 17;
     s ^= s << 5; s >>>= 0;
     return s / 4294967296;
   };
+  // the state, so a saved run resumes the same stream (makeRng(state) continues it)
+  rand.state = () => s;
+  return rand;
 }
 
 /* THE LONG COUNT — past Act 5, the ladder just keeps going. */
