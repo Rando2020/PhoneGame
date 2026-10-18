@@ -130,31 +130,120 @@ const Audio16 = (() => {
   }
 
   /* ------------------------------------------------------------- music */
-  const TRACKS = {
-    menu: {
-      bpm: 82, bars: 4,
-      lead: ["a4 . . e4 . . c5 .", "f4 . . c5 . . a4 .", "g4 . . d5 . . b4 .", "a4 . . e5 . . . ."],
-      bass: ["a2 . a2 . e2 . . .", "f2 . f2 . c3 . . .", "g2 . g2 . d3 . . .", "a2 . a2 . e3 . . ."],
-      drums: [". . . . . . . .", ". . h . . . h .", ". . . . . . . .", ". . h . . . h ."],
-      pad: ["a3 - - - - - - -", "f3 - - - - - - -", "g3 - - - - - - -", "a3 - - - - - - -"],
-    },
-    run: {
-      bpm: 126, bars: 4,
-      lead: ["d4 . f4 a4 . g4 f4 .", "a#3 . d4 f4 . e4 d4 .", "c4 . e4 g4 . f4 e4 .", "a3 . c4 e4 . d4 . ."],
-      bass: ["d2 d2 . d2 a2 . d3 .", "a#1 a#1 . a#1 f2 . a#2 .", "c2 c2 . c2 g2 . c3 .", "a1 a1 . a1 e2 . a2 ."],
-      drums: ["k . h s . h k x", "k . h s . h k x", "k . h s . h k x", "k . h s h h s x"],
-      arp: ["d4 f4 a4 d5 a4 f4 d4 f4", "a#3 d4 f4 a#4 f4 d4 a#3 d4",
-            "c4 e4 g4 c5 g4 e4 c4 e4", "a3 c4 e4 a4 e4 c4 a3 c4"],
-    },
-    boss: {
-      bpm: 150, bars: 4,
-      lead: ["e4 f4 e4 . b3 . e4 .", "a#3 b3 a#3 . f3 . a#3 .", "d4 d#4 d4 . a3 . d4 .", "c4 b3 c4 . g3 . b3 ."],
-      bass: ["e2 e2 e2 . f2 . e2 .", "e2 e2 e2 . a#2 . e2 .", "d2 d2 d2 . d#2 . d2 .", "c2 c2 c2 . b1 . c2 ."],
-      drums: ["k h s h k h s x", "k h s h k h s x", "k h s h k h s x", "k h s s x x s x"],
-      arp: ["e4 g4 b4 e5 b4 g4 e4 g4", "f4 a4 c5 f5 c5 a4 f4 a4",
-            "d4 f4 a4 d5 a4 f4 d4 f4", "c4 d#4 g4 c5 g4 d#4 c4 d#4"],
-    },
+  /* THE MELDLINGS THEME.
+     One motif, written once as scale degrees, and transformed per context — key,
+     mode, tempo, rhythm, instrumentation. Every Act is recognisably the same tune,
+     but it deepens as the run does. Tracks are now 8 bars (an A and a B phrase)
+     instead of 4, so the loop stops announcing itself. */
+
+  const MODES = {
+    ionian:     [0, 2, 4, 5, 7, 9, 11],
+    dorian:     [0, 2, 3, 5, 7, 9, 10],
+    phrygian:   [0, 1, 3, 5, 7, 8, 10],
+    lydian:     [0, 2, 4, 6, 7, 9, 11],
+    mixolydian: [0, 2, 4, 5, 7, 9, 10],
+    aeolian:    [0, 2, 3, 5, 7, 8, 10],
   };
+  const PITCH = ["c","c#","d","d#","e","f","f#","g","g#","a","a#","b"];
+
+  /* The motif. A rising question (bars 1-2), then a falling answer (bars 3-4).
+     null is a rest; numbers are scale degrees. */
+  const MOTIF_A = [0, null, 2, 4,   null, 4, 3, 2,   1, null, 3, 5,   7, null, null, null];
+  const MOTIF_B = [7, null, 5, 4,   null, 3, 2, 1,   0, null, 1, 2,   0, null, null, null];
+
+  function degToMidi(d, root, mode) {
+    const m = MODES[mode];
+    const oct = Math.floor(d / 7);
+    const i = ((d % 7) + 7) % 7;
+    return root + oct * 12 + m[i];
+  }
+  const nm = (midi) => PITCH[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+
+  /* How the motif is phrased in each context. */
+  function phraseLead(motif, P) {
+    const out = [];
+    for (let i = 0; i < motif.length; i++) {
+      let d = motif[i];
+      if (d === null) { out.push("."); continue; }
+      if (P.lead === "sparse" && i % 4 !== 0) { out.push("."); continue; }
+      if (P.lead === "fragment" && i >= 8) { out.push("."); continue; }
+      if (P.lead === "sync" && (i % 8 === 5 || i % 8 === 6)) { out.push("."); continue; }
+      out.push(nm(degToMidi(d, P.root + 12 * (P.leadOct || 0), P.mode)));
+    }
+    return out;
+  }
+
+  const DRUMS = {
+    none:   ". . . . . . . .",
+    soft:   ". . h . . . h .",
+    sparse: "k . . . . . h .",
+    drive:  "k . h s . h k x",
+    march:  "k . s . k . s .",
+    heavy:  "k h s h k h s x",
+    fill:   "k . h s h h s x",
+  };
+
+  /* Build an 8-bar track from the motif and a profile. */
+  function compose(P) {
+    const bars = 8;
+    const lead = [], bass = [], arp = [], pad = [], drums = [];
+    const a = phraseLead(MOTIF_A, P), b = phraseLead(MOTIF_B, P);
+    // A A' B B' — the second A is lifted a step, so the repeat feels like a turn
+    const lifted = phraseLead(MOTIF_A.map((d) => (d === null ? null : d + (P.lift || 0))), P);
+    const leadSteps = a.concat(lifted, b, b);
+    for (let bar = 0; bar < bars; bar++) {
+      const chunk = leadSteps.slice(bar * 8, bar * 8 + 8);
+      // call and response: the lead drops out on alternate bars
+      if (P.lead === "call" && bar % 2 === 1) lead.push(". . . . . . . .");
+      else lead.push(chunk.join(" "));
+
+      const r = P.chords[bar % P.chords.length];
+      const R = degToMidi(r, P.root - 24, P.mode);
+      const F = degToMidi(r + 4, P.root - 24, P.mode);
+      bass.push(P.bass === "pulse"
+        ? `${nm(R)} ${nm(R)} . ${nm(R)} ${nm(F)} . ${nm(R + 12)} .`
+        : `${nm(R)} . . . ${nm(F)} . . .`);
+
+      if (P.arp) {
+        const t = [0, 2, 4, 7, 4, 2, 0, 2].map((k) => nm(degToMidi(r + k, P.root, P.mode)));
+        arp.push(P.lead === "call" && bar % 2 === 0 ? ". . . . . . . ." : t.join(" "));
+      } else arp.push(". . . . . . . .");
+
+      pad.push(P.pad ? `${nm(degToMidi(r, P.root - 12, P.mode))} - - - - - - -` : ". . . . . . . .");
+
+      // a fill on the last bar so the loop point lands rather than resets
+      drums.push(bar === bars - 1 && P.drums !== "none" ? DRUMS.fill : DRUMS[P.drums]);
+    }
+    return { bpm: P.bpm, bars, lead, bass, arp, pad, drums };
+  }
+
+  /* One theme, many rooms. Roots are MIDI note numbers. */
+  const PROFILES = {
+    menu:    { root: 57, mode: "aeolian",    bpm: 88,  chords: [0, 5, 3, 4], drums: "soft",
+               lead: "plain",    bass: "held",  arp: false, pad: true },
+    shop:    { root: 53, mode: "lydian",     bpm: 76,  chords: [0, 1, 0, 4], drums: "none",
+               lead: "sparse",   bass: "held",  arp: true,  pad: true },
+    act1:    { root: 62, mode: "dorian",     bpm: 112, chords: [0, 3, 4, 0], drums: "sparse",
+               lead: "plain",    bass: "held",  arp: true,  pad: false, lift: 1 },
+    act2:    { root: 64, mode: "aeolian",    bpm: 120, chords: [0, 5, 3, 4], drums: "drive",
+               lead: "plain",    bass: "pulse", arp: true,  pad: false, lift: 1 },
+    act3:    { root: 66, mode: "dorian",     bpm: 126, chords: [0, 3, 5, 4], drums: "drive",
+               lead: "plain",    bass: "pulse", arp: true,  pad: true,  lift: 2, leadOct: 0 },
+    act4:    { root: 57, mode: "aeolian",    bpm: 132, chords: [0, 5, 6, 4], drums: "drive",
+               lead: "sync",     bass: "pulse", arp: true,  pad: true,  lift: 2, leadOct: 1 },
+    act5:    { root: 59, mode: "phrygian",   bpm: 138, chords: [0, 1, 5, 4], drums: "heavy",
+               lead: "sync",     bass: "pulse", arp: true,  pad: true,  lift: 2, leadOct: 0 },
+    boss:    { root: 64, mode: "phrygian",   bpm: 150, chords: [0, 1, 0, 6], drums: "heavy",
+               lead: "plain",    bass: "pulse", arp: true,  pad: false, lift: 1 },
+    play:    { root: 60, mode: "dorian",     bpm: 118, chords: [0, 4, 0, 3], drums: "march",
+               lead: "call",     bass: "pulse", arp: true,  pad: false },
+    endless: { root: 61, mode: "aeolian",    bpm: 144, chords: [0, 6, 5, 4], drums: "heavy",
+               lead: "fragment", bass: "pulse", arp: true,  pad: true,  lift: 2, leadOct: 0 },
+  };
+
+  const TRACKS = {};
+  for (const k in PROFILES) TRACKS[k] = compose(PROFILES[k]);
+  TRACKS.run = TRACKS.act1;              // legacy name still resolves
 
   let musicTimer = null, musicName = null, step = 0, nextTime = 0;
 
@@ -485,6 +574,7 @@ const Audio16 = (() => {
 
   return { init, unlock, playMusic, stopMusic, duck, voice, noise, kick, snare, hat,
            tick, cribTick, slam, setProximity, rampStart, rampTo, rampBurst, rampKill,
+           TRACKS, PROFILES,
            cycleRamp, rampStyleName, duckRamp,
            sfx: (k) => S[k] && S[k](), hz, get ctx() { return ctx; } };
 })();

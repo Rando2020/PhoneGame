@@ -95,7 +95,15 @@ function cribCascade(res, keepRank, hand, starter, scoreBefore, done) {
   charms.classList.add("cascadecharms");
   c.append(charms);
 
-  // the Meldling watches the count and reacts to the slam
+  // the Meldling watches the count and reacts to the slam — and on a Spoiler
+  // round its opposite number watches too
+  const foeSlot = el("div", "row center cascadefoe");
+  if (run.boss()) {
+    const fs = creatureEl(run.boss().art, "idle", 2.0);
+    fs.classList.add("bossart");
+    foeSlot.append(fs);
+  }
+  c.append(foeSlot);
   const critter = creatureEl(run.meldling, "idle", 3);
   critter.id = "cascadeCritter";
   c.append(critter);
@@ -104,7 +112,7 @@ function cribCascade(res, keepRank, hand, starter, scoreBefore, done) {
   const row = el("div", "row center cascadecards");
   const all = hand.concat([starter]);
   // scale to fit however many cards were counted (Facet keeps 5, so 6 total)
-  const cs = all.length >= 6 ? 1.0 : all.length === 5 ? 1.15 : 1.3;
+  const cs = all.length >= 6 ? 0.88 : all.length === 5 ? 1.0 : 1.12;
   all.forEach((card, i) => {
     const n = cardEl(card, cs);
     n.classList.add("ccard");
@@ -212,6 +220,12 @@ function cribCascade(res, keepRank, hand, starter, scoreBefore, done) {
     list.append(rowEl);
     Audio16.sfx("bad");
     Juice.shake(4, 200);
+    // the Spoiler strikes, and your Meldling takes it
+    const boss = run.boss();
+    const host = document.querySelector(".cascadefoe .creature");
+    if (boss && host) { host.classList.add("bossstrike"); playAnim(host, boss.art, "attack", 2.0); }
+    const me = document.getElementById("cascadeCritter");
+    if (me) playAnim(me, run.meldling, "hurt", 3);
     setTimeout(chainStep, Speed.ms(520));
   };
 
@@ -295,6 +309,16 @@ function cribCascade(res, keepRank, hand, starter, scoreBefore, done) {
       const tier = tierFor(ratio);
       const perfect = res.base >= 29 && !res.levelBonus;
 
+      // the counted cards sweep off the table as the total lands
+      row.querySelectorAll(".card").forEach((n, i) => {
+        n.style.animationDelay = (i * 45) + "ms";
+        n.classList.add("sweepaway");
+      });
+      if (typeof Guide !== "undefined" && Guide.on) {
+        setTimeout(() => guideShow("counted"), 700);
+        setTimeout(() => guideShow("target"), 2600);
+        setTimeout(() => guideShow("done"), 5200);
+      }
       Audio16.rampBurst();
       Audio16.slam(1 + Math.min(2, ratio));
       tier.chord.forEach((f, i) =>
@@ -325,6 +349,9 @@ function cribCascade(res, keepRank, hand, starter, scoreBefore, done) {
       // the creature reacts
       const cr = document.getElementById("cascadeCritter");
       if (cr) playAnim(cr, run.meldling, ratio >= 0.55 ? "attack" : "hurt", 3);
+      // a big count makes the Spoiler flinch
+      const fs = document.querySelector(".cascadefoe .creature");
+      if (fs && ratio >= 1.2 && run.boss()) playAnim(fs, run.boss().art, "hurt", 2.0);
 
       if (tier.word) {
         const w = el("h2", "tierword " + tier.cls, tier.word);

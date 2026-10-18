@@ -156,9 +156,19 @@ function backEl(scale = 2) {
   return n;
 }
 
+/* Ascended forms reuse their base sprite with a treatment, so they cost no art. */
+function deckArt(id) {
+  if (typeof CRIB_DECKS !== "undefined" && CRIB_DECKS[id] && CRIB_DECKS[id].art)
+    return CRIB_DECKS[id].art;
+  return id;
+}
+
 function creatureEl(id, anim = "idle", scale = 3) {
-  const s = SPRITES[id][anim];
-  const n = el("div", "creature");
+  const asc = (typeof CRIB_DECKS !== "undefined" && CRIB_DECKS[id] && CRIB_DECKS[id].ascended);
+  id = deckArt(id);
+  if (!SPRITES[id]) id = "pip";
+  const s = SPRITES[id][anim] || SPRITES[id].idle;
+  const n = el("div", "creature" + (asc ? " ascended" : ""));
   n.dataset.id = id;
   const size = s.h * scale;
   n.style.width = size + "px";
@@ -167,7 +177,18 @@ function creatureEl(id, anim = "idle", scale = 3) {
   n.style.backgroundSize = `${s.frames * size}px ${size}px`;
   n.style.setProperty("--frames", s.frames);
   n.style.setProperty("--span", `-${s.frames * size}px`);
-  n.style.animation = `sprite ${anim === "idle" ? 0.9 : 0.4}s steps(${s.frames}) ${anim === "idle" ? "infinite" : "1"}`;
+  /* Playback speed is part of the character: a heavy creature shouldn't breathe
+     at the same rate as a nervous one. */
+  const TEMPO = {
+    pip: 0.85, thump: 1.55, clover: 1.0, facet: 1.25,
+    nib: 1.7, muggins: 1.8,
+    deadwood: 1.5, shuffler: 0.9, jokester: 0.95, kingpin: 1.6,
+    auditor: 1.45, famine: 1.7, leaden: 1.8, fog: 1.9, thief: 0.9, eclipse: 1.3,
+  };
+  const dur = anim === "idle" ? (TEMPO[id] || 1.1)
+            : anim === "attack" ? 0.42 : 0.38;
+  n.style.animation =
+    `sprite ${dur}s steps(${s.frames}) ${anim === "idle" ? "infinite" : "1"}`;
   return n;
 }
 
@@ -199,6 +220,39 @@ const App = {
 };
 const root = () => $("#app");
 
+/* The play area gets an actual surface. Felt under the cards, warmer wood in the
+   shop, a bruised red on Spoiler rounds. */
+/* Theme. Stored per profile; the surface set swaps with it. */
+let THEME = "dark", THEME_READY = false;
+function loadTheme() {
+  try { THEME = localStorage.getItem("meldlings.theme") || "dark"; } catch (e) { THEME = "dark"; }
+  applyTheme();
+}
+function applyTheme() {
+  document.body.classList.toggle("theme-light", THEME === "light");
+  setSurface(CUR_SURFACE);
+}
+function toggleTheme() {
+  THEME = THEME === "dark" ? "light" : "dark";
+  try { localStorage.setItem("meldlings.theme", THEME); } catch (e) {}
+  applyTheme();
+}
+
+let CUR_SURFACE = "felt_table";
+function setSurface(kind) {
+  const b = document.body;
+  if (!b || !ART.surfaces) return;
+  CUR_SURFACE = kind || CUR_SURFACE;
+  const light = THEME === "light";
+  const key = light ? CUR_SURFACE.replace("felt_", "linen_").replace("band_dark", "linen_table")
+                    : CUR_SURFACE;
+  const src = ART.surfaces[key] || ART.surfaces[CUR_SURFACE] || ART.surfaces.felt_table;
+  b.style.backgroundImage =
+    `radial-gradient(ellipse at 50% 32%, rgba(255,255,255,${light ? ".28" : ".045"}), transparent 62%), url(${src})`;
+  b.style.backgroundSize = "auto, 128px 128px";
+  b.style.backgroundRepeat = "no-repeat, repeat";
+}
+
 function screen(name) {
   root().innerHTML = "";
   root().dataset.screen = name;
@@ -206,19 +260,79 @@ function screen(name) {
 
 // ---------------------------------------------------------------- title
 function showTitle() {
+  if (!THEME_READY) { loadTheme(); THEME_READY = true; }
+  setSurface("band_dark");
   screen("title");
-  const c = el("div", "col center");
-  c.append(el("h1", "title", "MELDLINGS"));
-  c.append(el("p", "dim", "Count it. Cut it. Break it."));
+  Audio16.playMusic("menu");
+  const c = el("div", "col center titlescreen");
 
-  const parade = el("div", "row center gap");
-  for (const id of Object.keys(ROSTER).filter((k) => ROSTER[k].kind === "meldling"))
-    parade.append(creatureEl(id, "idle", 2));
-  c.append(parade);
+  // --- the mark
+  const mark = el("div", "titlemark");
+  const suits = el("div", "row center titlesuits");
+  for (const sm of ["\u2660", "\u2665", "\u2663", "\u2666"])
+    suits.append(el("span", "titlesuit", sm));
+  mark.append(suits);
+  mark.append(el("h1", "gametitle", "MELDLINGS"));
+  mark.append(el("p", "tagline", "Count it. Cut it. Break it."));
+  c.append(mark);
 
-  c.append(btn("PLAY", () => { sfx("RALLY"); showCribSelect(); }, "big"));
-  c.append(el("p", "dim small",
-    "A cribbage roguelite. Charms, Marks, and Spoilers on the road."));
+  // --- the parade, idling on a shelf
+  const stage = el("div", "titlestage");
+  const parade = el("div", "row center titleparade");
+  const roster = (typeof CRIB_DECKS !== "undefined")
+    ? Object.keys(CRIB_DECKS).filter((k) => !CRIB_DECKS[k].ascended).slice(0, 6)
+    : Object.keys(ROSTER).filter((k) => ROSTER[k].kind === "meldling");
+  roster.forEach((id, i) => {
+    const cr = creatureEl(id, "idle", 2);
+    cr.style.animationDelay = (i * 0.17) + "s";
+    cr.classList.add("paradebob");
+    parade.append(cr);
+  });
+  stage.append(parade);
+  c.append(stage);
+
+  // --- one action
+  let firstTime = false;
+  try { firstTime = !Achv.load().guided && !(Achv.load().runs); } catch (e) {}
+  const play = btn(firstTime ? "PLAY  ·  first round" : "PLAY", () => {
+    sfx16("buy");
+    if (firstTime && typeof guideStart === "function") guideStart();
+    else showCribSelect();
+  }, "big");
+  play.classList.add("playbtn");
+  c.append(play);
+
+  // --- everything else, as icons
+  const bar = el("div", "row center iconbar");
+  const ICONS = [
+    ["\u2726", "Deeds",   () => showDeeds()],
+    ["\u25A6", "Gallery", () => showGallery()],
+    ["\u2696", "Peddler", () => showPeddler()],
+    ["\u2637", "Record",  () => showHistory()],
+    ["?",       "How to play", () => showTutorial()],
+  ];
+  for (const [glyph, label, fn] of ICONS) {
+    const b = el("button", "iconbtn");
+    b.append(el("div", "iconglyph", glyph));
+    b.append(el("div", "iconlabel", label));
+    b.onclick = () => { sfx16("click"); fn(); };
+    bar.append(b);
+  }
+  c.append(bar);
+
+  const th = el("button", "iconbtn themebtn");
+  th.append(el("div", "iconglyph", THEME === "dark" ? "\u25D1" : "\u25D0"));
+  th.append(el("div", "iconlabel", THEME === "dark" ? "Dark" : "Light"));
+  th.onclick = () => { toggleTheme(); sfx16("click"); showTitle(); };
+  bar.append(th);
+  if (typeof DEV !== "undefined" && DEV) {
+    const d = el("button", "iconbtn devicon");
+    d.append(el("div", "iconglyph", "\u2699"));
+    d.append(el("div", "iconlabel", "Dev"));
+    d.onclick = () => { sfx16("click"); showAdmin(); };
+    bar.append(d);
+  }
+  if (typeof Meta !== "undefined") c.append(el("p", "tiny dim", Meta.line()));
   root().append(c);
 }
 

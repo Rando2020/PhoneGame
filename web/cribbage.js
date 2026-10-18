@@ -11,9 +11,11 @@ const cDeck = () => {
   for (const s of CSUITS) for (let r = 1; r <= 13; r++) d.push({ rank: r, suit: s });
   return d;
 };
-const cShuf = (a) => {
+/* Takes an optional rng so a seeded run deals the same cards every time. */
+const cShuf = (a, rng) => {
+  const r = rng || Math.random;
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(r() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -58,6 +60,8 @@ function countHand(hand, starter, isCrib = false, mods = {}) {
   }
   return countHandCore(hand, starter, isCrib, mods);
 }
+
+const CSUIT_NAME = { S: "Spade", H: "Heart", C: "Club", D: "Diamond" };
 
 function countHandCore(hand, starter, isCrib = false, mods = {}) {
   let all = starter ? hand.concat([starter]) : hand.slice();
@@ -104,7 +108,7 @@ function countHandCore(hand, starter, isCrib = false, mods = {}) {
       let j = i;
       while (j + 1 < ranks.length && ranks[j + 1] === ranks[j] + 1) j++;
       let len = j - i + 1;
-      if (len >= 3) {
+      if (len >= (mods.runNeed || 3)) {
         const cap = mods.runCap || 99;
         const scored = Math.min(len, cap);
         let mult = 1;
@@ -124,7 +128,22 @@ function countHandCore(hand, starter, isCrib = false, mods = {}) {
 
   // --- flush
   const need = mods.flushNeed || 4;
+  if (mods.flushPairs) {
+    /* one event per same-suit pair, so the count grows with the hand the way
+       fifteens and runs do */
+    const bySuit = {};
+    const src = mods.deadSuit ? all.filter((c) => c.suit !== mods.deadSuit) : all;
+    for (const c of src) (bySuit[c.suit] ||= []).push(c);
+    for (const su in bySuit) {
+      const g = bySuit[su];
+      for (let i = 0; i < g.length; i++)
+        for (let j = i + 1; j < g.length; j++)
+          events.push({ kind: "flush", label: `${CSUIT_NAME[su] || su} pair`,
+                        points: 2, cards: [g[i], g[j]] });
+    }
+  }
   const suits = {};
+  if (!mods.flushPairs) {
   const flushHand = mods.deadSuit ? hand.filter((c) => c.suit !== mods.deadSuit) : hand;
   const wilds = flushHand.filter((c) => c.enh === "wild").length;
   flushHand.forEach((c) => {
@@ -146,6 +165,7 @@ function countHandCore(hand, starter, isCrib = false, mods = {}) {
       });
       break;
     }
+  }
   }
 
   // --- nobs
