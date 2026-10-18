@@ -21,7 +21,8 @@ If an older prompt is pasted instead of this one, trust this file and PORT.md.
 Source of truth: GitHub Rando2020/PhoneGame (main). Clone it; work on a
 branch; open a PR. godot/ is the port, web/ the patched web game, docs/ these
 docs. If the repo and the docs disagree, trust the tests, then the code.
-State (packaged, verified from a clean unpack):
+State (branch port-sync, PR #3; if not merged yet, clone that branch.
+Verified from a fresh clone):
 - Engine proven identical to the JS: 78 full runs, 4000 hands, 1800 pegging
   cases. All seven original engine bugs fixed both sides; balance shipped
   (Clover Ascended Mimic, Usury x2, The Collector redesigned).
