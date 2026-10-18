@@ -1,0 +1,87 @@
+--- a/web/cribrogue.js
++++ b/web/cribrogue.js
+@@ -20,6 +20,11 @@
+ /* ---- per-card enhancements. Cards themselves become the build. ---- */
+ /* MARKS — a card bears a mark. Named from craft and old counting language
+    rather than borrowed material names. */
++// Fickle: a 1 in 4 chance of +25 base on a real count. Hypothetical counts (cut
++// quality, previews, auto-sort, coaching) show its expected +6.25 (Ziah's call);
++// set FICKLE_PREVIEW_EV = false to show no bonus there instead.
++const FICKLE_HIT = 0.25, FICKLE_BONUS = 25, FICKLE_PREVIEW_EV = true;
++
+ const ENHANCEMENTS = {
+   gilded:    { name: "Sunlit",   tint: "#e8b64c", tag: "☀", cost: 5,
+                text: "+6 base whenever this card is counted." },
+@@ -837,6 +842,14 @@
+   }
+ 
+   /* Which starter is live. With Double Cut we count against the better one. */
++  /* Fickle's outcome for each Fickle card in a REAL count, rolled once from the
++     run rng (seeded for the Daily). Hypothetical counts never call this. */
++  rollLuck(cards) {
++    const luck = new Map();
++    for (const c of cards) if (c && c.enh === "lucky") luck.set(c, this.run.rng() < FICKLE_HIT);
++    return luck;
++  }
++
+   liveStarter(hand) {
+     if (!this.starter2) return this.starter;
+     const a = countHand(hand, this.starter, false, this.mods).base;
+@@ -939,7 +952,13 @@
+       for (const c of inHand) {
+         if (c.enh === "gilded") eb += 6;
+         else if (c.enh === "glass") em *= 1.4;
+-        else if (c.enh === "lucky" && Math.random() < 0.25) eb += 25;
++        else if (c.enh === "lucky") {
++          // Fickle's roll is decided once per REAL count (rollLuck, from the run
++          // rng) and shared with that count's counterfactuals. Every other count
++          // is hypothetical and draws nothing, so tapping can't shift the Daily.
++          if (opts.luck) { if (opts.luck.get(c)) eb += FICKLE_BONUS; }
++          else if (FICKLE_PREVIEW_EV) eb += FICKLE_BONUS * FICKLE_HIT;
++        }
+       }
+       if (isCrib) for (const c of hand) if (c.enh === "steel") ctx.mult += 0.6;
+       if (eb) { ctx.base += eb; ctx.enhBase = eb; }
+@@ -1026,19 +1045,20 @@
+       hand = swap;
+     }
+     const thrown = this.dealt.filter((_, i) => !keepIdx.includes(i));
+-    const res = this.runCount(hand);
++    const luck = this.rollLuck(hand.concat([this.liveStarter(hand)]));
++    const res = this.runCount(hand, false, null, { luck });
+ 
+     /* Counterfactual attribution — the "I'd have lost without this" engine.
+        Re-score the same hand with each charm removed, and with no cut at all. */
+     res.contrib = {};
+     for (const ch of this.run.activeCharms()) {
+-      const without = this.runCount(hand, false, null, { skip: ch });
++      const without = this.runCount(hand, false, null, { skip: ch, luck });
+       const d = res.total - without.total;
+       if (d !== 0) res.contrib[ch.name] = d;
+     }
+-    const noLevels = this.runCount(hand, false, null, { noLevels: true });
++    const noLevels = this.runCount(hand, false, null, { noLevels: true, luck });
+     res.levelContrib = res.total - noLevels.total;
+-    const noCut = this.runCount(hand, false, null, { noStarter: true });
++    const noCut = this.runCount(hand, false, null, { noStarter: true, luck });
+     res.cutGain = res.total - noCut.total;
+     res.handOnly = noCut.total;
+     // the real count's charm effects land once, after the counterfactuals
+@@ -1050,7 +1070,7 @@
+     const counted = hand.concat([this.starter]);
+     for (const c of counted) {
+       if (c.enh === "coin") res.coins += 3;
+-      if (c.enh === "glass" && Math.random() < 0.25) {
++      if (c.enh === "glass" && this.run.rng() < 0.25) {   // run rng: the Daily must match
+         res.shattered.push(c);
+         const i = this.run.cards.findIndex(
+           (x) => x.rank === c.rank && x.suit === c.suit && x.enh === "glass");
+@@ -1122,7 +1142,7 @@
+       this.cribStarter = this.stock.pop();
+     }
+     const cs = this.cribStarter || this.starter;
+-    const res = hand.length >= 2 ? this.runCount(hand, true, cs)
++    const res = hand.length >= 2 ? this.runCount(hand, true, cs, { luck: this.rollLuck(hand.concat(cs ? [cs] : [])) })
+       : { base: 0, mult: 1, total: 0, events: [], fired: [] };
+     this.applyEffects(res);
+     const gm = this.cribMult();

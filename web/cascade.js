@@ -240,7 +240,9 @@ function cribCascade(res, keepRank, hand, starter, scoreBefore, done) {
     Juice.countTo(total, from, running, 260);
     Juice.flashNumber(total);
     Audio16.voice(1046, 0.18, { gain: 0.1, type: "square", detune: 10, send: 0.35 });
-    setTimeout(multStep, 460);
+    // continue the chain (gild, cut, blocked, charms); this used to jump straight
+    // to multStep, hiding every charm on hands with a level bonus
+    setTimeout(gildStep, 460);
   };
 
   /* Each charm triggers in sequence, chip bouncing, running total climbing —

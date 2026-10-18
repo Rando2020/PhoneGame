@@ -1,0 +1,12 @@
+--- a/web/cribrogue.js
++++ b/web/cribrogue.js
+@@ -1101,6 +1101,9 @@
+     // counted cards go back for the next recycle, once (this line used to run
+     // twice, so every recycle put duplicates of the hand and starter in the deck)
+     this.used = (this.used || []).concat(hand, this.starter ? [this.starter] : []);
++    // Double Cut's second starter was revealed too: it goes back with the rest.
++    // It used to vanish until round end (up to 9 cards out of circulation).
++    if (this.starter2) this.used.push(this.starter2);
+     res.toCrib = Math.min(room, thrown.length);
+     res.burnedNow = thrown.length - res.toCrib;
+     this.score += res.total;

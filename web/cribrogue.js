@@ -20,6 +20,11 @@ const SKIP_COST = 100;   // beating a target by 2x earns one Skip
 /* ---- per-card enhancements. Cards themselves become the build. ---- */
 /* MARKS — a card bears a mark. Named from craft and old counting language
    rather than borrowed material names. */
+// Fickle: a 1 in 4 chance of +25 base on a real count. Hypothetical counts (cut
+// quality, previews, auto-sort, coaching) show its expected +6.25 (Ziah's call);
+// set FICKLE_PREVIEW_EV = false to show no bonus there instead.
+const FICKLE_HIT = 0.25, FICKLE_BONUS = 25, FICKLE_PREVIEW_EV = true;
+
 const ENHANCEMENTS = {
   gilded:    { name: "Sunlit",   tint: "#e8b64c", tag: "☀", cost: 5,
                text: "+6 base whenever this card is counted." },
@@ -225,7 +230,7 @@ const CCHARMS = [
       if (m) { ctx.mult *= Math.pow(1.25, m); return true; } } },
   { id: "cutpurse", name: "Cutpurse", tier: 3, cost: 9, rarity: "rare", cat: "rule",
     text: "+2 Glim every time you count a hand.",
-    onCount: (ctx) => { ctx.run.essence += 2; return true; } },
+    onCount: (ctx) => { ctx.essence += 2; return true; } },
   { id: "steadyhand", name: "Steady Hand", tier: 3, cost: 10, rarity: "rare", cat: "rule",
     text: "+1 mulligan and +1 recut each round.",
     rule: { mulliganBonus: 1, recuts: 1 } },
@@ -254,11 +259,17 @@ const CCHARMS = [
   /* ---- MYTHIC. Only rolls on Street IV and deeper. Each one bends a rule the
      rest of the game treats as fixed. ---- */
   { id: "collector", name: "The Collector", tier: 3, cost: 16, rarity: "mythic", cat: "rule",
-    text: "The last card you counted joins your deck, permanently.",
+    text: "Once a round, your best counted card joins your deck. +2 base for every card collected this run.",
     onCount: (ctx) => {
-      const c = ctx.all[ctx.all.length - 1];
-      if (c) ctx.run.cards.push(Object.assign({}, c));
-      return true;
+      // Redesigned (was: copy the last counted card, i.e. the random starter, every
+      // count: worse than no charm). The card in the most scoring events joins once
+      // a round, and every card collected so far adds +2 base. 22.0% vs 12.0% forced.
+      const n = ctx.run.collectedCount || 0;
+      if (n) ctx.base += 2 * n;
+      let best = null, bestN = 0;
+      for (const c of ctx.all) { const k = ctx.events.filter((e) => e.cards.includes(c)).length; if (k > bestN) { best = c; bestN = k; } }
+      if (best) ctx.addCards.push(Object.assign({}, best));
+      return n > 0 || !!best;
     } },
   { id: "exchange", name: "The Exchange", tier: 3, cost: 18, rarity: "mythic", cat: "rule",
     text: "After the cut, your hand and your Crib trade places.",
@@ -272,8 +283,9 @@ const CCHARMS = [
       return true;
     } },
   { id: "usury", name: "Usury", tier: 3, cost: 15, rarity: "mythic", cat: "mult",
-    text: "x3 mult, but you lose 4 Glim every count.",
-    onCount: (ctx) => { ctx.mult *= 3; ctx.run.essence = Math.max(0, ctx.run.essence - 4); return true; } },
+    text: "x2 mult, but you lose 4 Glim every count.",
+    // was x3: 64.6% clear when owned early vs 13.8% with no charm; x2 is 30.8%
+    onCount: (ctx) => { ctx.mult *= 2; ctx.essence = Math.max(0, ctx.essence - 4); return true; } },
   { id: "thelong", name: "The Long Game", tier: 3, cost: 20, rarity: "mythic", cat: "mult",
     text: "+0.5 mult for every round you have already cleared this run.",
     onCount: (ctx) => { const n = ctx.run.roundIndex() - 1;
@@ -281,7 +293,7 @@ const CCHARMS = [
 
   { id: "thebank", name: "The Bank", tier: 3, cost: 12, rarity: "legendary", cat: "mult",
     text: "x1.04 mult for every Glim you are holding.",
-    onCount: (ctx) => { const g = Math.min(40, ctx.run.essence);
+    onCount: (ctx) => { const g = Math.min(40, ctx.essence);
       if (g) { ctx.mult *= Math.pow(1.04, g); return true; } } },
 ];
 
@@ -463,7 +475,9 @@ class CribRun {
   }
 
   removeRandom(n) {
-    const d = cShuf(this.cards.slice());
+    // the run's own rng: seeded runs (the Daily) must trim the same cards for
+    // everyone. This used Math.random, so Facet's Daily deck differed per player.
+    const d = cShuf(this.cards.slice(), this.rng);
     this.cards = d.slice(n);
     return n;
   }
@@ -579,7 +593,12 @@ class CribRun {
   /* Deck bonus behaves as a permanent charm. */
   activeCharms() {
     const list = this.charms.slice();
-    if (this.deck.charm) list.unshift(Object.assign({ name: this.deck.name, tier: 0 }, this.deck.charm));
+    // ONE object per run: commit's counterfactual skips charms by identity, and a
+    // fresh object per call meant the Meldling was never credited.
+    if (this.deck.charm) {
+      if (!this.deckCharm) this.deckCharm = Object.assign({ name: this.deck.name, tier: 0 }, this.deck.charm);
+      list.unshift(this.deckCharm);
+    }
     return list;
   }
 
@@ -787,9 +806,16 @@ class CribRound {
 
   /* Mulligan: the current six go to the Crib and you draw fresh.
      Costs a mulligan and depletes your deck, so it is never free. */
+  /* A mulligan must leave a card to cut for the starter (unless it is already
+     cut, as with Foresight). Checking only dealtCount let a mulligan empty the
+     stock, and commit() then crashed cutting a starter from nothing. */
+  canMulligan() {
+    if (this.mulligansLeft <= 0 || this.phase !== "keep") return false;
+    return this.stock.length >= this.dealtCount() + (this.starter ? 0 : 1);
+  }
+
   mulligan() {
-    if (this.mulligansLeft <= 0 || this.phase !== "keep") return null;
-    if (this.stock.length < this.dealtCount()) return null;
+    if (!this.canMulligan()) return null;
     this.mulligansLeft--;
     const room = Math.max(0, CRIB_SIZE - this.crib.length);
     this.crib.push(...this.dealt.slice(0, room));
@@ -828,6 +854,14 @@ class CribRound {
   }
 
   /* Which starter is live. With Double Cut we count against the better one. */
+  /* Fickle's outcome for each Fickle card in a REAL count, rolled once from the
+     run rng (seeded for the Daily). Hypothetical counts never call this. */
+  rollLuck(cards) {
+    const luck = new Map();
+    for (const c of cards) if (c && c.enh === "lucky") luck.set(c, this.run.rng() < FICKLE_HIT);
+    return luck;
+  }
+
   liveStarter(hand) {
     if (!this.starter2) return this.starter;
     const a = countHand(hand, this.starter, false, this.mods).base;
@@ -858,6 +892,15 @@ class CribRound {
 
   /* The scoring pipeline. Charms fire per-event and once per count, and the
      returned cascade is what the UI ticks up. */
+  /* Apply a REAL count's charm effects (Cutpurse, Usury, The Collector) to the
+     run, once. Records res.glim (the Glim change) for the UI. */
+  applyEffects(res) {
+    if (res.essence === undefined) { res.glim = 0; return; }
+    res.glim = res.essence - res.essenceStart;
+    if (res.glim) this.run.essence = Math.max(0, this.run.essence + res.glim);
+    for (const c of res.addCards || []) if (!this.collected) { this.run.cards.push(c); this.collected = true; this.run.collectedCount = (this.run.collectedCount || 0) + 1; }
+  }
+
   runCount(hand, isCrib = false, starterOverride = null, opts = {}) {
     const st = opts.noStarter ? null
       : (starterOverride || (isCrib ? this.starter : this.liveStarter(hand)));
@@ -884,6 +927,14 @@ class CribRound {
                   round: this, run: this.run, fired: [], isCrib,
                   suppressed, suppressedBy: (boss && boss.name) || null };
     ctx.all = st ? hand.concat([st]) : hand.slice();
+    /* Run-changing charm effects are INTENTS on the count, not mutations: a count
+       may be hypothetical (counterfactuals, cutQuality, previews, bestOrder).
+       ctx.essence is the projected Glim, updated in charm order so The Bank
+       still sees Cutpurse/Usury placed before it. applyEffects() commits them,
+       and only real counts call it. */
+    ctx.essenceStart = this.run.essence;
+    ctx.essence = this.run.essence;
+    ctx.addCards = [];
     // category levels: flat base per scoring event of that kind
     // Nib doubles whatever the cut brought to the hand
     if (this.mods.doubleCutValue && st && !opts.noStarter) {
@@ -913,7 +964,13 @@ class CribRound {
       for (const c of inHand) {
         if (c.enh === "gilded") eb += 6;
         else if (c.enh === "glass") em *= 1.4;
-        else if (c.enh === "lucky" && Math.random() < 0.25) eb += 25;
+        else if (c.enh === "lucky") {
+          // Fickle's roll is decided once per REAL count (rollLuck, from the run
+          // rng) and shared with that count's counterfactuals. Every other count
+          // is hypothetical and draws nothing, so tapping can't shift the Daily.
+          if (opts.luck) { if (opts.luck.get(c)) eb += FICKLE_BONUS; }
+          else if (FICKLE_PREVIEW_EV) eb += FICKLE_BONUS * FICKLE_HIT;
+        }
       }
       if (isCrib) for (const c of hand) if (c.enh === "steel") ctx.mult += 0.6;
       if (eb) { ctx.base += eb; ctx.enhBase = eb; }
@@ -1000,21 +1057,24 @@ class CribRound {
       hand = swap;
     }
     const thrown = this.dealt.filter((_, i) => !keepIdx.includes(i));
-    const res = this.runCount(hand);
+    const luck = this.rollLuck(hand.concat([this.liveStarter(hand)]));
+    const res = this.runCount(hand, false, null, { luck });
 
     /* Counterfactual attribution — the "I'd have lost without this" engine.
        Re-score the same hand with each charm removed, and with no cut at all. */
     res.contrib = {};
     for (const ch of this.run.activeCharms()) {
-      const without = this.runCount(hand, false, null, { skip: ch });
+      const without = this.runCount(hand, false, null, { skip: ch, luck });
       const d = res.total - without.total;
       if (d !== 0) res.contrib[ch.name] = d;
     }
-    const noLevels = this.runCount(hand, false, null, { noLevels: true });
+    const noLevels = this.runCount(hand, false, null, { noLevels: true, luck });
     res.levelContrib = res.total - noLevels.total;
-    const noCut = this.runCount(hand, false, null, { noStarter: true });
+    const noCut = this.runCount(hand, false, null, { noStarter: true, luck });
     res.cutGain = res.total - noCut.total;
     res.handOnly = noCut.total;
+    // the real count's charm effects land once, after the counterfactuals
+    this.applyEffects(res);
 
     // Glass can break, and Coin pays out — both resolve on the real commit only
     res.shattered = [];
@@ -1022,7 +1082,7 @@ class CribRound {
     const counted = hand.concat([this.starter]);
     for (const c of counted) {
       if (c.enh === "coin") res.coins += 3;
-      if (c.enh === "glass" && Math.random() < 0.25) {
+      if (c.enh === "glass" && this.run.rng() < 0.25) {   // run rng: the Daily must match
         res.shattered.push(c);
         const i = this.run.cards.findIndex(
           (x) => x.rank === c.rank && x.suit === c.suit && x.enh === "glass");
@@ -1045,8 +1105,12 @@ class CribRound {
     const room = Math.max(0, CRIB_SIZE - this.crib.length);
     this.crib.push(...thrown.slice(0, room));
     this.burned = (this.burned || []).concat(thrown.slice(room));
+    // counted cards go back for the next recycle, once (this line used to run
+    // twice, so every recycle put duplicates of the hand and starter in the deck)
     this.used = (this.used || []).concat(hand, this.starter ? [this.starter] : []);
-    this.used = (this.used || []).concat(hand, this.starter);
+    // Double Cut's second starter was revealed too: it goes back with the rest.
+    // It used to vanish until round end (up to 9 cards out of circulation).
+    if (this.starter2) this.used.push(this.starter2);
     res.toCrib = Math.min(room, thrown.length);
     res.burnedNow = thrown.length - res.toCrib;
     this.score += res.total;
@@ -1093,8 +1157,9 @@ class CribRound {
       this.cribStarter = this.stock.pop();
     }
     const cs = this.cribStarter || this.starter;
-    const res = hand.length >= 2 ? this.runCount(hand, true, cs)
+    const res = hand.length >= 2 ? this.runCount(hand, true, cs, { luck: this.rollLuck(hand.concat(cs ? [cs] : [])) })
       : { base: 0, mult: 1, total: 0, events: [], fired: [] };
+    this.applyEffects(res);
     const gm = this.cribMult();
     if (gm !== 1) { res.gathering = gm; res.total = Math.round(res.total * gm); }
     this.cribResult = res;

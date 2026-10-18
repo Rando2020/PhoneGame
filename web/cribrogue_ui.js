@@ -972,7 +972,7 @@ function renderCrib() {
     sfx16("toCrib");
     renderCrib();
   }, "small");
-  mull.disabled = rd.mulligansLeft <= 0 || rd.stock.length < rd.dealtCount();
+  mull.disabled = !rd.canMulligan();
   c.append(mull);
 
 

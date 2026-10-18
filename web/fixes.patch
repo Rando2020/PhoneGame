@@ -1,0 +1,39 @@
+--- a/web/cribbage.js
++++ b/web/cribbage.js
+@@ -145,9 +145,12 @@
+   const suits = {};
+   if (!mods.flushPairs) {
+   const flushHand = mods.deadSuit ? hand.filter((c) => c.suit !== mods.deadSuit) : hand;
+-  const wilds = flushHand.filter((c) => c.enh === "wild").length;
++  // Mimic ("chameleon") wears any suit for flushes. The check used to look only
++  // for "wild", a key no card has, so Mimic never counted (3 hearts + Mimic = no flush).
++  const isWild = (c) => c.enh === "wild" || c.enh === "chameleon";
++  const wilds = flushHand.filter(isWild).length;
+   flushHand.forEach((c) => {
+-    if (c.enh === "wild") return;
++    if (isWild(c)) return;
+     suits[c.suit] = (suits[c.suit] || 0) + 1;
+   });
+   for (const k in suits) suits[k] += wilds;
+@@ -161,7 +164,7 @@
+         kind: "flush",
+         label: `Flush of ${pts}`,
+         points: pts,
+-        cards: flushHand.filter((c) => c.suit === s).concat(withStarter ? [starter] : []),
++        cards: flushHand.filter((c) => c.suit === s || isWild(c)).concat(withStarter ? [starter] : []),
+       });
+       break;
+     }
+--- a/web/cascade.js
++++ b/web/cascade.js
+@@ -240,7 +240,9 @@
+     Juice.countTo(total, from, running, 260);
+     Juice.flashNumber(total);
+     Audio16.voice(1046, 0.18, { gain: 0.1, type: "square", detune: 10, send: 0.35 });
+-    setTimeout(multStep, 460);
++    // continue the chain (gild, cut, blocked, charms); this used to jump straight
++    // to multStep, hiding every charm on hands with a level bonus
++    setTimeout(gildStep, 460);
+   };
+ 
+   /* Each charm triggers in sequence, chip bouncing, running total climbing —

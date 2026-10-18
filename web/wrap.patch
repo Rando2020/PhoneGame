@@ -1,0 +1,44 @@
+--- a/web/cribbage.js
++++ b/web/cribbage.js
+@@ -103,26 +103,37 @@
+     const count = {};
+     all.forEach((c) => (count[c.rank] = (count[c.rank] || 0) + 1));
+     const ranks = Object.keys(count).map(Number).sort((a, b) => a - b);
++    // maximal consecutive stretches, as lists of ranks
++    const segs = [];
+     let i = 0;
+     while (i < ranks.length) {
+       let j = i;
+       while (j + 1 < ranks.length && ranks[j + 1] === ranks[j] + 1) j++;
+-      let len = j - i + 1;
++      segs.push(ranks.slice(i, j + 1));
++      i = j + 1;
++    }
++    // Round the Bend: a stretch ending at K joins one starting at A (Q-K-A-2).
++    // The joined run takes the A stretch's place, so event order is fixed.
++    if (mods.wrapRuns && segs.length >= 2 && segs[0][0] === 1 && segs[segs.length - 1].slice(-1)[0] === 13) {
++      const top = segs.pop();
++      segs[0] = top.concat(segs[0]);
++    }
++    for (const seg of segs) {
++      const len = seg.length;
+       if (len >= (mods.runNeed || 3)) {
+         const cap = mods.runCap || 99;
+         const scored = Math.min(len, cap);
+         let mult = 1;
+-        for (let k = i; k <= j; k++) mult *= count[ranks[k]];
++        for (const r of seg) mult *= count[r];
+         const bonus = (mods.runCardBonus || 0) * scored;
+         const pts = scored * mult + bonus;
+-        const cards = all.filter((c) => c.rank >= ranks[i] && c.rank <= ranks[j]);
++        const cards = all.filter((c) => seg.includes(c.rank));
+         events.push({
+           kind: "run",
+           label: mult > 1 ? `${mult} runs of ${scored}` : `Run of ${scored}`,
+           points: pts, cards,
+         });
+       }
+-      i = j + 1;
+     }
+   }
+ 
