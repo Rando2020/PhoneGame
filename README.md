@@ -39,7 +39,18 @@ assets/             pixel art (cards, marks, creatures, icons, backs) + audio
 tools/              Python generators; re-run to regenerate any asset
 docs/               design notes and audit reports, newest last
 godot-legacy/       STALE — an abandoned combat prototype, kept for reference only
+godot/              the Godot 4.3 port for the App Store (its own project; see docs/PORT.md)
+tools/parity/       generates the fixtures that prove the Godot engine matches web/
 ```
+
+### The Godot port
+
+`godot/` is a native port of the cribbage roguelite, built for the App Store
+(a webview wrapper is rejected under Guideline 4.2). Open the `godot/` folder
+in Godot 4.3. A whole run is playable: intro, keep and count, cut ceremony,
+round end, shop, run won. The engine is proven identical to `web/` by fixtures
+that `tools/parity/gen_fixtures.js` makes from the real JS. Status, test
+commands and known gaps: `docs/PORT.md`. Next steps: `docs/NEXT_SESSION.md`.
 
 ### Source files that matter
 
@@ -51,7 +62,10 @@ godot-legacy/       STALE — an abandoned combat prototype, kept for reference 
 | `web/cribrogue_ui.js` | the play screen, shop, Peddler |
 | `web/cascade.js` | the scoring cascade |
 | `web/audio.js` | the whole 16-bit synth — no audio files anywhere |
-| `web/tutorial.js` | six-beat tutorial |
+| `web/tutorial.js` | six-beat tutorial and the guided first round |
+| `web/pegging.js` | The Play: pegging toward 31 against the Spoiler |
+| `web/admin.js` | dev panel (`DEV = true`); testing only |
+| `web/*.patch` | record of the engine fixes and balance changes already applied |
 
 ## Building
 

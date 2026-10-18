@@ -11,9 +11,11 @@ const cDeck = () => {
   for (const s of CSUITS) for (let r = 1; r <= 13; r++) d.push({ rank: r, suit: s });
   return d;
 };
-const cShuf = (a) => {
+/* Takes an optional rng so a seeded run deals the same cards every time. */
+const cShuf = (a, rng) => {
+  const r = rng || Math.random;
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(r() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -59,6 +61,8 @@ function countHand(hand, starter, isCrib = false, mods = {}) {
   return countHandCore(hand, starter, isCrib, mods);
 }
 
+const CSUIT_NAME = { S: "Spade", H: "Heart", C: "Club", D: "Diamond" };
+
 function countHandCore(hand, starter, isCrib = false, mods = {}) {
   let all = starter ? hand.concat([starter]) : hand.slice();
   // a "dead" suit is inert: it cannot form fifteens, pairs, runs or flushes
@@ -99,36 +103,70 @@ function countHandCore(hand, starter, isCrib = false, mods = {}) {
     const count = {};
     all.forEach((c) => (count[c.rank] = (count[c.rank] || 0) + 1));
     const ranks = Object.keys(count).map(Number).sort((a, b) => a - b);
+    // maximal consecutive stretches, as lists of ranks
+    const segs = [];
     let i = 0;
     while (i < ranks.length) {
       let j = i;
       while (j + 1 < ranks.length && ranks[j + 1] === ranks[j] + 1) j++;
-      let len = j - i + 1;
-      if (len >= 3) {
+      segs.push(ranks.slice(i, j + 1));
+      i = j + 1;
+    }
+    // Round the Bend: a stretch ending at K joins one starting at A (Q-K-A-2).
+    // The joined run takes the A stretch's place, so event order is fixed.
+    if (mods.wrapRuns && segs.length >= 2 && segs[0][0] === 1 && segs[segs.length - 1].slice(-1)[0] === 13) {
+      const top = segs.pop();
+      segs[0] = top.concat(segs[0]);
+    }
+    for (const seg of segs) {
+      const len = seg.length;
+      if (len >= (mods.runNeed || 3)) {
         const cap = mods.runCap || 99;
         const scored = Math.min(len, cap);
         let mult = 1;
-        for (let k = i; k <= j; k++) mult *= count[ranks[k]];
+        for (const r of seg) mult *= count[r];
         const bonus = (mods.runCardBonus || 0) * scored;
         const pts = scored * mult + bonus;
-        const cards = all.filter((c) => c.rank >= ranks[i] && c.rank <= ranks[j]);
+        const cards = all.filter((c) => seg.includes(c.rank));
         events.push({
           kind: "run",
           label: mult > 1 ? `${mult} runs of ${scored}` : `Run of ${scored}`,
           points: pts, cards,
         });
       }
-      i = j + 1;
     }
   }
 
   // --- flush
   const need = mods.flushNeed || 4;
+  if (mods.flushPairs) {
+    /* one event per same-suit pair, so the count grows with the hand the way
+       fifteens and runs do */
+    const bySuit = {};
+    const src = mods.deadSuit ? all.filter((c) => c.suit !== mods.deadSuit) : all;
+    // Mimic wears one suit: it joins your largest natural suit group (Clover
+    // Ascended's Mimics did nothing here before; Ziah's call, 5.4% -> 10.3%)
+    const wild = (c) => c.enh === "chameleon" || c.enh === "wild";
+    for (const c of src) if (!wild(c)) (bySuit[c.suit] ||= []).push(c);
+    let big = null; for (const su in bySuit) if (!big || bySuit[su].length > bySuit[big].length) big = su;
+    for (const c of src) if (wild(c)) (bySuit[big || c.suit] ||= []).push(c);
+    for (const su in bySuit) {
+      const g = bySuit[su];
+      for (let i = 0; i < g.length; i++)
+        for (let j = i + 1; j < g.length; j++)
+          events.push({ kind: "flush", label: `${CSUIT_NAME[su] || su} pair`,
+                        points: 2, cards: [g[i], g[j]] });
+    }
+  }
   const suits = {};
+  if (!mods.flushPairs) {
   const flushHand = mods.deadSuit ? hand.filter((c) => c.suit !== mods.deadSuit) : hand;
-  const wilds = flushHand.filter((c) => c.enh === "wild").length;
+  // Mimic ("chameleon") wears any suit for flushes. The check used to look only
+  // for "wild", a key no card has, so Mimic never counted (3 hearts + Mimic = no flush).
+  const isWild = (c) => c.enh === "wild" || c.enh === "chameleon";
+  const wilds = flushHand.filter(isWild).length;
   flushHand.forEach((c) => {
-    if (c.enh === "wild") return;
+    if (isWild(c)) return;
     suits[c.suit] = (suits[c.suit] || 0) + 1;
   });
   for (const k in suits) suits[k] += wilds;
@@ -142,10 +180,11 @@ function countHandCore(hand, starter, isCrib = false, mods = {}) {
         kind: "flush",
         label: `Flush of ${pts}`,
         points: pts,
-        cards: flushHand.filter((c) => c.suit === s).concat(withStarter ? [starter] : []),
+        cards: flushHand.filter((c) => c.suit === s || isWild(c)).concat(withStarter ? [starter] : []),
       });
       break;
     }
+  }
   }
 
   // --- nobs

@@ -15,11 +15,16 @@ const CHARM_SLOTS = 5;
    unlimited hand-level upgrades. Levels add flat base per scoring event. */
 const BASE_MULLIGANS = 2;
 const CRIB_SIZE = 4;
-const SURPLUS_PER_SKIP = 100;   // 100 surplus = one skip = beating a target by 2x
+const SKIP_COST = 100;   // beating a target by 2x earns one Skip
 
 /* ---- per-card enhancements. Cards themselves become the build. ---- */
 /* MARKS — a card bears a mark. Named from craft and old counting language
    rather than borrowed material names. */
+// Fickle: a 1 in 4 chance of +25 base on a real count. Hypothetical counts (cut
+// quality, previews, auto-sort, coaching) show its expected +6.25 (Ziah's call);
+// set FICKLE_PREVIEW_EV = false to show no bonus there instead.
+const FICKLE_HIT = 0.25, FICKLE_BONUS = 25, FICKLE_PREVIEW_EV = true;
+
 const ENHANCEMENTS = {
   gilded:    { name: "Sunlit",   tint: "#e8b64c", tag: "☀", cost: 5,
                text: "+6 base whenever this card is counted." },
@@ -41,31 +46,33 @@ const CARD_WEIGHT = { 1: 6, 2: 6, 3: 6, 4: 6, 5: 1, 6: 5, 7: 5, 8: 5, 9: 5,
                       10: 3, 11: 3, 12: 3, 13: 3 };
 const RANK_PREMIUM = { 5: 9, 10: 3, 11: 3, 12: 3, 13: 3 };
 
-function rollCardRank() {
+function rollCardRank(rng) {
+  const rand = rng || Math.random;
   const total = Object.values(CARD_WEIGHT).reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
+  let r = rand() * total;
   for (const k in CARD_WEIGHT) { r -= CARD_WEIGHT[k]; if (r <= 0) return +k; }
   return 7;
 }
 
-function rollCardOffer() {
-  const rank = rollCardRank();
-  const suit = ["S", "H", "C", "D"][Math.floor(Math.random() * 4)];
+function rollCardOffer(rng) {
+  const rand = rng || Math.random;
+  const rank = rollCardRank(rand);
+  const suit = ["S", "H", "C", "D"][Math.floor(rand() * 4)];
   const card = { rank, suit };
   let cost = 4 + (RANK_PREMIUM[rank] || 0);
 
   /* Split cards: two ranks on one card, unlocked from a Wager. Adjacent ranks
      make runs; distant ones make fifteens. Both are worth paying for. */
-  if (typeof Achv !== "undefined" && Achv.hasSystem("split_cards") && Math.random() < 0.22) {
-    let r2 = rollCardRank();
+  if (typeof Achv !== "undefined" && Achv.hasSystem("split_cards") && rand() < 0.22) {
+    let r2 = rollCardRank(rand);
     if (r2 === rank) r2 = (rank % 13) + 1;
     card.rank2 = r2;
-    card.suit2 = ["S", "H", "C", "D"][Math.floor(Math.random() * 4)];
+    card.suit2 = ["S", "H", "C", "D"][Math.floor(rand() * 4)];
     cost += 7 + Math.round((RANK_PREMIUM[r2] || 0) * 0.5);
   }
-  if (Math.random() < 0.55) {
+  if (rand() < 0.55) {
     const keys = Object.keys(ENHANCEMENTS);
-    const enh = keys[Math.floor(Math.random() * keys.length)];
+    const enh = keys[Math.floor(rand() * keys.length)];
     card.enh = enh;
     cost += ENHANCEMENTS[enh].cost;
   }
@@ -79,13 +86,16 @@ const RARITY = {
   uncommon:  { name: "Keen",     weight: 30, tint: "#6fc98a" },
   rare:      { name: "Gleaming", weight: 15, tint: "#e8b64c" },
   legendary: { name: "Hallowed", weight: 5,  tint: "#d06fd6" },
+  mythic:    { name: "Mythic",   weight: 2,  tint: "#ff6b8a" },
 };
-const RARITY_ORDER = ["common", "uncommon", "rare", "legendary"];
+const RARITY_ORDER = ["common", "uncommon", "rare", "legendary", "mythic"];
 
-function rollRarity(rng = Math.random) {
-  const total = RARITY_ORDER.reduce((t, k) => t + RARITY[k].weight, 0);
+/* Mythics only exist deep on the Streets. */
+function rollRarity(rng = Math.random, allowMythic = false) {
+  const pool = allowMythic ? RARITY_ORDER : RARITY_ORDER.filter((k) => k !== "mythic");
+  const total = pool.reduce((t, k) => t + RARITY[k].weight, 0);
   let r = rng() * total;
-  for (const k of RARITY_ORDER) { r -= RARITY[k].weight; if (r <= 0) return k; }
+  for (const k of pool) { r -= RARITY[k].weight; if (r <= 0) return k; }
   return "common";
 }
 /* nobs dropped: it needs a jack matching the cut suit, so a Reckoning in it
@@ -220,7 +230,7 @@ const CCHARMS = [
       if (m) { ctx.mult *= Math.pow(1.25, m); return true; } } },
   { id: "cutpurse", name: "Cutpurse", tier: 3, cost: 9, rarity: "rare", cat: "rule",
     text: "+2 Glim every time you count a hand.",
-    onCount: (ctx) => { ctx.run.essence += 2; return true; } },
+    onCount: (ctx) => { ctx.essence += 2; return true; } },
   { id: "steadyhand", name: "Steady Hand", tier: 3, cost: 10, rarity: "rare", cat: "rule",
     text: "+1 mulligan and +1 recut each round.",
     rule: { mulliganBonus: 1, recuts: 1 } },
@@ -246,9 +256,44 @@ const CCHARMS = [
       const red = (c) => c.suit === "H" || c.suit === "D";
       if (ctx.all.every(red) || ctx.all.every((c) => !red(c))) { ctx.mult += 1.5; return true; } } },
 
+  /* ---- MYTHIC. Only rolls on Street IV and deeper. Each one bends a rule the
+     rest of the game treats as fixed. ---- */
+  { id: "collector", name: "The Collector", tier: 3, cost: 16, rarity: "mythic", cat: "rule",
+    text: "Once a round, your best counted card joins your deck. +2 base for every card collected this run.",
+    onCount: (ctx) => {
+      // Redesigned (was: copy the last counted card, i.e. the random starter, every
+      // count: worse than no charm). The card in the most scoring events joins once
+      // a round, and every card collected so far adds +2 base. 22.0% vs 12.0% forced.
+      const n = ctx.run.collectedCount || 0;
+      if (n) ctx.base += 2 * n;
+      let best = null, bestN = 0;
+      for (const c of ctx.all) { const k = ctx.events.filter((e) => e.cards.includes(c)).length; if (k > bestN) { best = c; bestN = k; } }
+      if (best) ctx.addCards.push(Object.assign({}, best));
+      return n > 0 || !!best;
+    } },
+  { id: "exchange", name: "The Exchange", tier: 3, cost: 18, rarity: "mythic", cat: "rule",
+    text: "After the cut, your hand and your Crib trade places.",
+    rule: { swapCrib: true } },
+  { id: "echo", name: "Echo", tier: 3, cost: 17, rarity: "mythic", cat: "mult",
+    text: "Your highest scoring event is counted a second time.",
+    onCount: (ctx) => {
+      if (!ctx.events.length) return false;
+      const best = ctx.events.reduce((a, b) => (b.points > a.points ? b : a));
+      ctx.base += best.points;
+      return true;
+    } },
+  { id: "usury", name: "Usury", tier: 3, cost: 15, rarity: "mythic", cat: "mult",
+    text: "x2 mult, but you lose 4 Glim every count.",
+    // was x3: 64.6% clear when owned early vs 13.8% with no charm; x2 is 30.8%
+    onCount: (ctx) => { ctx.mult *= 2; ctx.essence = Math.max(0, ctx.essence - 4); return true; } },
+  { id: "thelong", name: "The Long Game", tier: 3, cost: 20, rarity: "mythic", cat: "mult",
+    text: "+0.5 mult for every round you have already cleared this run.",
+    onCount: (ctx) => { const n = ctx.run.roundIndex() - 1;
+      if (n > 0) { ctx.mult += 0.5 * n; return true; } } },
+
   { id: "thebank", name: "The Bank", tier: 3, cost: 12, rarity: "legendary", cat: "mult",
     text: "x1.04 mult for every Glim you are holding.",
-    onCount: (ctx) => { const g = Math.min(40, ctx.run.essence);
+    onCount: (ctx) => { const g = Math.min(40, ctx.essence);
       if (g) { ctx.mult *= Math.pow(1.04, g); return true; } } },
 ];
 
@@ -289,10 +334,44 @@ const CRIB_DECKS = {
     text: "THE THIEF: when a Spoiler blocks points, take half of them anyway.",
     rule: { muggins: true },
   },
+  pip_asc: {
+    art: "pip", name: "Pip Ascended", suit: "S", ascended: true,
+    text: "RUNS ONLY — a run needs only two. x3.2 mult, +14 base each.",
+    rule: { onlyRuns: true, runNeed: 2 },
+    charm: {
+      onEvent: (e, ctx) => { if (e.kind === "run") { ctx.base += 14; return true; } },
+      onCount: (ctx) => { if (ctx.events.some((e) => e.kind === "run")) { ctx.mult *= 3.2; return true; } },
+    },
+  },
+  thump_asc: {
+    art: "thump", name: "Thump Ascended", suit: "H", ascended: true,
+    text: "FIFTEENS ONLY: each is +0.6 mult and +5 base. Nothing else scores.",
+    rule: { onlyFifteens: true },
+    charm: {
+      onEvent: (e, ctx) => { if (e.kind === "fifteen") { ctx.base += 5; return true; } },
+      onCount: (ctx) => { const n = ctx.events.filter((e) => e.kind === "fifteen").length;
+        if (n) { ctx.mult += 0.6 * n; return true; } },
+    },
+  },
+  clover_asc: {
+    art: "clover", name: "Clover Ascended", suit: "C", ascended: true,
+    text: "FLUSHES ONLY: every matching pair of suits scores. x2.4 mult.",
+    rule: { flushNeed: 2, onlyFlush: true, flushPairs: true, startMimics: 4 },
+    charm: {
+      onEvent: (e, ctx) => { if (e.kind === "flush") { ctx.base += 4; return true; } },
+      onCount: (ctx) => { if (ctx.events.some((e) => e.kind === "flush")) { ctx.mult *= 2.4; return true; } },
+    },
+  },
+  facet_asc: {
+    art: "facet", name: "Facet Ascended", suit: "D", ascended: true,
+    text: "Dealt 9, keep 7 — everything scores at 0.75 mult, and the deck never recycles.",
+    rule: { dealtBonus: 3, keepBonus: 3, deckTrim: 26, noRecycle: true },
+    charm: { onCount: (ctx) => { ctx.mult *= 0.75; return true; } },
+  },
   facet: {
     name: "Facet", suit: "D",
-    text: "BIG HANDS: dealt 7, keep 5 — but your deck starts 26 cards lighter.",
-    rule: { dealtBonus: 1, keepBonus: 1, deckTrim: 26 },
+    text: "BIG HANDS: dealt 7, keep 5 — but your deck starts 30 cards lighter.",
+    rule: { dealtBonus: 1, keepBonus: 1, deckTrim: 30 },
   },
 };
 
@@ -307,36 +386,37 @@ const AFFINITY_WEAK = 0.6, AFFINITY_STRONG = 1.35;
 
 const BOSS_POOL = [
   // severity 1
-  { id: "ashfall",  name: "Ashfall",       art: "deadwood", sev: 1, text: "One suit turns to ash — those cards are inert.", rule: { noFlush: true, deadSuitRandom: true } , align: "S" },
-  { id: "auditor",  name: "The Auditor",   art: "shuffler", sev: 1, text: "Fifteens score 1 instead of 2.",      rule: { fifteenPoints: 1 } , align: "H" },
+  { id: "ashfall",  name: "Ashfall",       art: "famine", sev: 1, text: "One suit turns to ash — those cards are inert.", rule: { noFlush: true, deadSuitRandom: true } , align: "S" },
+  { id: "auditor",  name: "The Auditor",   art: "auditor", sev: 1, text: "Fifteens score 1 instead of 2.",      rule: { fifteenPoints: 1 } , align: "H" },
   { id: "shortstop",name: "Shortstop",     art: "jokester", sev: 1, text: "Runs score nothing, and pairs score half.", rule: { noRuns: true, pairScale: 0.5 } , align: "C" },
   { id: "blight",   name: "Blight",        art: "deadwood", sev: 1, text: "Pairs score half.",                   rule: { pairScale: 0.5 } , align: "D" },
-  { id: "chains",   name: "Chains",        art: "kingpin",  sev: 1, text: "No mulligans and no recuts.",         rule: { mulliganBonus: -9, recuts: 0 } },
+  { id: "chains",   name: "Chains",        art: "leaden",  sev: 1, text: "No mulligans and no recuts.",         rule: { mulliganBonus: -9, recuts: 0 } },
   // severity 2
-  { id: "irongrip", name: "Iron Grip",     art: "shuffler", sev: 2, text: "You keep one card fewer.",            rule: { keepPenalty: 1 } , align: "S" },
-  { id: "famine",   name: "Famine",        art: "deadwood", sev: 2, text: "One fewer deal this round.",          rule: { dealBonus: -1 } , align: "H" },
-  { id: "thief",    name: "The Thief",     art: "shuffler", sev: 2, text: "10 cards are stolen from your deck.",  rule: { roundTrim: 10 } , align: "C" },
+  { id: "irongrip", name: "Iron Grip",     art: "leaden", sev: 2, text: "You keep one card fewer.",            rule: { keepPenalty: 1 } , align: "S" },
+  { id: "famine",   name: "Famine",        art: "famine", sev: 2, text: "One fewer deal this round.",          rule: { dealBonus: -1 } , align: "H" },
+  { id: "thief",    name: "The Thief",     art: "thief", sev: 2, text: "10 cards are stolen from your deck.",  rule: { roundTrim: 10 } , align: "C" },
   { id: "curse",    name: "Miser's Curse", art: "kingpin",  sev: 2, text: "The Crib scores nothing.",            rule: { cribZero: true } },
-  { id: "fog",      name: "The Fog",       art: "shuffler", sev: 2, text: "Your deck tracker is hidden.",        rule: { hideTracker: true } , align: "D" },
+  { id: "fog",      name: "The Fog",       art: "fog", sev: 2, text: "Your deck tracker is hidden.",        rule: { hideTracker: true } , align: "D" },
   // severity 3
-  { id: "leaden",   name: "Leaden",        art: "kingpin",  sev: 3, text: "Your multiplier is capped at x4.",    rule: { multCap: 4 } },
-  { id: "puritan",  name: "Puritan",       art: "jokester", sev: 3, text: "Pairs score nothing at all.",         rule: { noPairs: true } , align: "S" },
-  { id: "drought",  name: "Drought",       art: "deadwood", sev: 3, text: "One fewer deal, and no mulligans.",    rule: { dealBonus: -1, mulliganBonus: -9 } , align: "H" },
-  { id: "hush",     name: "The Hush",      art: "shuffler", sev: 2, text: "Charms score nothing this round.", rule: { noCharms: true }, align: "H" },
-  { id: "levy",     name: "The Levy",      art: "kingpin",  sev: 2, text: "You start the round with no Glim.",  rule: { levy: true }, align: "C" },
+  { id: "leaden",   name: "Leaden",        art: "leaden",  sev: 3, text: "Your multiplier is capped at x4.",    rule: { multCap: 4 } },
+  { id: "puritan",  name: "Puritan",       art: "auditor", sev: 3, text: "Pairs score nothing at all.",         rule: { noPairs: true } , align: "S" },
+  { id: "drought",  name: "Drought",       art: "famine", sev: 3, text: "One fewer deal, and no mulligans.",    rule: { dealBonus: -1, mulliganBonus: -9 } , align: "H" },
+  { id: "hush",     name: "The Hush",      art: "fog", sev: 2, text: "Charms score nothing this round.", rule: { noCharms: true }, align: "H" },
+  { id: "levy",     name: "The Levy",      art: "thief",  sev: 2, text: "You start the round with no Glim.",  rule: { levy: true }, align: "C" },
   { id: "shears",   name: "Shears",        art: "jokester", sev: 3, text: "Your deck is cut to 30 cards for this round.", rule: { roundTrim: 99 }, align: "D" },
-  { id: "eclipse",  name: "Eclipse",       art: "kingpin",  sev: 3, text: "Fifteens score 1, flushes and nobs score nothing.", rule: { fifteenPoints: 1, noFlush: true, noNobs: true } },
+  { id: "eclipse",  name: "Eclipse",       art: "eclipse",  sev: 3, text: "Fifteens score 1, flushes and nobs score nothing.", rule: { fifteenPoints: 1, noFlush: true, noNobs: true } },
 ];
 const ACT_SEVERITY = [1, 1, 2, 2, 3];
 
-function planBosses() {
+function planBosses(rng) {
+  const rand = rng || Math.random;
   const used = new Set();
   const plan = [];
   for (let act = 1; act <= CRIB_ACTS; act++) {
     const sev = ACT_SEVERITY[act - 1];
     let band = BOSS_POOL.filter((b) => b.sev === sev && !used.has(b.id));
     if (!band.length) band = BOSS_POOL.filter((b) => !used.has(b.id));
-    const pick = band[Math.floor(Math.random() * band.length)];
+    const pick = band[Math.floor(rand() * band.length)];
     used.add(pick.id);
     plan.push(pick);
   }
@@ -345,15 +425,20 @@ function planBosses() {
 
 /* ---------------------------------------------------------------- run */
 class CribRun {
-  constructor(meldling, street) {
+  constructor(meldling, street, trial, seed) {
+    /* With a seed the whole run is deterministic — same deck, same Spoilers,
+       same shop. That is what makes a shared Daily possible. */
+    this.rng = seed !== undefined ? makeRng(seed) : Math.random;
+    this.seed = seed;
     this.street = street || { id: 1, name: "First Street", mods: {} };
+    this.trial = trial || null;
+    this.endless = false;
     this.meldling = meldling;
     this.deck = CRIB_DECKS[meldling];
     this.act = 1; this.round = 1;
     this.essence = 6;
-    /* Score above the target is no longer wasted: it banks as Surplus, and
-       Surplus buys the right to skip a round. */
-    this.surplus = 0;
+    /* Overshoot banks straight toward the next Skip — no intermediate currency. */
+    this.skipProgress = 0;
     this.skips = 0;
     this.charms = [];
     this.levels = { fifteen: 0, pair: 0, run: 0, flush: 0 };
@@ -366,13 +451,16 @@ class CribRun {
     this.cards = cDeck();
     const mim = (this.deck.rule && this.deck.rule.startMimics) || 0;
     for (let i = 0; i < mim; i++) {
-      const pick = Math.floor(Math.random() * this.cards.length);
+      const pick = Math.floor(this.rng() * this.cards.length);
       this.cards[pick] = Object.assign({}, this.cards[pick], { enh: "chameleon" });
     }
+    const ex = this.extraMods();
+    if (ex.oneSuit) for (const c of this.cards) c.suit = ex.oneSuit;
     const trim = ((this.deck.rule && this.deck.rule.deckTrim) || 0) +
                  ((this.street.mods && this.street.mods.deckTrim) || 0);
     if (trim) this.removeRandom(trim);
-    this.bossPlan = planBosses();
+    if (ex.deckCap) this.cards = cShuf(this.cards, this.rng).slice(0, ex.deckCap);
+    this.bossPlan = planBosses(this.rng);
     this.planWagers();
   }
 
@@ -387,7 +475,9 @@ class CribRun {
   }
 
   removeRandom(n) {
-    const d = cShuf(this.cards.slice());
+    // the run's own rng: seeded runs (the Daily) must trim the same cards for
+    // everyone. This used Math.random, so Facet's Daily deck differed per player.
+    const d = cShuf(this.cards.slice(), this.rng);
     this.cards = d.slice(n);
     return n;
   }
@@ -416,12 +506,14 @@ class CribRun {
     this.levels[cat]++;
     return true;
   }
-  roundIndex() { return (this.act - 1) * CRIB_ROUNDS + this.round; }
+  roundIndex() {
+    if (this.endless) return ENDLESS_FROM + (this.endlessRound || 0);
+    return (this.act - 1) * CRIB_ROUNDS + this.round;
+  }
   target() {
-    const mul = (this.street && this.street.mods.targetMul) || 1;
-    if (this.isWager())
-      return Math.round(CRIB_LADDER.baseTarget *
-        Math.pow(CRIB_LADDER.growth, this.roundIndex() - 1) * mul * 0.55);
+    const mul = ((this.street && this.street.mods.targetMul) || 1) *
+                ((this.trial && this.trial.mods.targetMul) || 1);
+
     return Math.round(CRIB_LADDER.baseTarget *
       Math.pow(CRIB_LADDER.growth, this.roundIndex() - 1) * mul);
   }
@@ -434,13 +526,14 @@ class CribRun {
     const slots = [];
     for (let a = 1; a <= CRIB_ACTS; a++)
       for (let r = 2; r < CRIB_ROUNDS; r++) slots.push(`${a}-${r}`);
-    cShuf(slots);
-    const n = 1 + (Math.random() < 0.45 ? 1 : 0);      // one, sometimes two
+    cShuf(slots, this.rng);
+    const n = 1 + (this.rng() < 0.45 ? 1 : 0);         // one, sometimes two
     for (let i = 0; i < n && i < slots.length; i++) this.wagerAt[slots[i]] = true;
   }
   isWager() { return !this.isBoss() && !!(this.wagerAt || {})[`${this.act}-${this.round}`]; }
 
   isBoss() {
+    if (this.endless) return ((this.endlessRound || 0) % 3) === 2;
     if (this.round === CRIB_ROUNDS) return true;
     return !!(this.street && this.street.mods.extraSpoiler) && this.round === 3;
   }
@@ -450,25 +543,48 @@ class CribRun {
   }
   boss() {
     if (!this.isBoss()) return null;
+    if (this.extraMods().allRuinous) {
+      const ruin = BOSS_POOL.filter((b) => b.sev === 3);
+      return ruin[(this.act * 3 + this.round) % ruin.length];
+    }
     if (this.round === 3) return BOSS_POOL[(this.act * 7 + 3) % BOSS_POOL.length];
     return this.bossPlan[this.act - 1];
   }
 
   /* All passive rules merged: deck + charms + boss. */
+  /* Street and Trial rules ride alongside charm rules. */
+  extraMods() {
+    return Object.assign({}, (this.street && this.street.mods) || {},
+                         (this.trial && this.trial.mods) || {});
+  }
+
   rules() {
     const r = { nobsPoints: 1, fifteenPoints: 2, flushNeed: 4, recuts: 0,
                 dealBonus: 0, dealtBonus: 0, keepPenalty: 0,
                 mulliganBonus: 0, cribKeep: 4, keepBonus: 0, pairScale: 1,
-                roundTrim: 0, multCap: 0, deadSuit: null };
+                roundTrim: 0, multCap: 0, deadSuit: null,
+                onlyRuns: false, onlyFifteens: false, onlyFlush: false, swapCrib: false,
+                runNeed: 3, flushPairs: false,
+                handQuarter: false, cribQuad: false, halfCharmBoss: false, overBand: 0 };
     const merge = (src) => { for (const k in src) {
       if (typeof src[k] === "number" && k in r) r[k] =
-        (k === "flushNeed" || k === "fifteenPoints" || k === "nobsPoints" || k === "cribKeep")
+        (k === "flushNeed" || k === "runNeed" || k === "fifteenPoints" ||
+         k === "nobsPoints" || k === "cribKeep")
           ? src[k]
           : (k === "pairScale" ? r[k] * src[k] : r[k] + src[k]);
       else r[k] = src[k];
     } };
     if (this.deck.rule) merge(this.deck.rule);
     for (const c of this.charms) if (c.rule) merge(c.rule);
+    const ex = this.extraMods();
+    for (const k of ["dealBonus", "mulliganBonus"])
+      if (typeof ex[k] === "number") r[k] += ex[k];
+    /* Every Street/Trial key must be listed here or it silently never applies. */
+    for (const k of ["hideTracker", "noRecycle", "charmlessBoss", "noCashOut",
+                     "cribHalf", "handZero", "allExact", "noShop", "allBrittle",
+                     "allRuinous", "oneSuit", "deckCap", "markCostMul",
+                     "handQuarter", "cribQuad", "halfCharmBoss", "overBand"])
+      if (ex[k] !== undefined) r[k] = ex[k];
     const b = this.boss();
     if (b) merge(b.rule);
     return r;
@@ -477,9 +593,17 @@ class CribRun {
   /* Deck bonus behaves as a permanent charm. */
   activeCharms() {
     const list = this.charms.slice();
-    if (this.deck.charm) list.unshift(Object.assign({ name: this.deck.name, tier: 0 }, this.deck.charm));
+    // ONE object per run: commit's counterfactual skips charms by identity, and a
+    // fresh object per call meant the Meldling was never credited.
+    if (this.deck.charm) {
+      if (!this.deckCharm) this.deckCharm = Object.assign({ name: this.deck.name, tier: 0 }, this.deck.charm);
+      list.unshift(this.deckCharm);
+    }
     return list;
   }
+
+  /* Past Act 5 the run doesn't end — it just gets worse. */
+  enterEndless() { this.endless = true; this.act = CRIB_ACTS; this.round = CRIB_ROUNDS; }
 
   advance() {
     this.round++;
@@ -545,11 +669,11 @@ class CribRun {
     const out = [];
     let guard = 0;
     while (out.length < n && guard++ < 200) {
-      const rar = rollRarity();
+      const rar = rollRarity(this.rng, (this.street && this.street.id >= 4) || this.endless);
       const band = pool.filter((c) => (c.rarity || "common") === rar && !out.includes(c));
       const from = band.length ? band : pool.filter((c) => !out.includes(c));
       if (!from.length) break;
-      out.push(from[Math.floor(Math.random() * from.length)]);
+      out.push(from[Math.floor(this.rng() * from.length)]);
     }
     return out;
   }
@@ -558,8 +682,8 @@ class CribRun {
     this.shopState = {
       offer: this.rollShop(3),
       cards: (typeof Achv !== "undefined" && Achv.hasSystem("deep_stall"))
-        ? [rollCardOffer(), rollCardOffer(), rollCardOffer(), rollCardOffer()]
-        : [rollCardOffer(), rollCardOffer(), rollCardOffer()],
+        ? [rollCardOffer(this.rng), rollCardOffer(this.rng), rollCardOffer(this.rng), rollCardOffer(this.rng)]
+        : [rollCardOffer(this.rng), rollCardOffer(this.rng), rollCardOffer(this.rng)],
       rerolls: 0,
     };
     return this.shopState;
@@ -578,7 +702,7 @@ class CribRun {
     this.essence -= c;
     this.shopState.rerolls++;
     this.shopState.offer = this.rollShop(3);
-    this.shopState.cards = [rollCardOffer(), rollCardOffer(), rollCardOffer()];
+    this.shopState.cards = [rollCardOffer(this.rng), rollCardOffer(this.rng), rollCardOffer(this.rng)];
     return true;
   }
 
@@ -604,17 +728,18 @@ class CribRound {
     this.score = 0;
     this.crib = [];
     this.over = false; this.won = false;
-    this.stock = cShuf(run.cards.slice());     // YOUR deck, dealt down once
+    this.stock = cShuf(run.cards.slice(), run.rng);     // YOUR deck, dealt down once
     if (this.mods.roundTrim === 99) this.stock = this.stock.slice(0, 30);
     else if (this.mods.roundTrim) this.stock = this.stock.slice(this.mods.roundTrim);
     if (this.mods.levy) this.run.essence = 0;
     if (this.mods.deadSuitRandom)
-      this.mods.deadSuit = ["S", "H", "C", "D"][Math.floor(Math.random() * 4)];
+      this.mods.deadSuit = ["S", "H", "C", "D"][Math.floor(this.run.rng() * 4)];
     this.startingStock = this.stock.length;
     this.seen = [];                             // everything revealed this round
     this.dealt = null; this.starter = null; this.starter2 = null;
     this.recutsLeft = 0;
-    this.wager = run.isWager() ? { kind: "exact" } : null;
+    this.wager = (run.isWager() || this.mods.allExact) ? { kind: "exact" } : null;
+    if (this.wager) this.wagerTarget = Math.round(this.target * 1.35);
     this.mulligansLeft = Math.max(0, BASE_MULLIGANS + this.mods.mulliganBonus);
     this.startMulligans = this.mulligansLeft;
     this.cycle = 1;
@@ -638,11 +763,12 @@ class CribRound {
      spent, everything used is gathered and reshuffled — a new cycle. The round now
      ends on deals, not on running dry. */
   recycle() {
+    if (this.mods.noRecycle) return false;
     const back = (this.used || []).concat(this.burned || []);
     if (!back.length) return false;
     /* Gathering the deck costs you a deal. Without that, thinning your deck would
        be pure upside — you'd simply meet your good cards more often. */
-    this.stock = cShuf(this.stock.concat(back));
+    this.stock = cShuf(this.stock.concat(back), this.run.rng);
     this.used = [];
     this.burned = [];
     this.seen = [];
@@ -680,9 +806,16 @@ class CribRound {
 
   /* Mulligan: the current six go to the Crib and you draw fresh.
      Costs a mulligan and depletes your deck, so it is never free. */
+  /* A mulligan must leave a card to cut for the starter (unless it is already
+     cut, as with Foresight). Checking only dealtCount let a mulligan empty the
+     stock, and commit() then crashed cutting a starter from nothing. */
+  canMulligan() {
+    if (this.mulligansLeft <= 0 || this.phase !== "keep") return false;
+    return this.stock.length >= this.dealtCount() + (this.starter ? 0 : 1);
+  }
+
   mulligan() {
-    if (this.mulligansLeft <= 0 || this.phase !== "keep") return null;
-    if (this.stock.length < this.dealtCount()) return null;
+    if (!this.canMulligan()) return null;
     this.mulligansLeft--;
     const room = Math.max(0, CRIB_SIZE - this.crib.length);
     this.crib.push(...this.dealt.slice(0, room));
@@ -721,6 +854,14 @@ class CribRound {
   }
 
   /* Which starter is live. With Double Cut we count against the better one. */
+  /* Fickle's outcome for each Fickle card in a REAL count, rolled once from the
+     run rng (seeded for the Daily). Hypothetical counts never call this. */
+  rollLuck(cards) {
+    const luck = new Map();
+    for (const c of cards) if (c && c.enh === "lucky") luck.set(c, this.run.rng() < FICKLE_HIT);
+    return luck;
+  }
+
   liveStarter(hand) {
     if (!this.starter2) return this.starter;
     const a = countHand(hand, this.starter, false, this.mods).base;
@@ -751,10 +892,25 @@ class CribRound {
 
   /* The scoring pipeline. Charms fire per-event and once per count, and the
      returned cascade is what the UI ticks up. */
+  /* Apply a REAL count's charm effects (Cutpurse, Usury, The Collector) to the
+     run, once. Records res.glim (the Glim change) for the UI. */
+  applyEffects(res) {
+    if (res.essence === undefined) { res.glim = 0; return; }
+    res.glim = res.essence - res.essenceStart;
+    if (res.glim) this.run.essence = Math.max(0, this.run.essence + res.glim);
+    for (const c of res.addCards || []) if (!this.collected) { this.run.cards.push(c); this.collected = true; this.run.collectedCount = (this.run.collectedCount || 0) + 1; }
+  }
+
   runCount(hand, isCrib = false, starterOverride = null, opts = {}) {
     const st = opts.noStarter ? null
       : (starterOverride || (isCrib ? this.starter : this.liveStarter(hand)));
     const res = countHand(hand, st, isCrib, this.mods);
+    const only = this.mods.onlyRuns ? "run" : this.mods.onlyFifteens ? "fifteen"
+      : this.mods.onlyFlush ? "flush" : null;
+    if (only) {
+      res.events = res.events.filter((e) => e.kind === only);
+      res.base = res.events.reduce((t, e) => t + e.points, 0);
+    }
     let suppressed = 0;
     const boss = this.run.boss();
     if (boss) {
@@ -771,6 +927,14 @@ class CribRound {
                   round: this, run: this.run, fired: [], isCrib,
                   suppressed, suppressedBy: (boss && boss.name) || null };
     ctx.all = st ? hand.concat([st]) : hand.slice();
+    /* Run-changing charm effects are INTENTS on the count, not mutations: a count
+       may be hypothetical (counterfactuals, cutQuality, previews, bestOrder).
+       ctx.essence is the projected Glim, updated in charm order so The Bank
+       still sees Cutpurse/Usury placed before it. applyEffects() commits them,
+       and only real counts call it. */
+    ctx.essenceStart = this.run.essence;
+    ctx.essence = this.run.essence;
+    ctx.addCards = [];
     // category levels: flat base per scoring event of that kind
     // Nib doubles whatever the cut brought to the hand
     if (this.mods.doubleCutValue && st && !opts.noStarter) {
@@ -800,7 +964,13 @@ class CribRound {
       for (const c of inHand) {
         if (c.enh === "gilded") eb += 6;
         else if (c.enh === "glass") em *= 1.4;
-        else if (c.enh === "lucky" && Math.random() < 0.25) eb += 25;
+        else if (c.enh === "lucky") {
+          // Fickle's roll is decided once per REAL count (rollLuck, from the run
+          // rng) and shared with that count's counterfactuals. Every other count
+          // is hypothetical and draws nothing, so tapping can't shift the Daily.
+          if (opts.luck) { if (opts.luck.get(c)) eb += FICKLE_BONUS; }
+          else if (FICKLE_PREVIEW_EV) eb += FICKLE_BONUS * FICKLE_HIT;
+        }
       }
       if (isCrib) for (const c of hand) if (c.enh === "steel") ctx.mult += 0.6;
       if (eb) { ctx.base += eb; ctx.enhBase = eb; }
@@ -824,6 +994,7 @@ class CribRound {
     ctx.baseOnly = prev;
     for (const ch of this.run.activeCharms()) {
       if (this.mods.noCharms) break;
+      if (this.mods.charmlessBoss && this.run.isBoss()) break;
       if (opts.skip && opts.skip === ch) continue;
       let hit = false;
       if (ch.onEvent) for (const e of res.events) if (ch.onEvent(e, ctx)) hit = true;
@@ -838,6 +1009,11 @@ class CribRound {
     }
     if (ctx.squareMult) ctx.mult = ctx.mult * ctx.mult;
     if (this.mods.multCap) ctx.mult = Math.min(ctx.mult, this.mods.multCap);
+    if (!isCrib && this.mods.handQuarter) ctx.mult *= 0.25;
+    if (isCrib && this.mods.cribQuad) ctx.mult *= 4;
+    if (this.mods.halfCharmBoss && this.run.isBoss()) ctx.mult *= 0.5;
+    if (!isCrib && this.mods.handZero) ctx.mult = 0;
+    if (isCrib && this.mods.cribHalf) ctx.mult *= 0.5;
     if (isCrib && this.mods.cribZero) ctx.mult = 0;
     else if (isCrib) {
       if (this.mods.miser) ctx.mult *= 3;
@@ -874,23 +1050,31 @@ class CribRound {
   commit(keepIdx) {
     if (this.phase !== "keep") return null;
     this.cutStarter();                       // the reveal happens here
-    const hand = keepIdx.map((i) => this.dealt[i]);
+    let hand = keepIdx.map((i) => this.dealt[i]);
+    if (this.mods.swapCrib && this.crib.length >= hand.length) {
+      const swap = this.crib.slice(0, hand.length);
+      this.crib = this.crib.slice(hand.length).concat(hand);
+      hand = swap;
+    }
     const thrown = this.dealt.filter((_, i) => !keepIdx.includes(i));
-    const res = this.runCount(hand);
+    const luck = this.rollLuck(hand.concat([this.liveStarter(hand)]));
+    const res = this.runCount(hand, false, null, { luck });
 
     /* Counterfactual attribution — the "I'd have lost without this" engine.
        Re-score the same hand with each charm removed, and with no cut at all. */
     res.contrib = {};
     for (const ch of this.run.activeCharms()) {
-      const without = this.runCount(hand, false, null, { skip: ch });
+      const without = this.runCount(hand, false, null, { skip: ch, luck });
       const d = res.total - without.total;
       if (d !== 0) res.contrib[ch.name] = d;
     }
-    const noLevels = this.runCount(hand, false, null, { noLevels: true });
+    const noLevels = this.runCount(hand, false, null, { noLevels: true, luck });
     res.levelContrib = res.total - noLevels.total;
-    const noCut = this.runCount(hand, false, null, { noStarter: true });
+    const noCut = this.runCount(hand, false, null, { noStarter: true, luck });
     res.cutGain = res.total - noCut.total;
     res.handOnly = noCut.total;
+    // the real count's charm effects land once, after the counterfactuals
+    this.applyEffects(res);
 
     // Glass can break, and Coin pays out — both resolve on the real commit only
     res.shattered = [];
@@ -898,7 +1082,7 @@ class CribRound {
     const counted = hand.concat([this.starter]);
     for (const c of counted) {
       if (c.enh === "coin") res.coins += 3;
-      if (c.enh === "glass" && Math.random() < 0.25) {
+      if (c.enh === "glass" && this.run.rng() < 0.25) {   // run rng: the Daily must match
         res.shattered.push(c);
         const i = this.run.cards.findIndex(
           (x) => x.rank === c.rank && x.suit === c.suit && x.enh === "glass");
@@ -921,8 +1105,12 @@ class CribRound {
     const room = Math.max(0, CRIB_SIZE - this.crib.length);
     this.crib.push(...thrown.slice(0, room));
     this.burned = (this.burned || []).concat(thrown.slice(room));
+    // counted cards go back for the next recycle, once (this line used to run
+    // twice, so every recycle put duplicates of the hand and starter in the deck)
     this.used = (this.used || []).concat(hand, this.starter ? [this.starter] : []);
-    this.used = (this.used || []).concat(hand, this.starter);
+    // Double Cut's second starter was revealed too: it goes back with the rest.
+    // It used to vanish until round end (up to 9 cards out of circulation).
+    if (this.starter2) this.used.push(this.starter2);
     res.toCrib = Math.min(room, thrown.length);
     res.burnedNow = thrown.length - res.toCrib;
     this.score += res.total;
@@ -969,8 +1157,9 @@ class CribRound {
       this.cribStarter = this.stock.pop();
     }
     const cs = this.cribStarter || this.starter;
-    const res = hand.length >= 2 ? this.runCount(hand, true, cs)
+    const res = hand.length >= 2 ? this.runCount(hand, true, cs, { luck: this.rollLuck(hand.concat(cs ? [cs] : [])) })
       : { base: 0, mult: 1, total: 0, events: [], fired: [] };
+    this.applyEffects(res);
     const gm = this.cribMult();
     if (gm !== 1) { res.gathering = gm; res.total = Math.round(res.total * gm); }
     this.cribResult = res;
@@ -1002,9 +1191,16 @@ class CribRound {
     if (this.over) return this.won;
     this.settleCrib();
     this.over = true;
-    if (this.wager) {
-      this.won = this.score === this.target;
-      this.wagerWon = this.won;
+    if (this.wager && !this.mods.allExact) {
+      /* The exact score wins the unlock. Failing it costs you the prize, not the
+         run — you still clear if you made the normal bar. */
+      this.wagerWon = this.score === this.wagerTarget;
+      this.won = this.score >= this.target;
+    } else if (this.mods.allExact) {
+      /* Scores only ever climb, so a narrow window either side is pure luck.
+         Restraint is the real skill: clear the bar without blowing past it. */
+      const ceil = this.target * (1 + (this.mods.overBand || 0.15));
+      this.won = this.score >= this.target && this.score <= ceil;
     } else {
       this.won = this.score >= this.target;
     }
@@ -1040,7 +1236,7 @@ class CribRound {
 if (typeof module !== "undefined")
   module.exports = { CCHARMS, CRIB_DECKS, CribRun, CribRound,
     CRIB_ACTS, CRIB_ROUNDS, CRIB_LADDER, CRIB_DEALS, CRIB_DEALT, CRIB_KEEP, CHARM_SLOTS,
-    LEVEL_CATS, LEVEL_GAIN, levelCost, BASE_MULLIGANS, CRIB_SIZE, SURPLUS_PER_SKIP,
+    LEVEL_CATS, LEVEL_GAIN, levelCost, BASE_MULLIGANS, CRIB_SIZE, SKIP_COST,
     RARITY, RARITY_ORDER, rollRarity,
     ENHANCEMENTS, CARD_WEIGHT, RANK_PREMIUM, rollCardOffer, rollCardRank,
     BOSS_POOL, ACT_SEVERITY, planBosses, SUIT_OPPOSE, CRIB_SIZE };

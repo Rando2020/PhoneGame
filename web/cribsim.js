@@ -1,4 +1,4 @@
-global.SUIT_SYM = { S:"\u2660", H:"\u2665", C:"\u2663", D:"\u2666" };
+global.SUIT_SYM = { S:"♠", H:"♥", C:"♣", D:"♦" };
 const C = require("./cribbage.js");
 Object.assign(global, { countHand: C.countHand, countPoints: C.countPoints,
   keepOptions: C.keepOptions, keepEVFast: C.keepEVFast, keepOptionsEV: C.keepOptionsEV,
@@ -29,6 +29,12 @@ function playRound(run, skill = "best") {
       idx = rd.dealt.map((c, i) => i).sort((a, b) => rd.dealt[b].rank - rd.dealt[a].rank).slice(0, k);
     }
     rd.commit(idx);
+    // chase the exact wager number only while it is still reachable
+    if (rd.wager && rd.wagerTarget && rd.score < rd.wagerTarget) continue;
+    if (rd.mods.allExact) {
+      if (rd.score >= rd.target) { rd.cashOut(); break; }
+      continue;
+    }
     if (rd.score >= rd.target) { rd.cashOut(); break; }
   }
   if (!rd.over) rd.settle();

@@ -108,3 +108,102 @@ function tutVisual(anchor) {
   }
   return wrap;
 }
+
+
+/* ============================================================
+   THE GUIDED FIRST ROUND
+   The six-beat tutorial explains; this one teaches by playing. It runs a real
+   round with a stacked deck and coaches at each decision point, then hands the
+   game over. Shown once, skippable, replayable from the title.
+   ============================================================ */
+
+const Guide = { on: false, beat: 0 };
+
+const GUIDE_BEATS = [
+  { at: "deal",
+    title: "Six cards.",
+    body: "Keep four. Tap them. The two you leave behind are thrown to your Crib, " +
+          "which scores for you at the end of the round.",
+    look: ".cribhand" },
+  { at: "kept",
+    title: "Now look at the two numbers.",
+    body: "LOCKED IN is what your four cards are worth on their own. EXPECTED AFTER " +
+          "CUT is what they're likely worth once a fifth card is turned. They often " +
+          "disagree — that disagreement is the whole game.",
+    look: ".panel" },
+  { at: "cut",
+    title: "The cut decides.",
+    body: "Only now is a fifth card turned, and it joins your four. A longer roll " +
+          "means a better card. You are betting on what's still in the deck.",
+    look: ".cutholder" },
+  { at: "counted",
+    title: "Fifteen two, fifteen four.",
+    body: "Every pair of cards adding to fifteen scores 2. Pairs score 2. Runs score " +
+          "their length. Then your charms multiply the total.",
+    look: ".caslist" },
+  { at: "target",
+    title: "NEED tells you the truth.",
+    body: "The bar shows the target. NEED is how far you are, and the number beside " +
+          "it is what each remaining deal must average. When that gets implausible, " +
+          "it turns red.",
+    look: ".hud" },
+  { at: "done",
+    title: "That's the loop.",
+    body: "Clear the target before your deals run out. Spend Glim between rounds on " +
+          "charms and cards. Every fifth round is a Spoiler that breaks a rule. " +
+          "Everything else you'll pick up as you go.",
+    look: null },
+];
+
+function guideStart() {
+  Guide.on = true;
+  Guide.beat = 0;
+  Cb.street = STREETS[0];
+  Cb.run = new CribRun("thump", STREETS[0]);
+  Cb.round = new CribRound(Cb.run);
+  Cb.round.newDeal();
+  Cb.keep = [];
+  Cb.dealAnim = true;
+  renderCrib();
+  guideShow("deal");
+}
+
+function guideFinish() {
+  Guide.on = false;
+  try { const m = Achv.load(); m.guided = 1; Achv.save(m); } catch (e) {}
+}
+
+/* Show the beat matching this moment, if it hasn't been shown yet. */
+function guideShow(at) {
+  if (!Guide.on) return;
+  const i = GUIDE_BEATS.findIndex((b) => b.at === at);
+  if (i < 0 || i < Guide.beat) return;
+  Guide.beat = i + 1;
+  const b = GUIDE_BEATS[i];
+
+  const old = document.querySelector(".guidebox");
+  if (old) old.remove();
+  const box = el("div", "guidebox");
+  box.append(el("div", "guidekicker", `${i + 1} of ${GUIDE_BEATS.length}`));
+  box.append(el("div", "guidetitle", b.title));
+  box.append(el("div", "guidebody", b.body));
+
+  const row = el("div", "row gap");
+  row.append(btn(i === GUIDE_BEATS.length - 1 ? "PLAY ON" : "Got it", () => {
+    box.remove();
+    sfx16("select");
+    if (i === GUIDE_BEATS.length - 1) { guideFinish(); showCribSelect(); }
+  }, "small"));
+  row.append(btn("Skip coaching", () => {
+    box.remove(); guideFinish(); sfx16("click"); flash("Coaching off.");
+  }, "small"));
+  box.append(row);
+  document.body.append(box);
+
+  if (b.look) {
+    document.querySelectorAll(".guidelook").forEach((n) => n.classList.remove("guidelook"));
+    const t = document.querySelector(b.look);
+    if (t) t.classList.add("guidelook");
+  }
+  Audio16.voice(660, 0.1, { type: "square", gain: 0.06, send: 0.3 });
+}

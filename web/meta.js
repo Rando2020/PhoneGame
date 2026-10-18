@@ -29,19 +29,90 @@ const ACHIEVEMENTS = [
 /* Difficulty tiers, named for the rows of a cribbage board. Each unlocks by
    clearing the one before it. */
 const STREETS = [
-  { id: 1, name: "First Street",  text: "The road as it comes.",                mods: {} },
-  { id: 2, name: "Second Street", text: "Every target is 25% steeper.",         mods: { targetMul: 1.25 } },
-  { id: 3, name: "Third Street",  text: "Spoilers also hold Round 3.",          mods: { targetMul: 1.25, extraSpoiler: true } },
-  { id: 4, name: "Fourth Street", text: "One fewer charm slot.",                mods: { targetMul: 1.35, slots: -1, extraSpoiler: true } },
-  { id: 5, name: "The Stink Hole", text: "Targets +50%, and you start 8 cards lighter.",
-    mods: { targetMul: 1.5, slots: -1, extraSpoiler: true, deckTrim: 8 } },
+  { id: 1, name: "First Street",   text: "The road as it comes.", mods: {} },
+  { id: 2, name: "Second Street",  text: "Targets +25%. The Crib scores at half.",
+    mods: { targetMul: 1.25, cribHalf: true } },
+  { id: 3, name: "Third Street",   text: "Spoilers hold rounds 3 and 5.",
+    mods: { targetMul: 1.25, extraSpoiler: true } },
+  { id: 4, name: "Fourth Street",  text: "One fewer charm slot. Marks cost double.",
+    mods: { targetMul: 1.3, slots: -1, extraSpoiler: true, markCostMul: 2 } },
+  { id: 5, name: "Fifth Street",   text: "Your deck no longer recycles. Run it dry and the round ends.",
+    mods: { targetMul: 1.35, slots: -1, extraSpoiler: true, noRecycle: true } },
+  { id: 6, name: "The Turn",       text: "Charms score at half against Spoilers.",
+    mods: { targetMul: 1.3, slots: -1, extraSpoiler: true, noRecycle: true, halfCharmBoss: true } },
+  { id: 7, name: "The Stink Hole", text: "You may not cash out early. Every round runs full.",
+    mods: { targetMul: 1.32, slots: -1, extraSpoiler: true, noRecycle: true,
+            halfCharmBoss: true, noCashOut: true } },
+  { id: 8, name: "Skunk Line",     text: "Every Spoiler is Ruinous.",
+    mods: { targetMul: 1.34, slots: -1, extraSpoiler: true, noRecycle: true,
+            halfCharmBoss: true, noCashOut: true, allRuinous: true } },
 ];
+
+/* TRIALS — preset runs built around one brutal constraint. Cheap to author,
+   and each one teaches a different corner of the system. */
+const TRIALS = [
+  { id: "pauper",   name: "The Pauper",   deck: "pip",
+    text: "No shop, ever. Only what the deck gives you.", mods: { noShop: true } },
+  { id: "onesuit",  name: "One Suit",     deck: "clover",
+    text: "Your deck is fifty-two hearts.", mods: { oneSuit: "H", targetMul: 1.35 } },
+  { id: "ascetic",  name: "The Ascetic",  deck: "muggins",
+    text: "Your hand scores at a quarter. The Crib pays four times over.",
+    mods: { handQuarter: true, cribQuad: true, targetMul: 0.4 } },
+  { id: "thirteen", name: "Thirteen",     deck: "facet",
+    text: "Your deck is thirteen cards, recycling constantly.", mods: { deckCap: 13 } },
+  { id: "court",    name: "The Assessor's Court", deck: "nib",
+    text: "Clear every target — but never score more than double it.",
+    mods: { allExact: true, overBand: 2.0, targetMul: 0.8 } },
+  { id: "famine",   name: "Long Famine",  deck: "thump",
+    text: "Three deals a round, and one mulligan only.",
+    mods: { dealBonus: -1, mulliganBonus: -1, targetMul: 0.75 } },
+  { id: "blind",    name: "Blind Man's Count", deck: "pip",
+    text: "You never see the deck tracker, and the cut is never previewed.",
+    mods: { hideTracker: true } },
+  { id: "glass",    name: "Glass Road",   deck: "clover",
+    text: "Every card you buy is Brittle.", mods: { allBrittle: true } },
+];
+
+/* THE DAILY. One seed per calendar day, identical for everyone, one attempt.
+   This is the Wordle hook: a reason to come back tomorrow that costs nothing to
+   build because the run generator is already deterministic given a seed. */
+function dailyKey(d) {
+  const t = d || new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+}
+function dailySeed(key) {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+/* A seeded generator, so the same day deals the same cards for everybody. */
+function makeRng(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s ^= s << 13; s >>>= 0;
+    s ^= s >> 17;
+    s ^= s << 5; s >>>= 0;
+    return s / 4294967296;
+  };
+}
+
+/* THE LONG COUNT — past Act 5, the ladder just keeps going. */
+const ENDLESS_FROM = 26;
 
 /* Meldlings you start with, and the ones you earn. */
 const MELDLING_UNLOCKS = {
   pip: null, thump: null, clover: null, facet: null,
   nib: "twentynine",     // earned by counting the perfect hand
   muggins: "long_road",  // earned by clearing a full run
+};
+
+/* ASCENDED forms: the same identity pushed until it breaks. Unlocked by clearing
+   a run with the base Meldling. */
+const ASCENDED = {
+  pip:     { of: "pip",     name: "Pip Ascended" },
+  thump:   { of: "thump",   name: "Thump Ascended" },
+  clover:  { of: "clover",  name: "Clover Ascended" },
+  facet:   { of: "facet",   name: "Facet Ascended" },
 };
 
 /* SYSTEM UNLOCKS — not cosmetics. These change how the game is played, and they
@@ -56,6 +127,8 @@ const SYSTEMS = [
     text: "The Stall begins selling cards that are two ranks at once." },
   { id: "sixth_slot", name: "The Sixth Slot",
     text: "One more charm slot, for the rest of time." },
+  { id: "the_play",   name: "The Play",
+    text: "After each count, you and the Spoiler peg your cards toward 31 for bonus points." },
   { id: "deep_stall", name: "The Deep Stall",
     text: "The Stall offers four cards instead of three, and Marks appear more often." },
 ];
@@ -93,10 +166,63 @@ function pegsForRun(reached, cleared, street, deeds) {
   return p;
 }
 
+/* ---------------------------------------------------------------- the save
+   One store, one key, one in-memory copy. Achv and Meta previously each did
+   their own read-modify-write against the SAME key, so whichever wrote last
+   could clobber the other's changes. And there was no version field, despite
+   the format changing twice (lenses -> pins, surplus -> skipProgress).
+   ---------------------------------------------------------------------- */
+const SAVE_KEY = "meldlings.save";
+const SAVE_VERSION = 3;
+
+const MIGRATIONS = {
+  /* v1: the original split store, keyed "meldlings.meta.v1" */
+  1: (m) => {
+    // Lenses became free pins; carry ownership across as pinned panels
+    if (m.lenses) {
+      m.pins = m.pins || {};
+      const map = { counter: "counter", crib: "crib", ledger: "ledger" };
+      for (const k in m.lenses) if (map[k] && !(m.lensOff || {})[k]) m.pins[map[k]] = true;
+    }
+    delete m.lenses; delete m.lensOff;
+    return m;
+  },
+  /* v2: surplus folded into skip progress (run-scoped, nothing to carry) */
+  2: (m) => { delete m.surplus; return m; },
+};
+
+const Store = {
+  _cache: null,
+  read() {
+    if (this._cache) return this._cache;
+    let m = {};
+    try {
+      m = JSON.parse(localStorage.getItem(SAVE_KEY) || "null")
+        || JSON.parse(localStorage.getItem("meldlings.meta.v1") || "{}");
+    } catch (e) { m = {}; }
+    let v = m.__v || 1;
+    while (v < SAVE_VERSION) {
+      if (MIGRATIONS[v]) { try { m = MIGRATIONS[v](m); } catch (e) {} }
+      v++;
+    }
+    m.__v = SAVE_VERSION;
+    this._cache = m;
+    return m;
+  },
+  write(m) {
+    this._cache = m;
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(m)); } catch (e) {}
+  },
+  wipe() {
+    this._cache = null;
+    try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem("meldlings.meta.v1"); } catch (e) {}
+  },
+};
+
 const Achv = {
-  KEY: "meldlings.meta.v1",
-  load() { try { return JSON.parse(localStorage.getItem(this.KEY) || "{}"); } catch (e) { return {}; } },
-  save(m) { try { localStorage.setItem(this.KEY, JSON.stringify(m)); } catch (e) {} },
+  KEY: SAVE_KEY,
+  load() { return Store.read(); },
+  save(m) { Store.write(m); },
 
   has(id) { return !!(this.load().got || {})[id]; },
   count() { return Object.keys(this.load().got || {}).length; },
@@ -127,6 +253,55 @@ const Achv = {
     if ((m.pegs || 0) < n) return false;
     m.pegs -= n; this.save(m); return true;
   },
+  clearedWith(deck) { return !!(this.load().cleared || {})[deck]; },
+  markCleared(deck) {
+    const m = this.load(); m.cleared = m.cleared || {}; m.cleared[deck] = 1; this.save(m);
+  },
+  trialDone(id) { return !!(this.load().trials || {})[id]; },
+  markTrial(id) {
+    const m = this.load(); m.trials = m.trials || {}; m.trials[id] = 1; this.save(m);
+  },
+  bestEndless() { return this.load().endless || 0; },
+  setEndless(n) {
+    const m = this.load();
+    if (n > (m.endless || 0)) { m.endless = n; this.save(m); }
+  },
+
+  /* Panels pin for free — this used to be a purchase, which made a settings
+     toggle wear a price tag. */
+  pinned(id) { return !!(this.load().pins || {})[id]; },
+  togglePin(id) {
+    const m = this.load();
+    m.pins = m.pins || {};
+    m.pins[id] = !m.pins[id];
+    this.save(m);
+  },
+
+  dailyDone(key) { return (this.load().daily || {})[key || dailyKey()] || null; },
+  recordDaily(key, result) {
+    const m = this.load();
+    m.daily = m.daily || {};
+    m.daily[key] = result;
+    // keep a fortnight, not a lifetime
+    const keys = Object.keys(m.daily).sort().slice(-14);
+    const trimmed = {};
+    for (const k of keys) trimmed[k] = m.daily[k];
+    m.daily = trimmed;
+    m.dailyStreak = this.streakFrom(trimmed);
+    this.save(m);
+  },
+  streakFrom(daily) {
+    let n = 0;
+    const d = new Date();
+    for (;;) {
+      if (!daily[dailyKey(d)]) break;
+      n++;
+      d.setDate(d.getDate() - 1);
+    }
+    return n;
+  },
+  dailyStreak() { return this.streakFrom(this.load().daily || {}); },
+
   hasSystem(id) { return !!(this.load().systems || {})[id]; },
   grantSystem(id) {
     const m = this.load();
@@ -186,6 +361,8 @@ const Achv = {
   },
 
   meldlingUnlocked(id) {
+    if (ASCENDED[id.replace("_asc", "")] && id.endsWith("_asc"))
+      return this.clearedWith(id.replace("_asc", ""));
     const req = MELDLING_UNLOCKS[id];
     return !req || this.has(req);
   },
@@ -226,5 +403,6 @@ const Achv = {
 };
 
 if (typeof module !== "undefined")
-  module.exports = { ACHIEVEMENTS, STREETS, MELDLING_UNLOCKS, CARD_BACKS, LENSES, SYSTEMS,
-    pegsForRun, Achv };
+  module.exports = { ACHIEVEMENTS, STREETS, TRIALS, ASCENDED, ENDLESS_FROM,
+    dailyKey, dailySeed, makeRng,
+    MELDLING_UNLOCKS, CARD_BACKS, LENSES, SYSTEMS, pegsForRun, Achv };

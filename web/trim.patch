@@ -1,0 +1,13 @@
+--- a/web/cribrogue.js
++++ b/web/cribrogue.js
+@@ -463,7 +463,9 @@
+   }
+ 
+   removeRandom(n) {
+-    const d = cShuf(this.cards.slice());
++    // the run's own rng: seeded runs (the Daily) must trim the same cards for
++    // everyone. This used Math.random, so Facet's Daily deck differed per player.
++    const d = cShuf(this.cards.slice(), this.rng);
+     this.cards = d.slice(n);
+     return n;
+   }
