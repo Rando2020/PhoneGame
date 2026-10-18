@@ -11,6 +11,9 @@ signal counted(res: Dictionary)
 signal cascade_done
 ## Keep was pressed and the engine counted (before the cut ceremony plays).
 signal committed
+## The round's state just changed in a way a resume must reproduce (a deal, a
+## mulligan, a recut, a count, a lay in The Play). RunFlow saves the game here.
+signal save_point
 ## In a run (RunFlow), the finished round is handed back instead of restarting.
 signal round_finished
 
@@ -43,6 +46,7 @@ var peg_pending := false
 var peg_kept: Array = []
 var peg_view: PegView
 var peg_session: PegSession
+var last_kr := {}          ## the last keep's rank (the cascade's coaching line needs it)
 
 const BG := Color(0.102, 0.094, 0.149)
 ## Widest the content column grows: six cards side by side with no overlap.
@@ -205,6 +209,12 @@ func next_deal() -> void:
 			rd.settle()
 		_show_round_end()
 		return
+	_show_deal()
+	save_point.emit()
+
+
+## Draw rd.dealt as a fresh deal (also used to resume a saved one).
+func _show_deal() -> void:
 	# Foresight cuts before the keep: show the starter face up from the deal.
 	if rd.starter != null:
 		starter_view.setup_card(rd.starter, true)
@@ -260,6 +270,7 @@ func _on_mulligan() -> void:
 	keep_button.disabled = true
 	keep_button.text = "Keep 0/%d" % rd.keep_count()
 	_deal_hand()
+	save_point.emit()
 
 
 func _on_recut() -> void:
@@ -267,6 +278,7 @@ func _on_recut() -> void:
 		return
 	starter_view.setup_card(rd.starter, true)
 	_refresh_controls()
+	save_point.emit()
 
 
 ## The keep as indices into rd.dealt, ascending.
@@ -305,6 +317,7 @@ func _commit() -> void:
 	if idx.size() != rd.keep_count():
 		return
 	var kr := rd.keep_rank(idx)        # rank the DECISION, before the cut is known
+	last_kr = kr
 	var knew_starter: bool = rd.starter != null
 	var kept: Array = idx.map(func(i): return rd.dealt[i])
 	var pre_stock: Array = rd.stock.duplicate()   # the web scores the cut against this
@@ -316,13 +329,14 @@ func _commit() -> void:
 	keep_button.disabled = true
 	# round end is decided now; only its display waits for the cascade
 	# As the web's afterCount: the round ends the moment the target falls or the
-	# deals run out. (The web never reads noCashOut, so neither does this; see PORT.md.)
+	# deals run out.
 	# With The Play owed, both wait for it: its gain counts toward the target, and
 	# settling first would draw the Crib's Own Cut before the Spoiler's hand.
 	peg_pending = PegSession.wanted(rd)
 	peg_kept = kept
 	if not peg_pending and (rd.score >= rd.target or rd.deals_left <= 0):
 		rd.settle()
+	save_point.emit()
 
 	mulligan_button.hide()
 	recut_button.hide()
@@ -394,6 +408,45 @@ func _start_peg() -> void:
 	peg_view.size = size
 	peg_view.open(peg_session)
 	peg_view.finished.connect(_on_peg_finished, CONNECT_ONE_SHOT)
+	peg_view.changed.connect(func(): save_point.emit())
+	save_point.emit()
+
+
+## What a resume needs beyond the engine state.
+func save_ui() -> Dictionary:
+	var kept_idx := []
+	for c in peg_kept:
+		kept_idx.append(JS.index_same(rd.dealt, c))
+	return {"kr": last_kr, "peg_pending": peg_pending, "peg_kept": kept_idx}
+
+
+## Pick a saved round back up: the deal in hand, or the count already made
+## (shown at its end state), with The Play owed or in progress.
+func resume_round(run_: CribRun, rd_: CribRound, ui: Dictionary, peg = null) -> void:
+	run = run_
+	rd = rd_
+	charm_bar.build(run)
+	last_result = rd.last_count
+	last_kr = ui.get("kr", {})
+	peg_pending = ui.get("peg_pending", false)
+	peg_kept = ui.get("peg_kept", []).map(func(i): return rd.dealt[i])
+	if rd.phase == "keep":
+		_show_deal()
+		return
+	# counted: the result is in; show it settled, not replayed
+	_after_flip(last_result, last_kr)
+	cascade.skip()
+	if peg != null:
+		# saved mid-beat: your card is down, the Spoiler hasn't answered yet
+		if not peg.play.over and peg.play.turn == "them":
+			peg.answer()
+		peg_session = peg
+		peg_view = PegView.new()
+		add_child(peg_view)
+		peg_view.size = size
+		peg_view.open(peg_session)
+		peg_view.finished.connect(_on_peg_finished, CONNECT_ONE_SHOT)
+		peg_view.changed.connect(func(): save_point.emit())
 
 
 ## The Play's CONTINUE: the gain is already in the score. Then exactly the web's

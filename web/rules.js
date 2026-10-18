@@ -205,7 +205,7 @@ class Combat {
       if (!this.discard.length) return null;
       this.deck = shuffle(this.discard.slice(), this.rng);
       this.discard = [];
-      this.say("The deck runs out — the discard is reshuffled.");
+      this.say("The deck runs out. The discard is reshuffled.");
     }
     return this.deck.pop();
   }
@@ -271,27 +271,27 @@ class Combat {
       case Kind.PAIR: {
         const b = BRACE(n) + R("brace_bonus");
         this.player.block += b;
-        Object.assign(out, { block: b, offensive: false, text: `BRACE — ${b} Block.` });
+        Object.assign(out, { block: b, offensive: false, text: `BRACE: ${b} Block.` });
         break;
       }
       case Kind.RUN2: {
         const extra = TUNING.prepDraw + R("draw_bonus");
         this.drawToHand(extra);
         this.focus += 1;
-        Object.assign(out, { offensive: false, text: `PREP — drew ${extra}, +1 Focus.` });
+        Object.assign(out, { offensive: false, text: `PREP: drew ${extra}, +1 Focus.` });
         break;
       }
       case Kind.RUN: {
         const d = STRIKE(n) + R("strike_bonus");
         out.damage = this.attack(this.player, this.enemy, d);
-        out.text = `STRIKE — ${out.damage} damage.`;
+        out.text = `STRIKE: ${out.damage} damage.`;
         break;
       }
       case Kind.SET: {
         const burn = 2 + R("burn_bonus");
         out.damage = this.attack(this.player, this.enemy, RALLY(n));
         this.enemy.burn += burn;
-        out.text = `RALLY — ${out.damage} damage, ${burn} Burn.`;
+        out.text = `RALLY: ${out.damage} damage, ${burn} Burn.`;
         break;
       }
       case Kind.GRAND: {
@@ -299,7 +299,7 @@ class Combat {
         this.enemy.hex += 3;
         this.player.block += 8;
         out.block = 8;
-        out.text = `GRAND MELD — ${out.damage} damage, 3 Hex, 8 Block.`;
+        out.text = `GRAND MELD: ${out.damage} damage, 3 Hex, 8 Block.`;
         break;
       }
     }

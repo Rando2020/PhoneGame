@@ -54,10 +54,12 @@ func show_front_door(step := "") -> void:
 	if step != "":
 		cb.step = step
 	front = FrontDoor.new()
+	front.can_resume = has_save()
 	_page.add_child(front)
 	front.open(cb)
 	front.begin.connect(start_run, CONNECT_ONE_SHOT)
 	front.guided.connect(start_guided, CONNECT_ONE_SHOT)
+	front.resume_run.connect(resume, CONNECT_ONE_SHOT)
 
 
 var coach: GuideCoach
@@ -71,8 +73,82 @@ func start_guided() -> void:
 	coach = GuideCoach.new()
 	_page.add_child(coach)
 	coach.attach(keep)
-	coach.play_on.connect(func(): show_front_door("road"), CONNECT_ONE_SHOT)
+	# PLAY ON leaves the guided round behind (web: showCribSelect): drop its save
+	coach.play_on.connect(func():
+		clear_save()
+		show_front_door("road"), CONNECT_ONE_SHOT)
 	coach.message.connect(flash)
+
+
+# ------------------------------------------------------------------ save / resume
+## iOS kills backgrounded apps, so the run is saved at every step (each screen,
+## each shop purchase, every deal, count and lay) and resumed exactly. The save
+## is written after a step's effects land, so a resume never applies one twice.
+## A finished run (lost, or all 25 rounds cleared) clears it.
+const SAVE_PATH := "user://run_save.txt"
+var last_save := ""        ## the latest save text (on disk too when Achv.persist)
+var saves := 0
+
+
+func save_now() -> void:
+	if run == null:
+		return
+	var ui := {"screen": screen}
+	var r: CribRound = null
+	var peg = null
+	if screen == "round" and keep != null and keep.rd != null:
+		r = keep.rd
+		ui.merge(keep.save_ui())
+		if keep.peg_view != null:
+			peg = keep.peg_session
+	elif screen == "round_end":
+		r = rd
+	last_save = SaveGame.dump(run, r, ui, peg)
+	saves += 1
+	if Achv.persist:
+		var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+		if f:
+			f.store_string(last_save)
+
+
+func clear_save() -> void:
+	last_save = ""
+	if Achv.persist and FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(SAVE_PATH)
+
+
+func has_save() -> bool:
+	return last_save != "" or (Achv.persist and FileAccess.file_exists(SAVE_PATH))
+
+
+## Pick the saved run back up where it was.
+func resume() -> void:
+	var text := last_save
+	if text == "" and Achv.persist and FileAccess.file_exists(SAVE_PATH):
+		text = FileAccess.get_file_as_string(SAVE_PATH)
+	if text == "":
+		return
+	var parts := SaveGame.load_(text)
+	run = parts[0]
+	var ui: Dictionary = parts[2]
+	match ui.get("screen", "intro"):
+		"shop":
+			show_shop()
+		"round":
+			_clear()
+			_set_screen("round")
+			keep = load("res://scenes/keep_screen.tscn").instantiate()
+			keep.in_run = true
+			_page.add_child(keep)
+			keep.round_finished.connect(_on_round_finished, CONNECT_ONE_SHOT)
+			keep.save_point.connect(save_now)
+			keep.resume_round(run, parts[1], ui, parts[3])
+		"round_end":
+			rd = parts[1]
+			_paid = true          # its Glim was paid before the save
+			_render_round_end()
+		_:
+			show_intro()
 
 
 ## A fresh run. Tests may pass a prepared run.
@@ -236,7 +312,7 @@ func show_intro() -> void:
 			["Finish on exactly %d. Not one point more." % run.target(), 20, INK]]
 		var locked := Achv.locked_systems()
 		if not locked.is_empty():
-			terms.append(["Win and you keep: %s: %s" % [locked[0].name, locked[0].text], 17, GREEN])
+			terms.append(["Win and you keep: %s. %s" % [locked[0].name, locked[0].text], 17, GREEN])
 		terms.append(["Lose and the run ends. You may walk away instead.", 17, DIM])
 		y = _panel(y + 6.0, terms)
 	elif boss != null:
@@ -261,10 +337,8 @@ func show_intro() -> void:
 	if run.is_wager():
 		_button("walk", "WALK AWAY", false, _on_walk_away)
 		order.append("walk")
-	if run.skips > 0 and boss == null:
-		_button("skip", "SKIP THIS ROUND  ·  %d banked" % run.skips, false, _on_skip)
-		order.append("skip")
 	_place_buttons(order)
+	save_now()
 
 
 func _on_deal() -> void:
@@ -276,6 +350,7 @@ func _on_deal() -> void:
 	keep.meldling = meldling
 	_page.add_child(keep)
 	keep.round_finished.connect(_on_round_finished, CONNECT_ONE_SHOT)
+	keep.save_point.connect(save_now)
 	keep.start_round(run)
 
 
@@ -286,13 +361,8 @@ func _on_walk_away() -> void:
 	flash("You let the wager pass.")
 
 
-## Web: a Skip pays Glim and goes straight to the shop. Spoilers can't be skipped.
-func _on_skip() -> void:
-	run.skips -= 1
-	run.essence += 8 + JS.round_(run.round_index() * 0.6)
-	run.open_shop()
-	show_shop()
-	flash("Round skipped — you take the Glim and move on.")
+## Skips were removed (web too): nothing ever earned one, and as designed a
+## skipped round costs more Glim than it pays (simulated; see PORT.md).
 
 
 # ------------------------------------------------------------------ round end
@@ -301,6 +371,10 @@ func _on_round_finished() -> void:
 	_paid = false
 	_round_end_effects()
 	_render_round_end()
+	if rd.won:
+		save_now()
+	else:
+		clear_save()          # the run is over
 
 
 ## Port of cribRoundEnd's state changes, in its order. Runs once per round.
@@ -325,6 +399,11 @@ func _round_end_effects() -> void:
 		_paid = true
 	if not rd.won:
 		RunRecord.record(run, run.round_index() - 1, rd.score)
+		# the Daily is one attempt; the Long Count keeps its best (web: same fix)
+		if run.daily != null:
+			Achv.record_daily(run.daily, {"reached": run.round_index() - 1, "score": rd.score})
+		if run.endless:
+			Achv.set_endless(run.round_index() - 1)
 
 
 func _render_round_end() -> void:
@@ -392,6 +471,8 @@ func show_shop() -> void:
 	_page.add_child(shop)
 	shop.open(run)
 	shop.next_round.connect(_on_next_round, CONNECT_ONE_SHOT)
+	shop.acted.connect(func(_k): save_now())
+	save_now()
 
 
 ## Port of the shop's NEXT ROUND handler.
@@ -403,6 +484,7 @@ func _on_next_round() -> void:
 		return
 	if run.advance():
 		_run_won_effects()
+		clear_save()          # the run is over
 		show_run_won()
 		return
 	show_intro()
@@ -424,6 +506,8 @@ func _run_won_effects() -> void:
 	Achv.log_run({"deck": run.meldling, "reached": total, "street": run.street.id,
 		"score": 0, "cleared": true, "when": int(Time.get_unix_time_from_system() * 1000.0)})
 	RunRecord.record(run, total, 0)
+	if run.daily != null:
+		Achv.record_daily(run.daily, {"reached": total, "score": 0, "cleared": true})
 
 
 func show_run_won() -> void:

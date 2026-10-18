@@ -58,7 +58,7 @@ function selRoad() {
   const ROADS = [
     { id: "daily", name: "The Daily", art: "facet",
       note: doneToday
-        ? `Done — reached ${doneToday.reached}. Come back tomorrow.`
+        ? `Done: reached ${doneToday.reached}. Come back tomorrow.`
         : `Everyone gets the same deck today. One attempt.${streak ? `  Streak ${streak}.` : ""}` },
     { id: "run", name: "The Five Acts", art: "pip",
       note: "Twenty-five rounds. Five Spoilers. The road as it was meant." },
@@ -67,7 +67,7 @@ function selRoad() {
     { id: "endless", name: "The Long Count", art: "nib",
       note: Achv.has("long_road")
         ? `No ceiling. Best round ${Achv.bestEndless() || 0}.`
-        : "Locked — clear the Five Acts first." },
+        : "Locked. Clear the Five Acts first." },
   ];
   for (const r of ROADS) {
     const open = (r.id !== "endless" || Achv.has("long_road")) &&
@@ -190,10 +190,10 @@ function selMeld() {
   const info = el("div", "panel col tight meldinfo");
   if (open) info.append(el("div", "small", d.text));
   else if (d.ascended)
-    info.append(el("div", "small dim", `Locked — clear a run with ${CRIB_DECKS[d.art].name}.`));
+    info.append(el("div", "small dim", `Locked. Clear a run with ${CRIB_DECKS[d.art].name}.`));
   else {
     const req = ACHIEVEMENTS.find((a) => a.id === MELDLING_UNLOCKS[id]);
-    info.append(el("div", "small dim", req ? `Locked — ${req.name}` : "Locked."));
+    info.append(el("div", "small dim", req ? `Locked: ${req.name}` : "Locked."));
   }
   c.append(info);
 
@@ -388,7 +388,7 @@ function renderPegging(done) {
     call.textContent = last.events.map((e) => `${e.label} +${e.points}`).join("   ");
     c.append(call);
   } else if (last) {
-    c.append(el("div", "small dim pegcall", "—"));
+    c.append(el("div", "small dim pegcall", "-"));
   }
   Cb.pegAnim = null;
 
@@ -428,7 +428,7 @@ function renderPegging(done) {
     const canAny = p.canPlay(p.mine);
     c.append(el("p", "small " + (canAny ? "dim" : "gold"),
       canAny ? "Lay a card. You cannot pass 31."
-             : "Nothing fits — the Spoiler must play on."));
+             : "Nothing fits. The Spoiler must play on."));
   }
   root().append(c);
 }
@@ -537,7 +537,7 @@ function cribRoundIntro() {
     w.append(el("div", "", `Finish on exactly ${run.target()}. Not one point more.`));
     const locked = Achv.lockedSystems();
     if (locked.length)
-      w.append(el("div", "small green", `Win and you keep: ${locked[0].name} — ${locked[0].text}`));
+      w.append(el("div", "small green", `Win and you keep: ${locked[0].name}. ${locked[0].text}`));
     w.append(el("div", "small dim", "Lose and the run ends. You may walk away instead."));
     c.append(w);
   } else if (boss) {
@@ -574,24 +574,13 @@ function cribRoundIntro() {
     const chip = el("div", "planchip sev" + b.sev + (i + 1 < run.act ? " past" : i + 1 === run.act ? " now" : ""));
     chip.textContent = `A${i + 1} ${b.name}`;
     tip(chip, `${b.name}  ·  Act ${i + 1}`,
-      `${b.text}${b.align ? `  Aligned to ${SUIT_SYM[b.align]} — those cards score weakly against it, ${SUIT_SYM[SUIT_OPPOSE[b.align]]} scores strongly.` : ""}`);
+      `${b.text}${b.align ? `  Aligned to ${SUIT_SYM[b.align]}: those cards score weakly against it, ${SUIT_SYM[SUIT_OPPOSE[b.align]]} scores strongly.` : ""}`);
     plan.append(chip);
   });
   c.append(el("p", "small gold", "SPOILERS ON THE ROAD"), plan);
-  if (run.skips > 0 && !boss) {
-    const sk = btn(`SKIP THIS ROUND  ·  ${run.skips} banked`, () => {
-      run.skips--;
-      run.essence += 8 + Math.round(run.roundIndex() * 0.6);
-      sfx16("buy");
-      flash("Round skipped — you take the Glim and move on.");
-      run.openShop();
-      showCribShop();
-    }, "small");
-    sk.classList.add("skipbtn");
-    c.append(sk);
-    c.append(el("p", "tiny dim",
-      "Skips are earned by overshooting targets. Spoilers can never be skipped."));
-  }
+  /* Skips were removed: nothing ever earned one, and as DEPTH.md designed them a
+     skipped round costs more Glim than it pays (simulated). */
+
   if (run.isWager()) {
     c.append(btn("WALK AWAY", () => {
       run.wagerAt[`${run.act}-${run.round}`] = false;
@@ -661,12 +650,7 @@ function cribHUD(rd, run, opts = {}) {
   b.id = "hudBar";
   wrap.append(b);
 
-  if (run.skips > 0 || run.surplus > 0) {
-    const sr = el("div", "row between small");
-    sr.append(el("span", "gold", `SURPLUS ${run.surplus}/${SURPLUS_PER_SKIP}`));
-    if (run.skips > 0) sr.append(el("span", "green", `${run.skips} SKIP${run.skips > 1 ? "S" : ""} BANKED`));
-    wrap.append(sr);
-  }
+
   const need = Math.max(0, rd.target - shown);
   const deals = Math.max(1, rd.dealsLeft);
   const per = Math.ceil(need / deals);
@@ -729,7 +713,7 @@ function charmOrderPanel(run) {
   if (run.charms.length >= 2 && Cb.orderProbe) {
     const p = Cb.orderProbe;
     box.append(el("p", "small " + (p.gain > 0 ? "gold" : "dim"),
-      p.gain > 0 ? `A better arrangement exists — worth about ${p.gain} more on a typical hand.`
+      p.gain > 0 ? `A better arrangement exists, worth about ${p.gain} more on a typical hand.`
                  : "This is the strongest arrangement for a typical hand."));
   }
   const test = btn("Test arrangement", () => {
@@ -833,7 +817,7 @@ function renderCrib() {
     const h = el("div", "row between");
     h.append(el("span", "small gold", `YOUR CRIB  (${rd.crib.length}/${CRIB_SIZE})`),
       el("span", "small dim", rd.mods.cribZero ? "scores nothing"
-        : rd.crib.length >= CRIB_SIZE ? "full — later throws burn"
+        : rd.crib.length >= CRIB_SIZE ? "full: later throws burn"
         : `first ${CRIB_SIZE} throws land here`));
     w.append(h);
     const r = el("div", "cribrow");
@@ -845,7 +829,7 @@ function renderCrib() {
   const deckBlock = () => {
     const w = el("div", "col tight");
     if (rd.mods.hideTracker) {
-      w.append(el("p", "small red", "The Fog — your tracker is hidden this round."));
+      w.append(el("p", "small red", "The Fog: your tracker is hidden this round."));
       return w;
     }
     const trk = el("div", "decktrack");
@@ -951,7 +935,7 @@ function renderCrib() {
     c.append(box);
   } else {
     c.append(el("div", "selcount",
-      `${Cb.keep.length} / ${need} kept — select ${need - Cb.keep.length} more`));
+      `${Cb.keep.length} / ${need} kept. Select ${need - Cb.keep.length} more`));
   }
 
   if (rd.score >= rd.target) {
@@ -1202,7 +1186,7 @@ function cribRoundEnd() {
     box.append(el("div", "small gold", `+${Math.round(m.points)} points`));
     if (m.decisive)
       box.append(el("div", "small red",
-        `Without it you'd have finished on ${Math.round(m.without)} — you needed ${rd.target}.`));
+        `Without it you'd have finished on ${Math.round(m.without)}. You needed ${rd.target}.`));
     c.append(box);
     if (m.decisive) {
       Audio16.sfx("milestone");
@@ -1232,6 +1216,9 @@ function cribRoundEnd() {
 
   if (!rd.won) {
     const m = Meta.record(run, run.roundIndex() - 1, rd.score);
+    // the Daily is one attempt; the Long Count keeps its best (both were never saved)
+    if (run.daily) Achv.recordDaily(run.daily, { reached: run.roundIndex() - 1, score: rd.score });
+    if (run.endless) Achv.setEndless(run.roundIndex() - 1);
     c.append(el("p", "dim", `Reached Act ${run.act}, Round ${run.round}.`));
     c.append(el("p", "small gold", Meta.line()));
     c.append(btn("New Run", showCribSelect, "big"));
@@ -1270,7 +1257,7 @@ function shareCard(run, rd) {
       `${bar(rd.score / Math.max(1, rd.target) * 10)}  Act ${run.act}-${run.round}`,
       streak > 1 ? `Streak ${streak}` : "",
     ].filter(Boolean).join("\n") : [
-      `MELDLINGS — ${CRIB_DECKS[run.meldling].name} ${SUIT_SYM[CRIB_DECKS[run.meldling].suit]}`,
+      `MELDLINGS · ${CRIB_DECKS[run.meldling].name} ${SUIT_SYM[CRIB_DECKS[run.meldling].suit]}`,
       `Act ${run.act}-${run.round}   ${rd.score}/${rd.target}` + (rd.soClose ? `  (${-rd.margin} short!)` : ""),
       m && m.decisive ? `Carried by ${m.name}` : (rm ? `MVP ${rm.name}` : ""),
       charmLine,
@@ -1357,12 +1344,12 @@ function showCribShop() {
     };
     c.append(b);
   }
-  if (full) c.append(el("p", "small red", "Every charm slot is spoken for — pawn one first."));
+  if (full) c.append(el("p", "small red", "Every charm slot is spoken for. Pawn one first."));
 
   // ---- the card market
   c.append(sectionHead("THE STALL", "take a card into your deck"));
   c.append(el("p", "small dim",
-    "Fives are scarce and dear — a five makes fifteen with every court card."));
+    "Fives are scarce and dear: a five makes fifteen with every court card."));
   const mrow = el("div", "row gap cardmarket");
   for (const entry of run.shopState.cards) {
     if (entry.sold) continue;
@@ -1414,7 +1401,7 @@ function showCribShop() {
   c.append(el("p", "small dim", `+${LEVEL_GAIN} base per scoring event of that kind, per Reckoning.`));
 
   c.append(el("p", "small dim",
-    "Marks on cards do the rest — buy them at The Stall."));
+    "Marks on cards do the rest. Buy them at The Stall."));
 
   c.append(btn("NEXT ROUND", () => {
     run.shopState = null;
@@ -1449,8 +1436,9 @@ function cribRunWon() {
                 street: run.street.id, score: 0, cleared: true, when: Date.now() });
   c.append(el("p", "gold", `+${pegsWon} Pegs`));
   Meta.record(run, CRIB_ACTS * CRIB_ROUNDS, 0);
+  if (run.daily) Achv.recordDaily(run.daily, { reached: CRIB_ACTS * CRIB_ROUNDS, score: 0, cleared: true });
   const rmv = run.runMVP();
-  if (rmv) c.append(el("p", "gold", `Carried by ${rmv.name} — ${rmv.points} points.`));
+  if (rmv) c.append(el("p", "gold", `Carried by ${rmv.name}: ${rmv.points} points.`));
   c.append(el("p", "gold", `All ${CRIB_ACTS * CRIB_ROUNDS} rounds cleared on ${run.street.name}.`));
   if (run.street.id < STREETS.length)
     c.append(el("p", "small gold", `${STREETS[run.street.id].name} is open.`));

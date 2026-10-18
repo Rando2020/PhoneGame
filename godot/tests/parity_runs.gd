@@ -3,6 +3,18 @@ extends RefCounted
 ## same policy, same call order, so every field of every trace must match.
 
 var T  # the parity_test SceneTree, for check()
+## Optional: called as hook.call(run, rd) at four points per deal/round; returns
+## [run, rd] to carry on with. save_test.gd uses it to save and reload the whole
+## game at every one of those points.
+var hook = null
+var hooked := 0
+
+
+func _h(run, rd) -> Array:
+	if hook == null:
+		return [run, rd]
+	hooked += 1
+	return hook.call(run, rd)
 
 
 func run(test, fx) -> void:
@@ -74,12 +86,18 @@ func play_run(cfg) -> Dictionary:
 		"bosses": run.boss_plan.map(func(b): return b.id), "wagers": wk, "rounds": []}
 	for r in cfg.maxRounds:
 		var rd := CribRound.new(run)
+		var hp := _h(run, rd)
+		run = hp[0]
+		rd = hp[1]
 		var bs = run.boss()
 		var rt := {"idx": run.round_index(), "target": rd.target, "boss": bs.id if bs != null else null,
 			"deadSuit": rd.mods.deadSuit, "stock": rd.stock.size(), "wager": rd.wager != null, "deals": []}
 		var guard := 0
 		while not rd.over and guard < 30:
 			guard += 1
+			hp = _h(run, rd)
+			run = hp[0]
+			rd = hp[1]
 			if rd.new_deal() == null:
 				break
 			var best := rd.best_keep_ev()
@@ -106,6 +124,9 @@ func play_run(cfg) -> Dictionary:
 				"levelContrib": res.levelContrib, "cutGain": res.cutGain, "coins": res.coins,
 				"shattered": res.shattered.size(), "q": [q.tier, q.rank, q.of, q.mine, q.best, q.bare],
 				"essence": run.essence, "deck": run.cards.size(), "stock": rd.stock.size(), "score": rd.score})
+			hp = _h(run, rd)
+			run = hp[0]
+			rd = hp[1]
 			if rd.score >= rd.target and not JS.truthy(rd.mods.get("noCashOut")) and rd.wager == null:
 				rd.cash_out()
 		if not rd.over:
@@ -145,6 +166,8 @@ func play_run(cfg) -> Dictionary:
 				rt["sold"] = run.sell(run.charms[0].id)
 			if run.charms.size() >= 2:
 				run.move_charm(run.charms.size() - 1, 0)
+		hp = _h(run, null)
+		run = hp[0]
 		if run.endless:
 			run.endless_round += 1
 			continue

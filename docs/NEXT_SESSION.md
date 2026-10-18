@@ -13,7 +13,8 @@ in small verified steps and leave every step green.
 
 <context>
 Read first: docs/PORT.md (status table, "The Play", "The front door", "The
-Peddler and the guided first round", "Web bug fixed", "Found, not fixed", "Port
+Peddler and the guided first round", "Decisions applied 2026-10-18", "Save
+and resume", "Web bug fixed", "Found, not fixed", "Port
 bugs found by UI tests", UI facts, "Applying the web patches", "Balance
 decisions SHIPPED"), this file, and project memory design-principles.md
 (simulate before intuition; the Crib must feel strategic; counterfactual
@@ -22,8 +23,8 @@ If an older prompt is pasted instead of this one, trust this file and PORT.md.
 Source of truth: GitHub Rando2020/PhoneGame (main). Clone it; work on a
 branch; open a PR. godot/ is the port, web/ the patched web game, docs/ these
 docs. If the repo and the docs disagree, trust the tests, then the code.
-State (PRs stack: #3 port-sync, #4 the-play, #5 front-door, #6 peddler; if
-not merged, clone peddler. Verified from a fresh clone):
+State (PRs stack: #3 port-sync, #4 the-play, #5 front-door, #6 peddler,
+#7 decisions; if not merged, clone decisions. Verified from a fresh clone):
 - Engine proven identical to the JS: 78 full runs, 4000 hands, 1800 pegging
   cases. All seven original engine bugs fixed both sides; balance shipped
   (Clover Ascended Mimic, Usury x2, The Collector redesigned).
@@ -37,47 +38,44 @@ not merged, clone peddler. Verified from a fresh clone):
   Meldlings); RunFlow opens on it, NEW RUN and Title return to it. A fresh
   save's PLAY starts the guided first round (ui/front/guide_coach.gd).
   Face-down cards wear the back equipped at the Peddler.
-- Web fix pending Ziah's OK: the round end paid the Crib twice
-  (web/cribend.patch; clear rates were 4-6 points higher than simulated).
+- Ziah's 2026-10-18 answers are applied both sides: Crib paid once, no em
+  dashes in game text, the Daily locks and the Long Count keeps its best,
+  Skips removed (simulated: a trap), Stink Hole = no early-clear bonus,
+  Meldling balance2 (Nib, Muggins, Facet: bot clears now 12-24% on Street 1,
+  was 2.8-32%). Godot saves and resumes a run exactly (engine/save_game.gd;
+  CONTINUE on the title).
 - Tests green, mutation-tested: parity, cache, card, cascade, cut, shop,
-  peg, front_door, peddler, guide, run_flow, screen_test_shapes,
-  screen_test_play, screen_leak.
+  peg, front_door, peddler, guide, record, save, resume, run_flow,
+  screen_test_shapes, screen_test_play, screen_leak.
 - Not ported: Deeds, Gallery, Record, How to play, theme, the guide's
   highlights, audio, particles, creature sprites.
-- Ziah ran the port on his phone: it works. Speed and safe areas unmeasured.
+- Ziah ran the port on his phone: it works and feels good.
 - The sandbox has ONE CPU core.
 </context>
 
 <task>
-1. Deeds and Record from the title (web showDeeds 469-523, showHistory
-   260-315). Read Achv.check, ACHIEVEMENTS and logRun first. Done = a JS
-   fixture (at the END) of what each screen lists for a few saves, a test that
-   opens them by click and matches it, layout at 3 shapes, renders by eye.
-2. Creature sprites (assets/meldlings/*_{idle,attack,hurt}.png strips; web
-   creatureEl/playAnim): Meldling on the title, Meldling picker and run won;
-   Spoiler on the boss intro and The Play. Presentation only; frames from the
-   strip width / height. Renders by eye; a leak test for the animation.
-3. If time remains: How to play (web showTutorial, six beats).
+1. Save and resume in the WEB game (Ziah: Godot first, then web). Mirror
+   engine/save_game.gd in JS: card table for identity, charms by id, ordered
+   keys (JS keeps insertion order natively), the run rng / Math.random link,
+   The Play in progress; save to the Store at every step; CONTINUE on the
+   title. Done = a web check that plays real runs in the built html straight
+   and with save/reload at every step and gets identical results; mutation-
+   tested like save_test.gd.
+2. The Recut charm and Steady Hand do nothing without Foresight (same flaw Nib
+   had). Simulate fixes (e.g. owning a recut lets you see the cut before you
+   keep), pick by numbers, ship both sides with fixtures.
+3. If time remains: Deeds and Record screens (web showDeeds 469-523,
+   showHistory 260-315), then creature sprites.
 </task>
 
 <open_decisions>
 Ask Ziah in ONE short message at the start:
-1. OK to ship the Crib fix to the web (web/cribend.patch)? Without it the web
-   pays the Crib twice per round and plays 4-6 points easier than simulated.
-   Also: which phone, and does anything feel slow or cut off?
-2. Skips are dead in the web and Godot (never accrued; design docs describe
-   overshoot accrual). Restore it (balance change, simulate first) or remove
-   the SKIP button?
-3. Stink Hole / Skunk Line "every round runs full" (noCashOut) is dead in the
-   web too. Implement it in both, or reword the Streets?
-4. The web's game copy has em dashes (shop full, round skipped, The
-   Gathering's text, the guide). Change them in both?
-5. The Daily never locks and the best Long Count is never saved (in the web
-   too: recordDaily/setEndless are never called). Wire them up in both?
-6. iOS kills backgrounded apps; the web has no mid-run save. Add save and
-   resume mid-run (new feature, Godot first, then web)?
-7. Any reaction to the shipped balance (Clover Ascended 9.9%, Usury 28.0%,
-   The Collector 22.0% when owned early)?
+1. Any reaction to the Meldling changes (Nib sees the cut; Muggins steals
+   mult on Spoiler rounds; Facet's deck is bigger but scores x0.85)? He asked
+   for balanced approaches; bot clear rates are now 12-24% across all six.
+2. Lost runs never reach the run history (only wins are logged). Log them?
+3. The title line reads "Best Act 1-0" after only a round-1 loss. Fix the
+   wording in both?
 </open_decisions>
 
 <non_negotiables>
@@ -99,6 +97,8 @@ Ask Ziah in ONE short message at the start:
   mouse_filter in _ready (set after add_child). CardView scales about its
   centre. Containers inflate to fit children. A Button grows rightward when
   its label is wider than its size: size to the minimum.
+- var_to_str SORTS dictionary keys; the engine breaks ties by insertion order.
+  Save dictionaries as ordered pairs (SaveGame does).
 - `var x := <untyped expr>` fails to compile ("cannot infer the type"); give
   the type. Compile-check every edited script (--check-only) before testing.
 - KeepScreen.in_run must be set before add_child, or it deals a throwaway round.
@@ -133,11 +133,12 @@ Ask Ziah in ONE short message at the start:
 <verify>
 After every change, all exit 0, one at a time: parity_test, cache_test,
 card_test, cascade_test, cut_test, shop_test, peg_test, front_door_test,
-peddler_test, guide_test, run_flow_test, screen_test_shapes,
+peddler_test, guide_test, record_test, save_test, resume_test, run_flow_test,
+screen_test_shapes,
 screen_test_play, screen_leak_test. After UI changes, xvfb renders by eye at
 720x1280, 720x1560, 960x1280 (shot.gd, shop_shot.gd, flow_shot.gd,
 peg_shot.gd, front_shot.gd, guide_shot.gd). After any JS change: web
-harnesses, cascadecheck, cribend_check and every web check after
+harnesses, cascadecheck, cribend_check, record_check and every web check after
 `python3 tools/build_web.py`; regenerate fixtures (twice: identical).
 </verify>
 

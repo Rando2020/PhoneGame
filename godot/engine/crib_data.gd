@@ -61,7 +61,7 @@ const AFFINITY_STRONG := 1.35
 
 const BOSS_POOL := [
 	# severity 1
-	{"id": "ashfall", "name": "Ashfall", "art": "famine", "sev": 1, "text": "One suit turns to ash \u2014 those cards are inert.", "rule": {"noFlush": true, "deadSuitRandom": true}, "align": "S"},
+	{"id": "ashfall", "name": "Ashfall", "art": "famine", "sev": 1, "text": "One suit turns to ash. Those cards are inert.", "rule": {"noFlush": true, "deadSuitRandom": true}, "align": "S"},
 	{"id": "auditor", "name": "The Auditor", "art": "auditor", "sev": 1, "text": "Fifteens score 1 instead of 2.", "rule": {"fifteenPoints": 1}, "align": "H"},
 	{"id": "shortstop", "name": "Shortstop", "art": "jokester", "sev": 1, "text": "Runs score nothing, and pairs score half.", "rule": {"noRuns": true, "pairScale": 0.5}, "align": "C"},
 	{"id": "blight", "name": "Blight", "art": "deadwood", "sev": 1, "text": "Pairs score half.", "rule": {"pairScale": 0.5}, "align": "D"},
@@ -391,7 +391,7 @@ static func _build_charms() -> Array:
 
 		# ---- additive-mult charms: these are what make ORDER matter
 		C.call({"id": "ballast", "name": "Ballast", "tier": 2, "cost": 8, "rarity": "uncommon", "cat": "mult",
-			"text": "+0.8 mult. Placement matters \u2014 put it early.", "on_count": func(ctx): return _amult(ctx, 0.8)}),
+			"text": "+0.8 mult. Placement matters: put it early.", "on_count": func(ctx): return _amult(ctx, 0.8)}),
 		C.call({"id": "tallyman", "name": "Tallyman", "tier": 2, "cost": 9, "rarity": "uncommon", "cat": "mult",
 			"text": "+0.3 mult per distinct category you scored.",
 			"on_count": func(ctx): return _amult(ctx, 0.3 * _kinds(ctx)) if _kinds(ctx) else false}),
@@ -447,13 +447,15 @@ static func _build_decks() -> Dictionary:
 			"charm": {"on_event": func(e, ctx): return _base(ctx, 9) if e.kind == "flush" else false,
 				"on_count": func(ctx): return _xmult(ctx, 2.1) if _has_kind(ctx, "flush") else false}},
 		"nib": {"name": "Nib", "suit": "S",
-			"text": "THE CUT: +2 recuts a round, and whatever the cut adds, it adds twice.",
-			"rule": {"recuts": 2, "doubleCutValue": true}},
+			"text": "THE CUT: you see the cut before you keep, with +2 recuts. Whatever the cut adds, it adds twice, and a cut that scores is worth x1.5.",
+			"rule": {"recuts": 2, "doubleCutValue": true, "foresight": true},
+			"charm": {"on_count": func(ctx): return _xmult(ctx, 1.5) if JS.truthy(ctx.get("nibBonus")) else false}},
 		"muggins": {"name": "Muggins", "suit": "C",
-			"text": "THE THIEF: when a Spoiler blocks points, take half of them anyway.",
-			"rule": {"muggins": true}},
+			"text": "THE THIEF: takes half of any points a Spoiler blocks. +1 mult on Spoiler rounds, +0.3 mult otherwise.",
+			"rule": {"muggins": true},
+			"charm": {"on_count": func(ctx): return _amult(ctx, 1.0 if JS.truthy(ctx.get("suppressedBy")) else 0.3)}},
 		"pip_asc": {"art": "pip", "name": "Pip Ascended", "suit": "S", "ascended": true,
-			"text": "RUNS ONLY \u2014 a run needs only two. x3.2 mult, +14 base each.",
+			"text": "RUNS ONLY: a run needs only two. x3.2 mult, +14 base each.",
 			"rule": {"onlyRuns": true, "runNeed": 2},
 			"charm": {"on_event": func(e, ctx): return _base(ctx, 14) if e.kind == "run" else false,
 				"on_count": func(ctx): return _xmult(ctx, 3.2) if _has_kind(ctx, "run") else false}},
@@ -468,10 +470,11 @@ static func _build_decks() -> Dictionary:
 			"charm": {"on_event": func(e, ctx): return _base(ctx, 4) if e.kind == "flush" else false,
 				"on_count": func(ctx): return _xmult(ctx, 2.4) if _has_kind(ctx, "flush") else false}},
 		"facet_asc": {"art": "facet", "name": "Facet Ascended", "suit": "D", "ascended": true,
-			"text": "Dealt 9, keep 7 \u2014 everything scores at 0.75 mult, and the deck never recycles.",
+			"text": "Dealt 9, keep 7. Everything scores at 0.75 mult, and the deck never recycles.",
 			"rule": {"dealtBonus": 3, "keepBonus": 3, "deckTrim": 26, "noRecycle": true},
 			"charm": {"on_count": func(ctx): return _xmult(ctx, 0.75)}},
 		"facet": {"name": "Facet", "suit": "D",
-			"text": "BIG HANDS: dealt 7, keep 5 \u2014 but your deck starts 30 cards lighter.",
-			"rule": {"dealtBonus": 1, "keepBonus": 1, "deckTrim": 30}},
+			"text": "BIG HANDS: dealt 7, keep 5. Your deck starts 20 cards lighter, and everything scores at 0.85 mult.",
+			"rule": {"dealtBonus": 1, "keepBonus": 1, "deckTrim": 20},
+			"charm": {"on_count": func(ctx): return _xmult(ctx, 0.85)}},
 	}

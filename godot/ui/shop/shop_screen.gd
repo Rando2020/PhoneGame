@@ -307,7 +307,7 @@ func render() -> void:
 		y += 88 + 8
 	if full:
 		var fl := _label(16, RED)
-		fl.text = "Every charm slot is spoken for — pawn one first."
+		fl.text = "Every charm slot is spoken for. Pawn one first."
 		_place(fl, Vector2(x0, y), Vector2(col, 24))
 		y += 26
 	y += 10

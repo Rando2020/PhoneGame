@@ -32,17 +32,18 @@ for (const sys of [[], ["crib_cut"], ["crib_mult"]]) {
       if (rd.over) return null;
       const before = rd.score, stock = rd.stock.length;
       cribRoundEnd();
-      return { before, after: rd.score, crib: rd.cribResult.total, popped: stock - rd.stock.length };
+      return { before, after: rd.score, crib: rd.cribResult.total, popped: stock - rd.stock.length, stock };
     })()`);
     if (!out) continue;
     checks++;
     if (out.crib) scored++;
     if (out.popped) cut++;
-    const good = out.after - out.before === out.crib && out.popped === (sys.includes("crib_cut") ? 1 : 0);
+    // the Crib's Own Cut draws one card, if one is left (Facet's 32 cards can run out exactly)
+    const good = out.after - out.before === out.crib && out.popped === (sys.includes("crib_cut") && out.stock > 0 ? 1 : 0);
     if (!good) { fails++; if (fails <= 5) console.log("FAIL", sys, seed, out); }
   }
 }
 console.log(`round-end checks: ${checks} (Crib scored in ${scored}, Crib's Own Cut drawn in ${cut}), failures: ${fails}`);
-const ok = fails === 0 && scored >= 60 && cut >= 30;
+const ok = fails === 0 && scored >= 60 && cut >= 25;
 console.log(ok ? "CRIBEND OK" : "CRIBEND FAILED");
 process.exit(ok ? 0 : 1);

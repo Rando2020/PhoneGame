@@ -660,7 +660,8 @@ func settle() -> bool:
 	# Three ways to be paid: clearing, clearing EARLY, and clearing CLEAN.
 	deals_spared = maxi(0, deals_left)
 	mulligans_spared = maxi(0, mulligans_left)
-	early_bonus = deals_spared * 4 if won else 0
+	# The Stink Hole and Skunk Line (noCashOut): clearing early pays nothing extra
+	early_bonus = deals_spared * 4 if won and not JS.truthy(mods.get("noCashOut")) else 0
 	clean_bonus = mulligans_spared * 3 if won else 0
 	base_glim = maxi(4, 6 + JS.round_(run.round_index() * 0.9)
 		+ int(floor(maxi(0, score - target) / maxf(15, target * 0.25)))) if won else 0

@@ -72,7 +72,7 @@ class PegPlay {
     }
     if (who === "you") this.score += gained; else this.oppScore += gained;
     const hit31 = this.total === PEG_TARGET;
-    if (hit31) this.reset("Thirty-one — reset");
+    if (hit31) this.reset("Thirty-one, reset");
     this.lastLay = { who, card, events, gained, hit31 };
     return gained;
   }
@@ -106,7 +106,7 @@ class PegPlay {
         const who = this.turn === "you" ? "them" : "you";
         this.log.push({ who, label: "Go", points: 1 });
         if (who === "you") this.score += 1; else this.oppScore += 1;
-        this.reset("Go — reset");
+        this.reset("Go, reset");
         this.turn = "you";
         continue;
       }

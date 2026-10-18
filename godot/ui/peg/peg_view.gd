@@ -9,6 +9,8 @@ extends Control
 ## and its hint, or the payout and CONTINUE.
 
 signal finished(gain: int)
+## A card was laid or the Spoiler answered: the save should follow.
+signal changed
 
 const BG := Color(0.102, 0.094, 0.149)
 const PANEL := Color(0.14, 0.13, 0.20)
@@ -171,7 +173,7 @@ func render() -> void:
 			parts.append("%s +%d" % [e.label, e.points])
 		call_label = _lab("   ".join(parts), 22, GREEN if last.who == "you" else RED, Vector2(c.x, y), c.y)
 	elif last != null:
-		call_label = _lab("—", 22, DIM, Vector2(c.x, y), c.y)   # the web's placeholder
+		call_label = _lab("-", 22, DIM, Vector2(c.x, y), c.y)   # the web's placeholder
 	else:
 		call_label = _lab("", 22, DIM, Vector2(c.x, y), c.y)
 	y += 40.0
@@ -188,7 +190,7 @@ func _render_hand(bottom: float) -> void:
 	var p := s.play
 	var c := _col()
 	var can_any := p.can_play(p.mine)
-	hint_label = _lab("Lay a card. You cannot pass 31." if can_any else "Nothing fits — the Spoiler must play on.",
+	hint_label = _lab("Lay a card. You cannot pass 31." if can_any else "Nothing fits. The Spoiler must play on.",
 		18, DIM if can_any else GOLD, Vector2(c.x, 0), c.y)
 	hint_label.position.y = bottom - hint_label.size.y
 	var sc := 0.82
@@ -263,6 +265,7 @@ func _on_card(_v: CardView, i: int) -> void:
 	_anim = "you"
 	waiting = true
 	render()
+	changed.emit()
 	if _beat and _beat.is_valid():
 		_beat.kill()
 	_beat = create_tween()
@@ -277,6 +280,7 @@ func _answer() -> void:
 	s.answer()
 	_anim = "foe"
 	render()
+	changed.emit()
 
 
 ## A tap on the table during the beat brings the answer now (fluidity).

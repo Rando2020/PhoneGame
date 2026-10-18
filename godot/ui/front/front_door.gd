@@ -11,6 +11,9 @@ extends Control
 signal begin(run: CribRun)
 ## Web: PLAY on a fresh save (never guided, no runs) starts the guided first round.
 signal guided
+## CONTINUE on the title: pick the saved run back up.
+signal resume_run
+var can_resume := false     ## set by the owner before open(): a saved run exists
 
 const BG := Color(0.102, 0.094, 0.149)
 const PANEL := Color(0.14, 0.13, 0.20)
@@ -187,7 +190,13 @@ func _title() -> void:
 		else:
 			go("road"))
 	_button("peddler", "Peddler", false, func(): go("peddler"))
-	var top := _stack_bottom(["play", "peddler"])   # PLAY lowest, in the thumb zone
+	var stack := ["play", "peddler"]   # PLAY lowest, in the thumb zone
+	if can_resume:
+		# a run in progress: CONTINUE is the main action; PLAY starts a new one
+		_button("resume", "CONTINUE", true, func(): resume_run.emit())
+		buttons["play"].text = "NEW RUN"
+		stack = ["resume", "play", "peddler"]
+	var top := _stack_bottom(stack)
 	var c := _col()
 	var l := _label(_page, RunRecord.line(), 16, DIM, Vector2(c.x, 0), c.y)
 	l.position.y = minf(top - l.size.y - 8.0, _bottom())
@@ -205,12 +214,12 @@ func _road() -> void:
 	var long_road := Achv.has("long_road")
 	var roads := [
 		{"id": "daily", "name": "The Daily",
-			"note": ("Done — reached %d. Come back tomorrow." % int(done_today.reached)) if done_today != null
+			"note": ("Done: reached %d. Come back tomorrow." % int(done_today.reached)) if done_today != null
 				else "Everyone gets the same deck today. One attempt.%s" % (("  Streak %d." % streak) if streak else "")},
 		{"id": "run", "name": "The Five Acts", "note": "Twenty-five rounds. Five Spoilers. The road as it was meant."},
 		{"id": "trial", "name": "Trials", "note": "One rule taken to its limit. %d of %d done." % [done_n, Meta.TRIALS.size()]},
 		{"id": "endless", "name": "The Long Count",
-			"note": ("No ceiling. Best round %d." % Achv.best_endless()) if long_road else "Locked — clear the Five Acts first."},
+			"note": ("No ceiling. Best round %d." % Achv.best_endless()) if long_road else "Locked. Clear the Five Acts first."},
 	]
 	for r in roads:
 		var open: bool = (r.id != "endless" or long_road) and (r.id != "daily" or done_today == null)
@@ -349,13 +358,13 @@ func _meld() -> void:
 	if open:
 		info = d.text
 	elif d.get("ascended", false):
-		info = "Locked — clear a run with %s." % CribData.DECKS[d.art].name
+		info = "Locked. Clear a run with %s." % CribData.DECKS[d.art].name
 	else:
 		var req = null
 		for a in Meta.ACHIEVEMENTS:
 			if a.id == Meta.MELDLING_UNLOCKS.get(id):
 				req = a
-		info = ("Locked — %s" % req.name) if req != null else "Locked."
+		info = ("Locked: %s" % req.name) if req != null else "Locked."
 	var pnl := Panel.new()
 	pnl.add_theme_stylebox_override("panel", _box(PANEL, Color(INK, 0.12)))
 	pnl.position = Vector2(c.x, y + 8.0)

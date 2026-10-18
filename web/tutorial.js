@@ -5,10 +5,10 @@ const Tut = { step: 0, active: false, done: false };
 
 const TUT_STEPS = [
   { title: "Six cards, keep four",
-    body: "You're dealt six. Choose the four you'll count — tap them. The other two are thrown to your Crib.",
+    body: "You're dealt six. Choose the four you'll count and tap them. The other two are thrown to your Crib.",
     art: "pip", anchor: "hand" },
   { title: "Then the cut decides",
-    body: "Only after you commit is a fifth card cut. It joins your four for the count — so keep for what's LIKELY, not what's certain.",
+    body: "Only after you commit is a fifth card cut. It joins your four for the count, so keep for what's LIKELY, not what's certain.",
     art: "facet", anchor: "cut" },
   { title: "The Crib is yours",
     body: "Your first four thrown cards form the Crib. It scores for you at the end of the round. Feeding it well is a second skill.",
@@ -17,10 +17,10 @@ const TUT_STEPS = [
     body: "Every pair of cards adding to fifteen scores 2. Pairs score 2. Runs of three or more score their length. Flushes and his-nobs score too.",
     art: "thump", anchor: "count" },
   { title: "Charms and Marks",
-    body: "Charms multiply your count. Marks sit on individual cards. Buy both at the Peg House between rounds — you have five charm slots, so choose.",
+    body: "Charms multiply your count. Marks sit on individual cards. Buy both at the Peg House between rounds. You have five charm slots, so choose.",
     art: "clover", anchor: "shop" },
   { title: "Spoilers",
-    body: "Every fifth round is a Spoiler with a rule that breaks something. You can see all five at the start of a run — build for them.",
+    body: "Every fifth round is a Spoiler with a rule that breaks something. You can see all five at the start of a run. Build for them.",
     art: "kingpin", anchor: "boss" },
 ];
 
@@ -129,7 +129,7 @@ const GUIDE_BEATS = [
     title: "Now look at the two numbers.",
     body: "LOCKED IN is what your four cards are worth on their own. EXPECTED AFTER " +
           "CUT is what they're likely worth once a fifth card is turned. They often " +
-          "disagree — that disagreement is the whole game.",
+          "disagree, and that disagreement is the whole game.",
     look: ".panel" },
   { at: "cut",
     title: "The cut decides.",
