@@ -9,6 +9,8 @@ extends Control
 signal dealt_ready
 signal counted(res: Dictionary)
 signal cascade_done
+## Keep was pressed and the engine counted (before the cut ceremony plays).
+signal committed
 ## In a run (RunFlow), the finished round is handed back instead of restarting.
 signal round_finished
 
@@ -307,6 +309,7 @@ func _commit() -> void:
 	var kept: Array = idx.map(func(i): return rd.dealt[i])
 	var pre_stock: Array = rd.stock.duplicate()   # the web scores the cut against this
 	var res = rd.commit(idx)
+	committed.emit()
 	# the cut's tier, before round end can touch the stock (Foresight: no ceremony)
 	last_cut_plan = null if knew_starter else CutPlan.build(CutPlan.quality_like_web(rd, kept, pre_stock))
 	last_result = res

@@ -10,11 +10,14 @@ func _go() -> void:
 	Achv.grant("long_road")
 	Achv.mark_trial("pauper")
 	RunRecord.record(CribRun.new("pip"), 17, 412)
+	Achv.add_pegs(70)
+	Achv.buy_back("crimson")
+	Achv.set_back("crimson")
 	var sz := OS.get_environment("SHOT_SIZE").split("x") if OS.get_environment("SHOT_SIZE") != "" else PackedStringArray(["720", "1280"])
 	root.size = Vector2i(int(sz[0]), int(sz[1]))
 	var f: RunFlow = load("res://scenes/run_flow.tscn").instantiate()
 	root.add_child(f)
-	for step in ["title", "road", "street", "trial", "meld"]:
+	for step in ["title", "road", "street", "trial", "meld", "peddler"]:
 		f.cb.street = Meta.STREETS[1]
 		f.cb.meld_idx = 3
 		f.show_front_door(step)

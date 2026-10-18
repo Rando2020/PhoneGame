@@ -32,8 +32,10 @@ in Godot: intro, keep and count, cut ceremony, round end, shop, next round, run 
 | shop | `cribrogue_ui.js` showCribShop | `ui/shop/shop_screen.gd` | charms, cards, reroll, Reckonings, selling, slot limits |
 | run flow | cribRoundIntro, cribRoundEnd, NEXT ROUND, cribRunWon | `ui/run_flow.gd` (main scene) | wager, WALK AWAY, SKIP, boss intro, round end, run won, endless |
 | The Play (pegging) | showPegging, renderPegging, pegLay | `ui/peg/peg_session.gd`, `peg_view.gd`, in `keep_screen.gd` | entered after the count exactly when the web does; tap to lay, tap to hurry the Spoiler |
-| front door | showTitle (PLAY only), showCribSelect, Meta.record/line | `ui/front/front_door.gd`, `run_record.gd`, in `run_flow.gd` (opens on the title) | roads, Streets, Trials, Meldling carousel; NEW RUN and Title return here |
-| rest of UI, audio | `cribrogue_ui.js`, `app.js`, `audio.js` | none | not started: Deeds, Gallery, Peddler, Record, How to play, guided first round, theme, save and resume mid-run, audio, particles, creature sprites |
+| front door | showTitle (PLAY, Peddler), showCribSelect, Meta.record/line | `ui/front/front_door.gd`, `run_record.gd`, in `run_flow.gd` (opens on the title) | roads, Streets, Trials, Meldling carousel; NEW RUN and Title return here |
+| Peddler | showPeddler | `front_door.gd` (step "peddler"); `CardArt.back()` draws the equipped back | buy and equip card backs for Pegs |
+| guided first round | tutorial.js Guide, guideStart/Show/Finish | `ui/front/guide_coach.gd`, `RunFlow.start_guided` | six beats at the web's moments; PLAY ON / Skip coaching |
+| rest of UI, audio | `cribrogue_ui.js`, `app.js`, `audio.js` | none | not started: Deeds, Gallery, Record, How to play, theme, beat highlights, save and resume mid-run, audio, particles, creature sprites |
 
 ## Parity test
 
@@ -71,7 +73,10 @@ godot --headless --path godot --script res://tests/shop_test.gd       # 40 JS sh
 godot --headless --path godot --script res://tests/run_flow_test.gd   # whole runs by click vs the web's call order
 godot --headless --path godot --script res://tests/peg_test.gd        # The Play vs JS fixture playui, by click
 godot --headless --path godot --script res://tests/front_door_test.gd # every select path by click vs JS fixture selectui
-xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/front_shot.gd # /tmp/front_*.png
+xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/front_shot.gd # /tmp/front_*.png (incl. Peddler)
+godot --headless --path godot --script res://tests/peddler_test.gd    # Peddler taps vs JS fixture pedui, by click
+godot --headless --path godot --script res://tests/guide_test.gd      # guided first round: run vs JS, beat timing
+xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/guide_shot.gd # /tmp/guide_*.png
 xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/peg_shot.gd   # /tmp/peg_*.png
 xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/flow_shot.gd  # /tmp/flow_*.png
 xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/shop_shot.gd  # /tmp/shop_*.png
@@ -259,6 +264,28 @@ Mutations caught: wrong Daily deck, Long Count ignoring the last Street, wrong
 Meldling locks, Trial dropped, the stats line's JS remainder. A script that
 fails to compile still hangs the runner (the test can't load); always run
 tests under `timeout`.
+
+## The Peddler and the guided first round (ported 2026-10-18)
+
+**Peddler** (title button): card backs for Pegs. Tap owned = equip; else buy and
+equip if the Pegs cover it; else "Not enough Pegs". Back goes to the roads, as
+the web's does. The web shows only card backs here (LENSES exist in meta.js but
+nothing sells them). Godot never drew the equipped back before: `CardArt.back()`
+now loads `back_<active>.png` (back_indigo.png is pixel-identical to the old
+card_back.png). Fixture `pedui` (3 saves, 36 taps); `peddler_test` matches it
+by click (696 checks). Mutations caught: buy without equip, equip ignored,
+back art fixed to indigo, Back to the title.
+
+**Guided first round:** a fresh save (no `guided`, no `runs`) shows "PLAY ·
+first round" and starts Thump on First Street (unseeded; the web's comment
+promises a stacked deck, the code doesn't stack one) with no intro. Beats as
+the web calls guideShow: deal at once, kept 0.12 s after the fourth card, cut
+0.2 s after Keep, counted / target / done 0.7 / 2.6 / 5.2 s after the count
+lands; never one behind the last. `guide_test` checks the run against the JS
+(fixture selectui), every beat's order and timing, PLAY ON (roads, `guided`
+set), Skip coaching (round plays on, "Coaching off."). Mutations caught: kept
+on any selection, no order rule, guided not saved, cut late; the front-door
+test catches "first time" ignoring runs. Not ported: each beat's highlight.
 
 ## Found, not fixed: Ziah's call
 

@@ -87,7 +87,11 @@ func check_page(f: RunFlow, shape: Vector2i, where: String) -> void:
 			ok(r.position.y >= shape.y * 0.55, "%s: %s out of thumb reach" % [where, k])
 	var lowest := 0.0
 	for c in f.front._page.get_children():
-		if c is Label or c is Panel or (c is Button and not (c.text in ["PLAY", "Back", "CONTINUE", "BEGIN"])):
+		var action := false
+		for k in ["play", "back", "continue", "begin"]:
+			if f.front.buttons.get(k) == c:
+				action = true
+		if c is Label or c is Panel or (c is Button and not action):
 			lowest = maxf(lowest, c.get_global_rect().end.y)
 	var top := float(shape.y)
 	for k in ["play", "back", "continue", "begin"]:
@@ -128,7 +132,14 @@ func _go() -> void:
 		var line: Label = f.front._page.get_node("line")
 		ok(line.text == S.line, "%s: title line '%s', web '%s'" % [where, line.text, S.line])
 		check_page(f, shape, where + " title")
+		# web: a save never guided and with no runs gets the guided first round
+		var first: bool = not S.store.has("guided") and not S.store.has("runs")
+		ok(f.front.buttons["play"].text.contains("first round") == first, "%s: PLAY label '%s'" % [where, f.front.buttons["play"].text])
 		await press(f, "play")
+		if first:
+			ok(f.screen == "round" and f.coach != null and f.run.meldling == "thump" and int(f.run.street.id) == 1, "%s: fresh PLAY didn't start the guided round" % where)
+			f.show_front_door("road")
+			await process_frame
 		ok(f.cb.step == "road", "%s: PLAY didn't open the roads" % where)
 		check_page(f, shape, where + " road")
 		# ---- what's open

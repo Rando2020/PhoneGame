@@ -431,9 +431,35 @@ fx.selectui = [];
   Date.now = realNow;
 }
 
+/* ---- the Peddler (web showPeddler): tapping a card back equips it if owned,
+   else buys and equips it if the Pegs cover it, else "Not enough Pegs". A
+   scripted run of taps over three saves; the save after every tap. Appended last. */
+fx.pedui = [];
+{
+  const realNow = Date.now; Date.now = () => 1760000000000;
+  const snap = () => ({ pegs: Achv.pegs(), owned: CARD_BACKS.filter((b) => Achv.ownsBack(b.id)).map((b) => b.id),
+                        active: Achv.activeBack() });
+  for (const [pegs, own] of [[0, []], [70, []], [230, ["moss"]]]) {
+    Achv.save({ __v: 3 }); Achv.addPegs(pegs);
+    for (const id of own) { Achv.addPegs(999); Achv.buyBack(id); Achv.spendPegs(Achv.pegs() - pegs); }
+    const store = JSON.parse(JSON.stringify(Achv.load()));
+    const steps = [{ tap: null, out: null, state: snap() }];
+    for (let k = 0; k < 12; k++) {
+      const i = ri(CARD_BACKS.length), b = CARD_BACKS[i];
+      let out;
+      if (Achv.ownsBack(b.id)) { Achv.setBack(b.id); out = "equip"; }
+      else if (Achv.buyBack(b.id)) { Achv.setBack(b.id); out = "buy"; }
+      else out = "short";
+      steps.push({ tap: i, out, state: snap() });
+    }
+    fx.pedui.push({ store, steps });
+  }
+  Date.now = realNow;
+}
+
 if (require.main === module) {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(fx));
-  console.log(`wrote ${OUT}: count ${fx.count.length}, keep ${fx.keep.length}, peg ${fx.peg.length}, pegplay ${fx.pegplay.length}, runs ${fx.runs.length}, playui ${fx.playui.length}, selectui ${fx.selectui.length}`);
+  console.log(`wrote ${OUT}: count ${fx.count.length}, keep ${fx.keep.length}, peg ${fx.peg.length}, pegplay ${fx.pegplay.length}, runs ${fx.runs.length}, playui ${fx.playui.length}, selectui ${fx.selectui.length}, pedui ${fx.pedui.length}`);
 }
 module.exports = { fx };

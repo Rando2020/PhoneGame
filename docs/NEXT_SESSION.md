@@ -12,17 +12,18 @@ in small verified steps and leave every step green.
 </role>
 
 <context>
-Read first: docs/PORT.md (status table, "The Play", "Web bug fixed", "Found, not
-fixed", "Port bugs found by UI tests", UI facts, "Applying the web patches",
-"Balance decisions SHIPPED"), this file, and project memory
-design-principles.md (simulate before intuition; the Crib must feel
-strategic; counterfactual attribution is valued; fluidity drives UI).
+Read first: docs/PORT.md (status table, "The Play", "The front door", "The
+Peddler and the guided first round", "Web bug fixed", "Found, not fixed", "Port
+bugs found by UI tests", UI facts, "Applying the web patches", "Balance
+decisions SHIPPED"), this file, and project memory design-principles.md
+(simulate before intuition; the Crib must feel strategic; counterfactual
+attribution is valued; fluidity drives UI).
 If an older prompt is pasted instead of this one, trust this file and PORT.md.
 Source of truth: GitHub Rando2020/PhoneGame (main). Clone it; work on a
 branch; open a PR. godot/ is the port, web/ the patched web game, docs/ these
 docs. If the repo and the docs disagree, trust the tests, then the code.
-State (PRs stack: #3 port-sync, #4 the-play, #5 front-door; if not merged,
-clone front-door. Verified from a fresh clone):
+State (PRs stack: #3 port-sync, #4 the-play, #5 front-door, #6 peddler; if
+not merged, clone peddler. Verified from a fresh clone):
 - Engine proven identical to the JS: 78 full runs, 4000 hands, 1800 pegging
   cases. All seven original engine bugs fixed both sides; balance shipped
   (Clover Ascended Mimic, Usury x2, The Collector redesigned).
@@ -32,28 +33,31 @@ clone front-door. Verified from a fresh clone):
   round (in_run, round_finished). Shop: ui/shop/shop_screen.gd. Cut
   ceremony: ui/cut/. The Play: ui/peg/ (PegSession logic, PegView screen),
   entered by KeepScreen after the count exactly as the web's afterCount.
-  Front door: ui/front/ (title PLAY, roads, Streets, Trials, Meldlings);
-  RunFlow opens on it, NEW RUN and Title return to it.
+  Front door: ui/front/ (title PLAY and Peddler, roads, Streets, Trials,
+  Meldlings); RunFlow opens on it, NEW RUN and Title return to it. A fresh
+  save's PLAY starts the guided first round (ui/front/guide_coach.gd).
+  Face-down cards wear the back equipped at the Peddler.
 - Web fix pending Ziah's OK: the round end paid the Crib twice
   (web/cribend.patch; clear rates were 4-6 points higher than simulated).
 - Tests green, mutation-tested: parity, cache, card, cascade, cut, shop,
-  peg, front_door, run_flow, screen_test_shapes, screen_test_play,
-  screen_leak.
-- Not ported: title extras (Deeds, Gallery, Peddler, Record, How to play,
-  theme), the guided first round, audio, particles, creature sprites.
+  peg, front_door, peddler, guide, run_flow, screen_test_shapes,
+  screen_test_play, screen_leak.
+- Not ported: Deeds, Gallery, Record, How to play, theme, the guide's
+  highlights, audio, particles, creature sprites.
 - Ziah ran the port on his phone: it works. Speed and safe areas unmeasured.
 - The sandbox has ONE CPU core.
 </context>
 
 <task>
-1. The Peddler (meta shop for Pegs, web showPeddler 221-259) as a title icon.
-   Read Achv pegs, lenses and card backs first. Done = a JS fixture (at the
-   END) of purchases made the web's way, a test buying by click that matches
-   it, layout at 3 shapes, renders checked by eye.
-2. The guided first round (tutorial.js guideStart/guideShow): PLAY on a fresh
-   save starts it, as the web does. Same bar (the beats appear at the same
-   moments; the stacked deal matches).
-3. If time remains: Deeds and Record (history) screens from the title.
+1. Deeds and Record from the title (web showDeeds 469-523, showHistory
+   260-315). Read Achv.check, ACHIEVEMENTS and logRun first. Done = a JS
+   fixture (at the END) of what each screen lists for a few saves, a test that
+   opens them by click and matches it, layout at 3 shapes, renders by eye.
+2. Creature sprites (assets/meldlings/*_{idle,attack,hurt}.png strips; web
+   creatureEl/playAnim): Meldling on the title, Meldling picker and run won;
+   Spoiler on the boss intro and The Play. Presentation only; frames from the
+   strip width / height. Renders by eye; a leak test for the animation.
+3. If time remains: How to play (web showTutorial, six beats).
 </task>
 
 <open_decisions>
@@ -67,7 +71,7 @@ Ask Ziah in ONE short message at the start:
 3. Stink Hole / Skunk Line "every round runs full" (noCashOut) is dead in the
    web too. Implement it in both, or reword the Streets?
 4. The web's game copy has em dashes (shop full, round skipped, The
-   Gathering's text). Change them in both?
+   Gathering's text, the guide). Change them in both?
 5. The Daily never locks and the best Long Count is never saved (in the web
    too: recordDaily/setEndless are never called). Wire them up in both?
 6. iOS kills backgrounded apps; the web has no mid-run save. Add save and
@@ -95,13 +99,19 @@ Ask Ziah in ONE short message at the start:
   mouse_filter in _ready (set after add_child). CardView scales about its
   centre. Containers inflate to fit children. A Button grows rightward when
   its label is wider than its size: size to the minimum.
+- `var x := <untyped expr>` fails to compile ("cannot infer the type"); give
+  the type. Compile-check every edited script (--check-only) before testing.
 - KeepScreen.in_run must be set before add_child, or it deals a throwaway round.
 - SafeArea.insets is zero off-phone (desktop safe area is monitor-relative).
 - GDScript lambdas capture locals BY VALUE; assignments inside don't persist.
   Shared state goes in a Dictionary.
 - CardView.pop() ends at scale 1; don't use it on a scaled card.
 - A test file that names a class which fails to compile can't load, so it
-  hangs: run every test under `timeout`.
+  hangs; a script error mid-test (no quit) hangs too. Run every test under
+  `timeout` and redirect output to a FILE: piped output is lost when timeout
+  kills Godot, which looks like a hang with no output.
+- Anything parented to a RunFlow page is freed when the page changes (the
+  guide coach at round end): read what you need before.
 - Front-door pages render in open(): FrontDoor uses
   set_anchors_and_offsets_preset so its size is right immediately.
 - Settling a round is order-sensitive: The Play's splice must happen before
@@ -110,7 +120,8 @@ Ask Ziah in ONE short message at the start:
   VALUE (use is_same); `dict.has(k)` is not JS truthiness (the is_wager bug):
   use JS.truthy(dict.get(k)).
 - Fixtures only cover what gen_fixtures.js does: no fixture walked away from a
-  wager, so the is_wager bug passed parity. New fixtures go at the END.
+  wager, so the is_wager bug passed parity. New fixtures go at the END, and
+  pin Date.now around anything that stamps the time.
 - The Bash harness blocks foreground sleep: background long runs and Read the
   output file. Commands over ~5 min time out.
 - The repo CI validates the ROOT project (legacy) with Godot 4.6.2; it skips
@@ -121,19 +132,21 @@ Ask Ziah in ONE short message at the start:
 
 <verify>
 After every change, all exit 0, one at a time: parity_test, cache_test,
-card_test, cascade_test, cut_test, shop_test, run_flow_test,
-screen_test_shapes, screen_test_play, screen_leak_test. After UI changes, xvfb
-renders by eye at 720x1280, 720x1560, 960x1280 (shot.gd, shop_shot.gd,
-flow_shot.gd). After any JS change: web harnesses, cascadecheck, every web
-check after `python3 tools/build_web.py`; regenerate fixtures.
+card_test, cascade_test, cut_test, shop_test, peg_test, front_door_test,
+peddler_test, guide_test, run_flow_test, screen_test_shapes,
+screen_test_play, screen_leak_test. After UI changes, xvfb renders by eye at
+720x1280, 720x1560, 960x1280 (shot.gd, shop_shot.gd, flow_shot.gd,
+peg_shot.gd, front_shot.gd, guide_shot.gd). After any JS change: web
+harnesses, cascadecheck, cribend_check and every web check after
+`python3 tools/build_web.py`; regenerate fixtures (twice: identical).
 </verify>
 
 <closing_ritual>
 1. Update docs/PORT.md. 2. Rewrite this file in the same structure; grep it to
-confirm it saved. 3. Commit on a branch, push, open a PR; verify from a fresh clone
-by running a test there. 4. Reply to Ziah: decisions applied,
-built, broke + how found, unverified, balance numbers, open decisions, then
-this prompt in a code block.
+confirm it saved. 3. Commit on a branch, push, open a PR; verify from a fresh
+clone by running a test there. 4. Reply to Ziah: decisions applied, built,
+broke + how found, unverified, balance numbers, open decisions, then this
+prompt in a code block.
 </closing_ritual>
 
 <style>
