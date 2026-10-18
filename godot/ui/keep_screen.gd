@@ -1,0 +1,405 @@
+class_name KeepScreen
+extends Control
+## First playable screen: a seeded deal of 6, tap to keep 4, commit, then the
+## starter flips and the count shows. Drives CribRound directly; holds no rules.
+##
+## Test hooks: `dealt_ready` fires once the deal animation finishes and input
+## is live; `counted(res)` fires after a commit with the engine's own result.
+
+signal dealt_ready
+signal counted(res: Dictionary)
+signal cascade_done
+## In a run (RunFlow), the finished round is handed back instead of restarting.
+signal round_finished
+
+@export var seed: int = 20261001
+@export var meldling: String = "pip"
+@export var in_run := false
+
+var run: CribRun
+var rd: CribRound
+var last_result = null
+
+var hand: HandView
+var starter_view: CardView
+var counted_row: HandView     ## the counted hand + starter, during and after the cascade
+var cascade: CascadeView
+var keep_button: Button
+var status_label: Label
+var cascading := false
+var cutting := false
+var cut_view: CutView
+var last_cut_plan = null   ## the ceremony's plan for the last commit (tests)
+var dealing := false
+var charm_bar: CharmBar
+var crib_strip: CribStrip
+var mulligan_button: Button
+var recut_button: Button
+
+const BG := Color(0.102, 0.094, 0.149)
+## Widest the content column grows: six cards side by side with no overlap.
+const MAX_COLUMN := 920.0
+const MARGIN := 24.0
+const INK := Color(0.96, 0.93, 0.88)
+const DIM := Color(0.96, 0.93, 0.88, 0.6)
+
+
+func _ready() -> void:
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+	_build()
+	_layout()
+	# In a run, RunFlow hands the round in; dealing a throwaway one here left
+	# its deal_finished connection dangling when the real deal killed it.
+	if not in_run:
+		start_round()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and keep_button != null:
+		_layout()
+
+
+## OS safe area, phones only (see SafeArea).
+func safe_insets() -> Dictionary:
+	return SafeArea.insets(self)
+
+
+## Bottom-up for the thumb: button, then hand, then the count fills the middle.
+func _layout() -> void:
+	var ins := safe_insets()
+	var col := minf(size.x - MARGIN * 2.0, MAX_COLUMN)
+	var x0 := (size.x - col) / 2.0
+	var card := Vector2(CardArt.BASE_W, CardArt.BASE_H) * CardView.PIXEL_SCALE
+
+	keep_button.size = Vector2(300, 80)
+	keep_button.position = Vector2((size.x - 300) / 2.0, size.y - ins.bottom - MARGIN * 1.5 - 80)
+
+	var hand_h := card.y + hand.lift_amount + 16.0
+	hand.size = Vector2(col, hand_h)
+	hand.position = Vector2(x0, keep_button.position.y - 24.0 - hand_h)
+
+	status_label.position = Vector2(x0, ins.top + MARGIN * 2.0)
+	status_label.size = Vector2(col, 80)
+
+	charm_bar.position = Vector2(x0, status_label.position.y + 84.0)
+	charm_bar.size = Vector2(col, CharmBar.H)
+
+	# Mulligan sits left of Keep in the thumb row, only while it can be used.
+	mulligan_button.size = Vector2(minf(170.0, keep_button.position.x - x0 - 12.0), 64)
+	mulligan_button.position = Vector2(x0, keep_button.position.y + 8.0)
+
+	# starter before the count; the counted row takes the same band after it
+	var band_y := charm_bar.position.y + CharmBar.H + 12.0
+	var band_h := card.y + counted_row.lift_amount + 12.0
+	starter_view.position = Vector2((size.x - card.x) / 2.0, band_y + band_h - card.y)
+	counted_row.position = Vector2(x0, band_y)
+	counted_row.size = Vector2(col, band_h)
+	cut_view.position = Vector2(x0, starter_view.position.y)
+	cut_view.size = Vector2(col, card.y + 80.0)
+	# the crib strip sits right of the starter, recut to its left (Foresight only)
+	var sx: float = starter_view.position.x
+	crib_strip.position = Vector2(sx + card.x + 24.0, band_y + 8.0)
+	crib_strip.size = Vector2(maxf(0.0, x0 + col - crib_strip.position.x), band_h - 8.0)
+	recut_button.size = Vector2(minf(140.0, sx - x0 - 24.0), 60)
+	recut_button.position = Vector2(sx - 24.0 - recut_button.size.x, band_y + band_h / 2.0 - 30.0)
+
+	var top := band_y + band_h + 16.0
+	cascade.position = Vector2(x0, top)
+	cascade.size = Vector2(col, maxf(0.0, hand.position.y - 16.0 - top))
+
+
+func _label(font_size: int, color: Color) -> Label:
+	var l := Label.new()
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_color_override("font_color", color)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return l
+
+
+func _build() -> void:
+	var bg := ColorRect.new()
+	bg.color = BG
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bg)
+
+	status_label = _label(28, INK)
+	add_child(status_label)
+
+	cut_view = CutView.new()
+	cut_view.hide()
+	add_child(cut_view)
+
+	starter_view = CardView.new()
+	starter_view.draggable = false
+	add_child(starter_view)
+	starter_view.setup(1, "S", false)
+	starter_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	charm_bar = CharmBar.new()
+	add_child(charm_bar)
+
+	crib_strip = CribStrip.new()
+	add_child(crib_strip)
+
+	recut_button = Button.new()
+	recut_button.text = "Recut"
+	recut_button.add_theme_font_size_override("font_size", 24)
+	recut_button.pressed.connect(_on_recut)
+	add_child(recut_button)
+
+	counted_row = HandView.new()
+	counted_row.max_select = 0
+	counted_row.show_hints = false
+	add_child(counted_row)
+	# After add_child: HandView/CardView reset mouse_filter in _ready. A PASS
+	# row on top swallowed clicks meant for the Recut button beneath it.
+	counted_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	cascade = CascadeView.new()
+	add_child(cascade)
+
+	hand = HandView.new()
+	add_child(hand)
+	hand.selection_changed.connect(_on_selection)
+
+	keep_button = Button.new()
+	keep_button.add_theme_font_size_override("font_size", 30)
+	keep_button.pressed.connect(_on_button)
+	add_child(keep_button)
+
+	mulligan_button = Button.new()
+	mulligan_button.add_theme_font_size_override("font_size", 22)
+	mulligan_button.pressed.connect(_on_mulligan)
+	add_child(mulligan_button)
+
+
+## A fresh seeded run and its first round. Tests may pass a prepared run.
+func start_round(run_: CribRun = null) -> void:
+	run = run_ if run_ != null else CribRun.new(meldling, null, null, seed)
+	rd = CribRound.new(run)
+	last_result = null
+	charm_bar.build(run)
+	next_deal()
+
+
+func next_deal() -> void:
+	if rd.new_deal() == null:
+		if not rd.over:
+			rd.settle()
+		_show_round_end()
+		return
+	# Foresight cuts before the keep: show the starter face up from the deal.
+	if rd.starter != null:
+		starter_view.setup_card(rd.starter, true)
+	else:
+		starter_view.setup(1, "S", false)
+	starter_view.show()
+	counted_row.set_cards([], false)
+	cascade.clear()
+	cut_view.clear()
+	cut_view.hide()
+	charm_bar.clear_lit()
+	crib_strip.refresh(rd)
+	crib_strip.show()
+	hand.max_select = rd.keep_count()
+	_update_status()
+	keep_button.disabled = true
+	keep_button.text = "Keep 0/%d" % rd.keep_count()
+	_deal_hand()
+
+
+## Deal rd.dealt into the hand. Each card is tagged with its index in rd.dealt,
+## since the view may reorder its copies.
+func _deal_hand() -> void:
+	dealing = true                    # controls stay hidden until the cards land
+	_refresh_controls()
+	var tagged := []
+	for i in rd.dealt.size():
+		var c := JS.copy(rd.dealt[i])
+		c["_i"] = i
+		tagged.append(c)
+	hand.deal_finished.connect(_on_hand_dealt, CONNECT_ONE_SHOT)
+	hand.deal(tagged)
+
+
+func _on_hand_dealt() -> void:
+	dealing = false
+	_refresh_controls()
+	dealt_ready.emit()
+
+
+## Mulligan and recut appear only while usable: fewer controls, more flow.
+func _refresh_controls() -> void:
+	var keeping: bool = rd != null and rd.phase == "keep" and not cascading and not dealing and not rd.over
+	mulligan_button.visible = keeping and rd.can_mulligan()
+	mulligan_button.text = "Mulligan (%d)" % (rd.mulligans_left if rd != null else 0)
+	recut_button.visible = keeping and rd.starter != null and rd.recuts_left > 0
+
+
+func _on_mulligan() -> void:
+	if not mulligan_button.visible or rd.mulligan() == null:
+		return
+	crib_strip.refresh(rd)
+	keep_button.disabled = true
+	keep_button.text = "Keep 0/%d" % rd.keep_count()
+	_deal_hand()
+
+
+func _on_recut() -> void:
+	if not recut_button.visible or rd.recut() == null:
+		return
+	starter_view.setup_card(rd.starter, true)
+	_refresh_controls()
+
+
+## The keep as indices into rd.dealt, ascending.
+func selected_keep() -> Array:
+	var idx: Array = hand.get_selected_cards().map(func(c): return int(c._i))
+	idx.sort()
+	return idx
+
+
+func _on_selection(_cards: Array, verdict: Dictionary) -> void:
+	if rd.phase != "keep":
+		return
+	keep_button.disabled = not verdict.valid
+	keep_button.text = "Keep %d/%d" % [verdict.count, verdict.need]
+
+
+func _on_button() -> void:
+	if cascading:
+		cascade.skip()
+	elif rd.over:
+		if in_run:
+			round_finished.emit()
+			return
+		seed += 1
+		start_round()
+	elif rd.phase == "keep":
+		_commit()
+	else:
+		next_deal()
+
+
+func _commit() -> void:
+	var idx := selected_keep()
+	if idx.size() != rd.keep_count():
+		return
+	var kr := rd.keep_rank(idx)        # rank the DECISION, before the cut is known
+	var knew_starter: bool = rd.starter != null
+	var kept: Array = idx.map(func(i): return rd.dealt[i])
+	var pre_stock: Array = rd.stock.duplicate()   # the web scores the cut against this
+	var res = rd.commit(idx)
+	# the cut's tier, before round end can touch the stock (Foresight: no ceremony)
+	last_cut_plan = null if knew_starter else CutPlan.build(CutPlan.quality_like_web(rd, kept, pre_stock))
+	last_result = res
+	keep_button.disabled = true
+	# round end is decided now; only its display waits for the cascade
+	# As the web's afterCount: the round ends the moment the target falls or the
+	# deals run out. (The web never reads noCashOut, so neither does this; see PORT.md.)
+	if rd.score >= rd.target or rd.deals_left <= 0:
+		rd.settle()
+
+	mulligan_button.hide()
+	recut_button.hide()
+	if not knew_starter:
+		# the cut ceremony: rolls longer for better cuts; tap anywhere to skip
+		starter_view.hide()
+		crib_strip.hide()
+		cut_view.show()
+		cutting = true
+		# one-shot connection, not an await (no coroutine outlives the screen)
+		cut_view.finished.connect(_after_cut.bind(res, kr), CONNECT_ONE_SHOT)
+		cut_view.play(last_cut_plan)
+	else:
+		_after_flip(res, kr)
+
+
+func _after_cut(res: Dictionary, kr: Dictionary) -> void:
+	cutting = false
+	cut_view.hide()
+	_after_flip(res, kr)
+
+
+## Second half of the commit, once the starter is face up.
+func _after_flip(res: Dictionary, kr: Dictionary) -> void:
+	# kept cards leave the hand; the throws go to the crib
+	hand.remove_selected(true)
+	while hand.card_count() > 0:
+		hand.remove_at(0, true)
+	# the counted row is what the engine actually counted (Exchange, Double Cut)
+	starter_view.hide()
+	crib_strip.hide()
+	var shown := []
+	for c in res.all:
+		shown.append(JS.copy(c))
+	counted_row.set_cards(shown, true)
+	# counted cards are display only: taps fall through to the skip handler
+	for v in counted_row._views:
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	cascading = true
+	keep_button.text = "Skip"
+	keep_button.disabled = false
+	counted.emit(res)
+	# One-shot connection rather than an await, so no suspended function state
+	# outlives the screen if it is freed mid-count.
+	cascade.finished.connect(_on_cascade_finished, CONNECT_ONE_SHOT)
+	cascade.play(CascadePlan.build(res, rd, kr), _light, charm_bar.light)
+
+
+func _on_cascade_finished() -> void:
+	cascading = false
+	_update_status()
+	if rd.over:
+		_show_round_end()
+	else:
+		keep_button.text = "Next deal"
+	cascade_done.emit()
+
+
+## Light the counted cards an event used (null = all of them). Split hands
+## count with variant copies, so match on suit and either rank, as the web does
+## with its rank+suit key.
+func _light(cards) -> void:
+	for k in counted_row._views.size():
+		var v: CardView = counted_row._views[k]
+		if cards == null:
+			v.set_state(CardView.State.VALID)
+			continue
+		var hit := false
+		for c in cards:
+			if c.suit == v.suit and (c.rank == v.rank or (v.rank2 != 0 and c.rank == v.rank2)):
+				hit = true
+		v.set_state(CardView.State.SELECTED if hit else CardView.State.NORMAL)
+
+
+## Round-end facts go to the status bar and the button, not under the count:
+## the cascade footer stays about the hand that was just counted.
+func _show_round_end() -> void:
+	_update_status()
+	keep_button.text = "Continue" if in_run else "New round"
+	keep_button.disabled = false
+
+
+func _update_status() -> void:
+	var second := "Deals left %d" % rd.deals_left
+	if rd.over:
+		var crib: int = rd.crib_result.total if rd.crib_result != null else 0
+		second = "%s  |  Crib +%d" % ["Round cleared" if rd.won else "Round lost", crib]
+	status_label.text = "%s  |  Target %d  |  Score %d\n%s" % [run.deck.name, rd.target, rd.score, second]
+
+
+## During a count the whole screen is the skip button: the thumb shouldn't
+## have to aim. Continuing still uses the button, so a stray tap can't deal.
+func _gui_input(event: InputEvent) -> void:
+	if (cascading or cutting) and event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT:
+		if cutting:
+			cut_view.skip()
+		else:
+			cascade.skip()
+		accept_event()
