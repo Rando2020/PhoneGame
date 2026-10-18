@@ -135,7 +135,7 @@ screen_test_shapes,
 screen_test_play, screen_leak_test. After UI changes, xvfb renders by eye at
 720x1280, 720x1560, 960x1280 (shot.gd, shop_shot.gd, flow_shot.gd,
 peg_shot.gd, front_shot.gd, guide_shot.gd). After any JS change: web
-harnesses, cascadecheck, cribend_check, record_check and every web check after
+harnesses, cascadecheck, cribend_check, record_check, save_check and every web check after
 `python3 tools/build_web.py`; regenerate fixtures (twice: identical).
 </verify>
 
