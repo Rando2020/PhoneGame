@@ -35,6 +35,12 @@ var charm_bar: CharmBar
 var crib_strip: CribStrip
 var mulligan_button: Button
 var recut_button: Button
+## The Play (web afterCount): owed after this count's cascade, before the round
+## goes on or ends. The round is settled only after it, as the web does.
+var peg_pending := false
+var peg_kept: Array = []
+var peg_view: PegView
+var peg_session: PegSession
 
 const BG := Color(0.102, 0.094, 0.149)
 ## Widest the content column grows: six cards side by side with no overlap.
@@ -181,6 +187,12 @@ func start_round(run_: CribRun = null) -> void:
 	run = run_ if run_ != null else CribRun.new(meldling, null, null, seed)
 	rd = CribRound.new(run)
 	last_result = null
+	peg_pending = false
+	peg_kept = []
+	if peg_view != null:
+		remove_child(peg_view)
+		peg_view.queue_free()
+		peg_view = null
 	charm_bar.build(run)
 	next_deal()
 
@@ -272,6 +284,8 @@ func _on_selection(_cards: Array, verdict: Dictionary) -> void:
 func _on_button() -> void:
 	if cascading:
 		cascade.skip()
+	elif peg_pending:
+		_start_peg()
 	elif rd.over:
 		if in_run:
 			round_finished.emit()
@@ -300,7 +314,11 @@ func _commit() -> void:
 	# round end is decided now; only its display waits for the cascade
 	# As the web's afterCount: the round ends the moment the target falls or the
 	# deals run out. (The web never reads noCashOut, so neither does this; see PORT.md.)
-	if rd.score >= rd.target or rd.deals_left <= 0:
+	# With The Play owed, both wait for it: its gain counts toward the target, and
+	# settling first would draw the Crib's Own Cut before the Spoiler's hand.
+	peg_pending = PegSession.wanted(rd)
+	peg_kept = kept
+	if not peg_pending and (rd.score >= rd.target or rd.deals_left <= 0):
 		rd.settle()
 
 	mulligan_button.hide()
@@ -354,11 +372,45 @@ func _after_flip(res: Dictionary, kr: Dictionary) -> void:
 func _on_cascade_finished() -> void:
 	cascading = false
 	_update_status()
-	if rd.over:
+	if peg_pending:
+		keep_button.text = "The Play"
+	elif rd.over:
 		_show_round_end()
 	else:
 		keep_button.text = "Next deal"
 	cascade_done.emit()
+
+
+## showPegging: the Play covers the table until CONTINUE.
+func _start_peg() -> void:
+	if peg_view != null:
+		return
+	peg_session = PegSession.start(rd, peg_kept)
+	peg_view = PegView.new()
+	add_child(peg_view)
+	peg_view.size = size
+	peg_view.open(peg_session)
+	peg_view.finished.connect(_on_peg_finished, CONNECT_ONE_SHOT)
+
+
+## The Play's CONTINUE: the gain is already in the score. Then exactly the web's
+## afterCount test: another deal, or the round ends.
+func _on_peg_finished(_gain: int) -> void:
+	peg_pending = false
+	peg_kept = []
+	remove_child(peg_view)
+	peg_view.queue_free()
+	peg_view = null
+	if rd.deals_left > 0 and rd.score < rd.target:
+		next_deal()
+		return
+	if not rd.over:
+		rd.settle()
+	_update_status()
+	if in_run:
+		round_finished.emit()
+	else:
+		_show_round_end()
 
 
 ## Light the counted cards an event used (null = all of them). Split hands

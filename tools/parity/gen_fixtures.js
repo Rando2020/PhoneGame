@@ -299,9 +299,75 @@ fx.shopui = [];
   }
 }
 
+/* ---- The Play, driven the way the web UI drives it (doCribCount's afterCount
+   and showPegging/renderPegging/pegLay): after the count, if the_play is owned
+   and 4+ cards remain, the Spoiler's hand is spliced off the FRONT of the stock,
+   the play runs, net = pegs - floor(Spoiler pegs / 2), gain = round(net x the
+   count's mult, at least x1) joins the round score, and only then does the
+   round continue or end (settleCrib + settle). Policy: first playable card on
+   even deals, last playable on odd ones. Appended last. */
+fx.playui = [];
+{
+  const MELDS = ["pip", "thump", "clover", "facet", "nib", "muggins"];
+  const BUILDS = [[], ["keystone2", "ballast"], ["exchange"], ["doublecut"], ["foresight"], ["usury", "tallyman"]];
+  const XSYS = [[], ["crib_cut"], ["crib_mult"], ["crib_cut", "crib_mult"]];
+  for (let i = 0; i < 36; i++) {
+    const cfg = { meld: MELDS[i % 6], seed: 5100 + i, build: BUILDS[i % BUILDS.length],
+                  systems: ["the_play"].concat(XSYS[i % 4]), act: 1 + (i % 3) * 2, rounds: 3 };
+    Achv.save({ __v: 3 }); for (const s of cfg.systems) Achv.grantSystem(s);
+    Math.random = makeRng(UNSEEDED);
+    const run = new CribRun(cfg.meld, null, null, cfg.seed);
+    for (const id of cfg.build) { const c = CCHARMS.find((x) => x.id === id); run.charms.push(c); if (c.onAcquire) c.onAcquire(run); }
+    run.act = cfg.act;
+    const rounds = [];
+    for (let r = 0; r < cfg.rounds; r++) {
+      const rd = new CribRound(run);
+      const deals = [];
+      let guard = 0;
+      while (!rd.over && guard++ < 30) {
+        if (!rd.newDeal()) break;
+        const idx = rd.bestKeepEV().idx;
+        const kept = idx.map((k) => rd.dealt[k]);
+        const res = rd.commit(idx);
+        const D = { dealt: rd.dealt.map(cardOut), keep: idx, total: res.total, mult: res.mult, pegged: false };
+        if (Achv.hasSystem("the_play") && rd.stock.length >= 4) {
+          const opp = rd.stock.splice(0, 4);
+          const p = new PegPlay(rd, kept, opp);
+          const pegMult = Math.max(1, (rd.lastCount && rd.lastCount.mult) || 1);
+          p.step();
+          const lays = [];
+          let g2 = 0;
+          while (!p.over && g2++ < 20) {
+            const ok = p.mine.map((_, k) => k).filter((k) => p.playable(k));
+            const k = deals.length % 2 === 0 ? ok[0] : ok[ok.length - 1];
+            lays.push(cardOut(p.mine[k]));
+            p.lay("you", p.mine[k]); p.turn = "them"; p.step();
+          }
+          const net = Math.max(0, p.score - Math.floor(p.oppScore / 2));
+          const gain = Math.round(net * pegMult);
+          rd.score += gain;
+          Object.assign(D, { pegged: true, opp: opp.map(cardOut), mine: kept.map(cardOut), lays,
+            pegs: p.score, oppPegs: p.oppScore, net, pegMult, gain,
+            log: p.log.map((l) => [l.who, l.label, l.points]) });
+        }
+        D.score = rd.score; D.stock = rd.stock.length; D.dealsLeft = rd.dealsLeft;
+        deals.push(D);
+        if (!(rd.dealsLeft > 0 && rd.score < rd.target)) break;
+      }
+      rd.settle();                       // cribRoundEnd (with cribend.patch): the Crib once
+      rounds.push({ target: rd.target, deals, won: rd.won, score: rd.score, crib: rd.cribResult.total,
+                    earned: rd.essenceEarned, stock: rd.stock.length });
+      if (!rd.won) break;
+      run.essence += rd.essenceEarned;
+      if (run.advance()) break;
+    }
+    fx.playui.push({ cfg, rounds });
+  }
+}
+
 if (require.main === module) {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(fx));
-  console.log(`wrote ${OUT}: count ${fx.count.length}, keep ${fx.keep.length}, peg ${fx.peg.length}, pegplay ${fx.pegplay.length}, runs ${fx.runs.length}`);
+  console.log(`wrote ${OUT}: count ${fx.count.length}, keep ${fx.keep.length}, peg ${fx.peg.length}, pegplay ${fx.pegplay.length}, runs ${fx.runs.length}, playui ${fx.playui.length}`);
 }
 module.exports = { fx };

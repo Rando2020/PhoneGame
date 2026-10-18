@@ -12,6 +12,7 @@ var checks := 0
 var fails := 0
 var clicks := 0
 var rounds_checked := 0
+var plays := 0
 var seen := {}   ## screen paths exercised: walk, skip, run_won, run_over, wager_played, boss
 
 
@@ -59,7 +60,7 @@ func state(run, rd) -> Dictionary:
 	return {"act": run.act, "round": run.round, "essence": run.essence, "deck": run.cards.size(),
 		"charms": run.charms.map(func(c): return c.id), "levels": lv, "skips": run.skips, "shop_open": run.shop_state != null,
 		"score": rd.score if rd != null else -1, "won": rd.won if rd != null else false,
-		"systems": Achv.locked_systems().size()}
+		"systems": Achv.locked_systems().map(func(x): return x.id)}
 
 
 ## Text never runs under the buttons; every button on screen.
@@ -81,29 +82,31 @@ func check_page(f: RunFlow, where: String) -> void:
 func play(name: String, prep: Callable, opts := {}) -> void:
 	Achv.persist = false
 	Achv.save_store({"__v": 3})
+	for sy in opts.get("systems", []):
+		Achv.grant_system(sy)
+	var save_b = Achv._cache.duplicate(true)
 	JS.unseeded = JsRng.new(11)
 	var f: RunFlow = load("res://scenes/run_flow.tscn").instantiate()
 	root.add_child(f)
 	await process_frame
 	f.start_run(prep.call())
 	# the replay gets its own save and Math.random stream, swapped in around its calls
-	var save_a := {"__v": 3}
-	var save_b := {"__v": 3}
-	var rng_a := JS.unseeded
-	var rng_b := JsRng.new(11)
 	var ui_save = Achv.load_store()
 	var R: CribRun = prep.call()
+	# GDScript lambdas capture locals BY VALUE: assignments inside one don't
+	# survive the call. Keep the swapped state in a Dictionary (shared by reference).
+	var st := {"save_a": null, "save_b": save_b, "rng_a": null, "rng_b": JsRng.new(11)}
 	var swap := func(to_replay: bool):
 		if to_replay:
-			save_a = Achv._cache
-			rng_a = JS.unseeded
-			Achv._cache = save_b
-			JS.unseeded = rng_b
+			st.save_a = Achv._cache
+			st.rng_a = JS.unseeded
+			Achv._cache = st.save_b
+			JS.unseeded = st.rng_b
 		else:
-			save_b = Achv._cache
-			rng_b = JS.unseeded
-			Achv._cache = save_a
-			JS.unseeded = rng_a
+			st.save_b = Achv._cache
+			st.rng_b = JS.unseeded
+			Achv._cache = st.save_a
+			JS.unseeded = st.rng_a
 	var walked := false
 	var order := []
 	var guard := 0
@@ -163,10 +166,12 @@ func play(name: String, prep: Callable, opts := {}) -> void:
 						if int(f.keep.hand._cards[k]._i) == i:
 							await _press(f.keep.hand._views[k])
 				await _press(f.keep.keep_button)
+				# the web's doCribCount + afterCount: the Play (if owed) comes before
+				# the round goes on or ends
 				swap.call(true)
+				var kept: Array = keep.map(func(i): return rd.dealt[i])
 				rd.commit(keep)
-				if rd.score >= rd.target or rd.deals_left <= 0:
-					rd.settle()
+				var owed := PegSession.wanted(rd)
 				swap.call(false)
 				# skip the cut ceremony / cascade by tapping the table
 				for t in 2:
@@ -174,6 +179,39 @@ func play(name: String, prep: Callable, opts := {}) -> void:
 						await _click(Vector2(SIZE.x / 2.0, SIZE.y * 0.45))
 				await _wait(func(): return not f.keep.cutting and not f.keep.cascading)
 				deal += 1
+				ok(f.keep.peg_pending == owed, "%s %d-%d deal %d: Play owed %s, web %s" % [name, R.act, R.round, deal, f.keep.peg_pending, owed])
+				if owed:
+					await _press(f.keep.keep_button)   # "The Play"
+					var pv: PegView = f.keep.peg_view
+					swap.call(true)
+					var rs := PegSession.start(rd, kept)
+					swap.call(false)
+					var g := 0
+					while not pv.s.play.over and g < 20:
+						g += 1
+						var kk: int = pv.s.playable_indices()[0]
+						await _press(pv.hand_views[kk])
+						await _click(Vector2(SIZE.x / 2.0, SIZE.y * 0.2))   # tap through the beat
+						swap.call(true)
+						rs.lay(rs.playable_indices()[0])
+						rs.answer()
+						swap.call(false)
+					await _press(pv.continue_button)
+					swap.call(true)
+					rs.apply()
+					var ends: bool = not (rd.deals_left > 0 and rd.score < rd.target)
+					if ends:
+						rd.settle()
+					swap.call(false)
+					plays += 1
+					seen["play"] = true
+					if ends:
+						break      # the round is handed straight to the round-end page
+					continue
+				swap.call(true)
+				if rd.score >= rd.target or rd.deals_left <= 0:
+					rd.settle()
+				swap.call(false)
 				if f.keep.rd.over:
 					break
 				await _press(f.keep.keep_button)   # "Next deal"
@@ -181,15 +219,14 @@ func play(name: String, prep: Callable, opts := {}) -> void:
 				swap.call(true)
 				rd.settle()   # the replay's deck ran dry where the screen's did
 				swap.call(false)
-			ok(f.keep.keep_button.text == "Continue", "%s: round over but button says %s" % [name, f.keep.keep_button.text])
-			await _press(f.keep.keep_button)   # "Continue"
+			if f.screen == "round":
+				ok(f.keep.keep_button.text == "Continue", "%s: round over but button says %s" % [name, f.keep.keep_button.text])
+				await _press(f.keep.keep_button)   # "Continue"
 			await _wait(func(): return f.screen == "round_end")
 			order.append("round_end")
 			check_page(f, "%s round end %d-%d" % [name, R.act, R.round])
 			# ---- replay cribRoundEnd
 			swap.call(true)
-			if rd.crib_result == null:
-				rd.settle_crib()
 			rd.settle()
 			if rd.wager != null and rd.wager_won:
 				var locked := Achv.locked_systems()
@@ -307,9 +344,13 @@ func _go() -> void:
 		return r
 		, {"walk": true})
 	await play("long plain run", func(): return CribRun.new("pip", null, null, 9001))
+	await play("The Play owned", func():
+		var r := _strong(2468, 1)
+		return r
+		, {"systems": ["the_play", "crib_cut"]})
 	Engine.time_scale = 1.0
-	print("run flow: %d rounds checked, %d clicks, paths %s, %d ms" % [rounds_checked, clicks, seen.keys(), Time.get_ticks_msec() - t0])
-	var good := fails == 0 and rounds_checked >= 8 and seen.has("run_won") and seen.has("run_over") and seen.has("skip") and seen.has("walk")
+	print("run flow: %d rounds checked, %d Plays, %d clicks, paths %s, %d ms" % [rounds_checked, plays, clicks, seen.keys(), Time.get_ticks_msec() - t0])
+	var good := fails == 0 and rounds_checked >= 8 and plays >= 15 and seen.has("run_won") and seen.has("run_over") and seen.has("skip") and seen.has("walk")
 	print("run flow checks: %d, failures: %d" % [checks, fails])
 	print("RUN FLOW OK" if good else "RUN FLOW FAILED")
 	quit(0 if good else 1)
