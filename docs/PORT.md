@@ -31,7 +31,8 @@ in Godot: intro, keep and count, cut ceremony, round end, shop, next round, run 
 | cut ceremony | `cribrogue_ui.js` CUT_TIERS | `ui/cut/cut_plan.gd`, `cut_view.gd` | tiers from `cut_quality()`, tap to skip |
 | shop | `cribrogue_ui.js` showCribShop | `ui/shop/shop_screen.gd` | charms, cards, reroll, Reckonings, selling, slot limits |
 | run flow | cribRoundIntro, cribRoundEnd, NEXT ROUND, cribRunWon | `ui/run_flow.gd` (main scene) | wager, WALK AWAY, SKIP, boss intro, round end, run won, endless |
-| rest of UI, audio | `cribrogue_ui.js`, `app.js`, `audio.js` | none | not started: pegging, title/street menus, collection, save and resume mid-run, audio, particles |
+| The Play (pegging) | showPegging, renderPegging, pegLay | `ui/peg/peg_session.gd`, `peg_view.gd`, in `keep_screen.gd` | entered after the count exactly when the web does; tap to lay, tap to hurry the Spoiler |
+| rest of UI, audio | `cribrogue_ui.js`, `app.js`, `audio.js` | none | not started: title/street menus (showCribSelect), Peddler, collection, save and resume mid-run, audio, particles, creature sprites |
 
 ## Parity test
 
@@ -67,6 +68,8 @@ xvfb-run godot --path godot --rendering-method gl_compatibility --script res://t
 godot --headless --path godot --script res://tests/cut_test.gd        # cut tiers vs JS, skip lands on same state
 godot --headless --path godot --script res://tests/shop_test.gd       # 40 JS shop scenarios replayed by click
 godot --headless --path godot --script res://tests/run_flow_test.gd   # whole runs by click vs the web's call order
+godot --headless --path godot --script res://tests/peg_test.gd        # The Play vs JS fixture playui, by click
+xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/peg_shot.gd   # /tmp/peg_*.png
 xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/flow_shot.gd  # /tmp/flow_*.png
 xvfb-run godot --path godot --rendering-driver opengl3 --script res://tests/shop_shot.gd  # /tmp/shop_*.png
 ```
@@ -147,6 +150,7 @@ UI facts learned the hard way:
   -> STOP). Set it AFTER add_child. A PASS row on top swallowed the Recut
   button's clicks; STOP cards in the counted row ate tap-to-skip.
 - **CardView scales about its centre**: offset positions when scaling it.
+  `CardView.pop()` ends at scale 1: on a scaled card use your own pop (PegView._pop).
 - **Controls only while usable**: Mulligan and Recut hide while cards deal,
   during the count and when spent.
 - **Stagger parallel Godot launches by a few seconds.** Two started in the same
@@ -154,7 +158,8 @@ UI facts learned the hard way:
   .godot cache contention; unproven). Rerun alone to tell a launch failure
   from a real one.
 - **Applying the web patches.** fixes, sidefx, recycle, trim, wrap in any
-  order; then marks, attribution, doublecut, balance in that order (they stack
+  order; then marks, attribution, doublecut, balance in that order; cribend
+  (UI only) last (they stack
   on lines the others touch). All 120 orderings verified. **Already applied in
   the repo's web/** (2026-10-18); the .patch files are the record. The pre-patch
   sources are the commit "Bring web sources up to the newest shipped build".
@@ -204,14 +209,40 @@ UI facts learned the hard way:
   (Fickle) and can mutate the run (Cutpurse, Collector), so the number and
   order of calls must match the JS.
 
-## Parity gap: The Play is not ported
+## The Play (ported 2026-10-18)
 
-The web pegs after every count once `the_play` is unlocked (afterCount,
-cribrogue_ui.js ~1028). Systems unlock in Meta.SYSTEMS order, one per Wager
-won, and The Play is fifth. So from a player's fifth Wager win, a Godot run
-diverges from the web. The pegging engine (`pegging.gd`, PegPlay) is ported and
-exact (1800 fixture cases); the screen is not. run_flow_test starts from a
-clean save, so it never reaches this.
+The web pegs after every count once `the_play` is owned (the fifth system, one
+per Wager won) and 4+ cards remain. Order, all UI code in the web, mirrored in
+`PegSession`: the Spoiler's four come off the FRONT of the stock; the play rides
+the count's mult (at least x1); net = your pegs minus half the Spoiler's
+(rounded down); gain = round(net x mult) joins the score; only THEN does the
+round go on or end. So KeepScreen does not settle at commit when the Play is
+owed: settling first would pay the Crib and draw the Crib's Own Cut before the
+Spoiler's hand. Fixture group `playui` (36 runs, 61 rounds) is the real JS doing
+this. `tests/peg_test.gd`: Part A replays it on the engine, Part B plays it by
+click at 3 shapes (half the Spoiler's beats waited out, half tapped through).
+Mutations caught: hand off the back, no mult, ceil instead of floor, settling
+before the Play, dealing on past the target.
+
+## Web bug fixed: the Crib was paid twice (`web/cribend.patch`)
+
+cribRoundEnd settled the Crib, then called `settle()`, which settles it again.
+Every round that ended naturally paid the Crib twice (and drew a second Crib's
+Own Cut); the screen showed it once. The simulator, the engine fixtures and
+Godot all paid it once, so every balance number assumed once. Measured (600
+runs each, Street 1, same seeds): clear rate once vs twice, Pip 15.5% vs 19.3%,
+Thump 11.8% vs 17.7%, Clover 18.8% vs 22.7%, Facet 34.5% vs 38.7% (about +-3).
+Fix: settle() first, then read cribResult. `web/cribend_check.js` plays real
+rounds in the built html: 120 round ends, 0 failures; 102 failures before.
+Reversible: revert the patch. **Ziah to confirm** (it makes the web game harder
+than players have known it).
+
+## Test harness bug fixed: lambdas capture by value
+
+run_flow_test swapped two saves inside a lambda; GDScript lambdas capture locals
+by value, so the swaps never persisted and both sides silently ran on reset
+saves. Fixed with a shared Dictionary; the comparison now checks WHICH systems
+are unlocked, not how many. A run with The Play owned found it.
 
 ## Found, not fixed: Ziah's call
 

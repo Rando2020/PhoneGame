@@ -1158,8 +1158,11 @@ function cutCeremony(starter, quality, done) {
 
 function cribRoundEnd() {
   const rd = Cb.round, run = Cb.run;
-  const cribRes = rd.cribResult || rd.settleCrib();
+  /* settle() settles the Crib once if the round isn't settled yet. Settling the
+     Crib here first, then calling settle(), paid it twice (and drew a second
+     Crib's Own Cut). */
   rd.settle();
+  const cribRes = rd.cribResult;
   sfx16(rd.won ? "win" : "lose");
 
   screen("cribEnd");

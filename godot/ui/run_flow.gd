@@ -271,9 +271,7 @@ func _on_round_finished() -> void:
 
 ## Port of cribRoundEnd's state changes, in its order. Runs once per round.
 func _round_end_effects() -> void:
-	if rd.crib_result == null:
-		rd.settle_crib()
-	rd.settle()
+	rd.settle()   # settles the Crib once if needed (web cribend.patch)
 	if rd.wager != null and rd.wager_won:
 		var locked := Achv.locked_systems()
 		if not locked.is_empty():

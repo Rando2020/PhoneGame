@@ -12,7 +12,7 @@ in small verified steps and leave every step green.
 </role>
 
 <context>
-Read first: docs/PORT.md (status table, "Parity gap: The Play", "Found, not
+Read first: docs/PORT.md (status table, "The Play", "Web bug fixed", "Found, not
 fixed", "Port bugs found by UI tests", UI facts, "Applying the web patches",
 "Balance decisions SHIPPED"), this file, and project memory
 design-principles.md (simulate before intuition; the Crib must feel
@@ -21,8 +21,8 @@ If an older prompt is pasted instead of this one, trust this file and PORT.md.
 Source of truth: GitHub Rando2020/PhoneGame (main). Clone it; work on a
 branch; open a PR. godot/ is the port, web/ the patched web game, docs/ these
 docs. If the repo and the docs disagree, trust the tests, then the code.
-State (branch port-sync, PR #3; if not merged yet, clone that branch.
-Verified from a fresh clone):
+State (PR #3 port-sync, then PR #4 the-play stacked on it; if not merged,
+clone the-play. Verified from a fresh clone):
 - Engine proven identical to the JS: 78 full runs, 4000 hands, 1800 pegging
   cases. All seven original engine bugs fixed both sides; balance shipped
   (Clover Ascended Mimic, Usury x2, The Collector redesigned).
@@ -30,35 +30,36 @@ Verified from a fresh clone):
   (ui/run_flow.gd) ports cribRoundIntro (wager, WALK AWAY, SKIP, boss),
   cribRoundEnd, the shop's NEXT ROUND and cribRunWon. KeepScreen runs the
   round (in_run, round_finished). Shop: ui/shop/shop_screen.gd. Cut
-  ceremony: ui/cut/.
+  ceremony: ui/cut/. The Play: ui/peg/ (PegSession logic, PegView screen),
+  entered by KeepScreen after the count exactly as the web's afterCount.
+- Web fix pending Ziah's OK: the round end paid the Crib twice
+  (web/cribend.patch; clear rates were 4-6 points higher than simulated).
 - Tests green, mutation-tested: parity, cache, card, cascade, cut, shop,
-  run_flow, screen_test_shapes, screen_test_play, screen_leak.
-- Not ported: The Play (pegging screen), title and street/Meldling select
-  (showCribSelect), Peddler, History, Deeds, audio, particles.
+  peg, run_flow, screen_test_shapes, screen_test_play, screen_leak.
+- Not ported: title and street/Meldling select (showCribSelect), Peddler,
+  History, Deeds, audio, particles, creature sprites.
 - Ziah ran the port on his phone: it works. Speed and safe areas unmeasured.
 - The sandbox has ONE CPU core.
 </context>
 
 <task>
-1. The Play (web showPegging, cribrogue_ui.js 316-468, entered from afterCount
-   ~1028 when Achv.has_system("the_play") and the stock has 4+ cards). This is
-   a PARITY gap: from a player's fifth Wager win, Godot runs diverge from the
-   web. Port the screen on top of the proven PegPlay engine; tap-friendly,
-   no await. Done = KeepScreen enters it exactly when the web does, a test
-   plays pegging by click and matches a direct PegPlay replay (fixture group
-   pegplay is the reference), run_flow_test gains a run with the_play granted,
-   layout at 3 shapes, renders checked by eye.
-2. The front door (web showCribSelect 38-220): road/street choice, Meldling
+1. The front door (web showCribSelect 38-220): road/street choice, Meldling
    choice, mode (endless), CONTINUE/Back, then RunFlow.start_run with that
-   choice; NEW RUN returns here. Read Meta.record and the street unlock rules
-   first. Same done bar as above.
-3. If time remains: the Peddler (meta shop for Pegs, showPeddler 221-259).
+   choice; NEW RUN returns here. Read Meta.record, the street unlock rules and
+   the guided first round (tutorial.js guideStart) first. Done = a test picks
+   every unlocked street/Meldling by click and the run starts exactly as
+   CribRun.new(meld, street) in the JS (add a JS fixture at the END if the
+   choice logic has rules), layout at 3 shapes, renders checked by eye.
+2. The Peddler (meta shop for Pegs, showPeddler 221-259). Same bar.
+3. If time remains: creature sprites (assets/meldlings/*_idle.png strips)
+   on the intro, round end and The Play.
 </task>
 
 <open_decisions>
 Ask Ziah in ONE short message at the start:
-1. Which phone, and does anything feel slow, cramped or cut off (notch, home
-   bar)? It runs; feel and safe areas are unmeasured on a device.
+1. OK to ship the Crib fix to the web (web/cribend.patch)? Without it the web
+   pays the Crib twice per round and plays 4-6 points easier than simulated.
+   Also: which phone, and does anything feel slow or cut off?
 2. Skips are dead in the web and Godot (never accrued; design docs describe
    overshoot accrual). Restore it (balance change, simulate first) or remove
    the SKIP button?
@@ -93,6 +94,11 @@ Ask Ziah in ONE short message at the start:
   its label is wider than its size: size to the minimum.
 - KeepScreen.in_run must be set before add_child, or it deals a throwaway round.
 - SafeArea.insets is zero off-phone (desktop safe area is monitor-relative).
+- GDScript lambdas capture locals BY VALUE; assignments inside don't persist.
+  Shared state goes in a Dictionary.
+- CardView.pop() ends at scale 1; don't use it on a scaled card.
+- Settling a round is order-sensitive: The Play's splice must happen before
+  settle (Crib's Own Cut pops the same stock).
 - GDScript: `var x := 0` is a typed int; Array.has compares Dictionaries by
   VALUE (use is_same); `dict.has(k)` is not JS truthiness (the is_wager bug):
   use JS.truthy(dict.get(k)).
