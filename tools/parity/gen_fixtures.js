@@ -391,6 +391,8 @@ fx.selectui = [];
     () => { Meta.record({ meldling: "pip" }, 0, 12); },
   ];
   const IDS = Object.keys(CRIB_DECKS);
+  const realNow = Date.now;
+  Date.now = () => 1760000000000;          // grants stamp the time: pin it so the fixture is reproducible
   builders.forEach((build, si) => {
     Achv.save({ __v: 3 });
     build();
@@ -426,6 +428,7 @@ fx.selectui = [];
     S.runs.push({ path: ["daily", dk], unseeded: U + 700, run: sig(new CribRun(decks[seed % decks.length], STREETS[0], null, seed)) });
     fx.selectui.push(S);
   });
+  Date.now = realNow;
 }
 
 if (require.main === module) {
