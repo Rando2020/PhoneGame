@@ -87,8 +87,11 @@ static func face(rank: int, suit) -> Texture2D:
 	return _tex(DIR + "card_%s%s.png" % [rank_label(rank), suit_letter(suit)])
 
 
+## The equipped back (web backEl: Achv.activeBack(), bought from the Peddler).
+## back_indigo.png is pixel-identical to the old card_back.png.
 static func back() -> Texture2D:
-	return _tex(DIR + "card_back.png")
+	var path: String = DIR + "back_%s.png" % Achv.active_back()
+	return _tex(path) if ResourceLoader.exists(path) else _tex(DIR + "card_back.png")
 
 
 ## kind: "selected" | "valid" | "invalid"

@@ -57,6 +57,22 @@ func show_front_door(step := "") -> void:
 	_page.add_child(front)
 	front.open(cb)
 	front.begin.connect(start_run, CONNECT_ONE_SHOT)
+	front.guided.connect(start_guided, CONNECT_ONE_SHOT)
+
+
+var coach: GuideCoach
+
+
+## Web guideStart: Thump on First Street (unseeded), straight into the round,
+## no intro, with the coach on top. "PLAY ON" leaves for the run choices.
+func start_guided() -> void:
+	run = CribRun.new("thump", Meta.STREETS[0])
+	_on_deal()
+	coach = GuideCoach.new()
+	_page.add_child(coach)
+	coach.attach(keep)
+	coach.play_on.connect(func(): show_front_door("road"), CONNECT_ONE_SHOT)
+	coach.message.connect(flash)
 
 
 ## A fresh run. Tests may pass a prepared run.

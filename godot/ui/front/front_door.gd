@@ -5,10 +5,12 @@ extends Control
 ## hands it over with `begin`. The step and choices live in `cb`, which the
 ## owner keeps between visits, as the web keeps them in Cb.
 ##
-## Not ported from the title yet: Deeds, Gallery, Peddler, Record, How to play,
-## the theme toggle, the dev panel, and the guided first round.
+## Not ported from the title yet: Deeds, Gallery, Record, How to play,
+## the theme toggle and the dev panel.
 
 signal begin(run: CribRun)
+## Web: PLAY on a fresh save (never guided, no runs) starts the guided first round.
+signal guided
 
 const BG := Color(0.102, 0.094, 0.149)
 const PANEL := Color(0.14, 0.13, 0.20)
@@ -47,6 +49,7 @@ func render() -> void:
 		"street": _street()
 		"trial": _trial()
 		"meld": _meld()
+		"peddler": _peddler()
 		_: _title()
 
 
@@ -176,8 +179,15 @@ func _title() -> void:
 	_clear()
 	var y := _line(_top() + size.y * 0.12, "MELDLINGS", 56, GOLD)
 	y = _line(y, "Count it. Cut it. Break it.", 22, DIM)
-	_button("play", "PLAY", true, func(): go("road"))
-	var top := _stack_bottom(["play"])
+	var m := Achv.load_store()
+	var first_time := not JS.truthy(m.get("guided")) and not JS.truthy(m.get("runs"))
+	_button("play", "PLAY  \u00b7  first round" if first_time else "PLAY", true, func():
+		if first_time:
+			guided.emit()
+		else:
+			go("road"))
+	_button("peddler", "Peddler", false, func(): go("peddler"))
+	var top := _stack_bottom(["play", "peddler"])   # PLAY lowest, in the thumb zone
 	var c := _col()
 	var l := _label(_page, RunRecord.line(), 16, DIM, Vector2(c.x, 0), c.y)
 	l.position.y = minf(top - l.size.y - 8.0, _bottom())
@@ -376,3 +386,73 @@ func _begin_meld(id: String) -> void:
 		run.endless_round = 0
 	cb.step = "road"
 	begin.emit(run)
+
+
+# ------------------------------------------------------------------ peddler
+## Web showPeddler: card backs for Pegs. Tap an owned back to equip it; tap
+## an unowned one to buy and equip it, if the Pegs cover it.
+var last_tap := ""            ## "equip" / "buy" / "short", for tests
+var _flash: Label
+var _flash_pending := false  ## show "Not enough Pegs" once, on the render after the tap
+
+
+func _peddler() -> void:
+	_clear()
+	var y := _line(_top(), "THE PEDDLER", 34, INK)
+	y = _line(y, "%d Pegs" % Achv.pegs(), 26, GOLD)
+	y = _line(y, "Pegs are earned for how far you get, not for grinding. They stay with your profile.", 17, DIM)
+	y = _line(y + 6.0, "CARD BACKS  \u00b7  tap to equip", 18, GOLD)
+	var c := _col()
+	var cols := 3
+	var gap := 12.0
+	var sw := (c.y - gap * (cols - 1)) / cols
+	var art := Vector2(70, 98) * minf(2.0, (sw - 20.0) / 70.0)
+	var sh := art.y + 76.0
+	for i in Meta.CARD_BACKS.size():
+		var b: Dictionary = Meta.CARD_BACKS[i]
+		var owned := Achv.owns_back(b.id)
+		var active: bool = Achv.active_back() == b.id
+		var slot := Button.new()
+		slot.add_theme_stylebox_override("normal", _box(PANEL, GOLD if active else Color(INK, 0.14)))
+		slot.add_theme_stylebox_override("hover", _box(PANEL.lightened(0.06), GOLD if active else Color(GOLD, 0.5)))
+		slot.add_theme_stylebox_override("pressed", _box(PANEL.lightened(0.1), GOLD))
+		slot.position = Vector2(c.x + (i % cols) * (sw + gap), y + int(i / cols) * (sh + gap))
+		slot.size = Vector2(sw, sh)
+		_page.add_child(slot)
+		var img := TextureRect.new()
+		img.texture = load("res://assets/cards/back_%s.png" % b.id)
+		img.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		img.size = art
+		img.position = Vector2((sw - art.x) / 2.0, 10.0)
+		img.modulate = Color.WHITE if owned else Color(1, 1, 1, 0.45)
+		img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(img)
+		_label(slot, b.name, 18, INK, Vector2(0, art.y + 16.0), sw)
+		_label(slot, ("EQUIPPED" if active else "owned") if owned else "%d Pegs" % b.cost, 15,
+			Color(0.43, 0.79, 0.54) if owned else GOLD, Vector2(0, art.y + 44.0), sw)
+		slot.pressed.connect(_tap_back.bind(b.id))
+		buttons["back_" + b.id] = slot
+	# web: Back goes to the select steps (showCribSelect), not the title
+	_button("back", "Back", false, func(): go("road" if cb.step in ["title", "peddler"] else cb.step))
+	_stack_bottom(["back"])
+	if _flash_pending:
+		_flash_pending = false
+		_flash = _label(_page, "Not enough Pegs", 22, GOLD, Vector2(c.x, 0), c.y)
+		_flash.position.y = buttons["back"].position.y - _flash.size.y - 16.0
+		var tw := _flash.create_tween()
+		tw.tween_interval(1.2)
+		tw.tween_property(_flash, "modulate:a", 0.0, 0.4)
+
+
+func _tap_back(id: String) -> void:
+	if Achv.owns_back(id):
+		Achv.set_back(id)
+		last_tap = "equip"
+	elif Achv.buy_back(id):
+		Achv.set_back(id)
+		last_tap = "buy"
+	else:
+		last_tap = "short"
+	_flash_pending = last_tap == "short"
+	render()
