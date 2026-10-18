@@ -242,8 +242,7 @@ runs each, Street 1, same seeds): clear rate once vs twice, Pip 15.5% vs 19.3%,
 Thump 11.8% vs 17.7%, Clover 18.8% vs 22.7%, Facet 34.5% vs 38.7% (about +-3).
 Fix: settle() first, then read cribResult. `web/cribend_check.js` plays real
 rounds in the built html: 120 round ends, 0 failures; 102 failures before.
-Reversible: revert the patch. **Ziah to confirm** (it makes the web game harder
-than players have known it).
+Reversible: revert the patch. **Approved by Ziah 2026-10-18.**
 
 ## Test harness bug fixed: lambdas capture by value
 
@@ -287,17 +286,86 @@ set), Skip coaching (round plays on, "Coaching off."). Mutations caught: kept
 on any selection, no order rule, guided not saved, cut late; the front-door
 test catches "first time" ignoring runs. Not ported: each beat's highlight.
 
+## Decisions applied 2026-10-18 (Ziah's answers; JS + GDScript, parity green)
+
+| decision | what changed | evidence |
+|---|---|---|
+| Crib paid once (approved) | `web/cribend.patch` stands | cribend_check |
+| No em dashes in game text | all 62 web strings and their Godot copies reworded by hand (no blanket swap); fixtures regenerated (The Play's "Thirty-one, reset") | rescan finds none outside comments |
+| The Daily locks; the Long Count keeps its best | a lost or won Daily is recorded (recordDaily), a lost Long Count saves its best round (setEndless); both were never called | `web/record_check.js` (7 failures before), `tests/record_test.gd` |
+| Skips removed | the SKIP button and the SURPLUS readout are gone (the readout used an undefined constant and would have crashed). Nothing ever earned a Skip | see below |
+| The Stink Hole rule | "Clearing early pays nothing extra": noCashOut now zeroes the early-clear bonus (also on Skunk Line) | see below |
+| Meldling balance (balance2) | Nib sees the cut before keeping, with x1.5 when the cut scores; Muggins +1 mult on Spoiler rounds, +0.3 otherwise; Facet starts 20 cards lighter (was 30) and scores at x0.85 | see below |
+| Save and resume mid-run | Godot: `engine/save_game.gd`, RunFlow saves every step, CONTINUE on the title. The web: not yet | see below |
+
+**Why Skips went** (`web/sims/skip_sim.js`, 400 runs each, Street 1, same seeds).
+Clear rates: today / play every round out / round ends at target but Skips
+earned and spent: Pip 15.5 / 17.0 / 11.3, Facet 33.8 / 37.3 / 25.0. Spending a
+Skip forfeits a round's income, which is worth more than the Skip pays, so the
+designed Skip is a trap; making it pay more would snowball strong runs. The
+design doc's "cash out or push for the Skip?" choice never existed in the
+shipped game either: the round ends at the target.
+
+**Why the Stink Hole rule changed.** "Every round runs full" would have HELPED
+(playing rounds out: +1.5 to +3.5 points of clear rate). Its other rules repeat
+earlier Streets, so it needed a real one; losing the early-clear bonus (4 Glim
+per unused deal) is the squeeze the old text promised. Street 7 bot clears are
+under 1% either way, so the effect isn't measurable there; it is a flavour and
+economy rule, not a measured one.
+
+**Meldling balance** (`web/sims/meld_sim.js`, cribsim's bot, 500 runs, Street 1).
+Before: Facet 32.0, Clover 22.4, Thump 13.6, Pip 12.2, Nib 7.0, Muggins 2.8.
+After: Facet 24.3, Clover 22.4, Thump 13.6, Nib 13.6, Muggins 13.2, Pip 12.2.
+- Nib's +2 recuts did nothing: the web shows Recut only when the starter is
+  face up before the keep, which only Foresight did. Seeing the cut alone: 7.0
+  (no change); x1.5 when the cut scores: 12.4; both: 13.6 (shipped).
+- Muggins was vanilla outside Spoiler rounds. Tried x1.3 always 9.2, +3 base per
+  event 10.6, +1.5/+0.4 19.2, +1.2/+0.3 18.0, +1.0/+0.3 13.2 (shipped).
+- Facet's 22-card deck ran dry after 2 of 4 deals on no-recycle Streets (5-8):
+  0% there, 0.13 rounds on average. 32 cards alone: 36.0 on Street 1 (too
+  strong); 32 cards and x0.85: 24.3 on Street 1, 1.3 on Street 5 (Pip 2.8,
+  Clover 2.0, Thump 1.5 there).
+These are bot numbers; a person who plays to a Meldling's strength does better.
+
+**Still open:** the Recut charm and Steady Hand's recut have the same problem as
+Nib had (they only work with Foresight).
+
+## Save and resume (Godot, 2026-10-18)
+
+`engine/save_game.gd` saves the whole run, the round in progress and The Play
+in progress, exactly. Cards and charms are compared by identity in the engine,
+so they're written once and referenced; the Meldling's charm and Spoilers too;
+an unseeded run's rng is the global stream and stays linked. var_to_str SORTS
+dictionary keys, and the engine breaks ties by insertion order (a tied MVP), so
+dictionaries are saved as ordered pairs. Every script variable is saved, so new
+fields are covered automatically.
+
+RunFlow saves at every step (each screen, each shop purchase, every deal,
+mulligan, recut, count and lay in The Play) after the step's effects land, and
+clears the save when the run ends. The title shows CONTINUE (and NEW RUN). A
+save made during the Spoiler's beat resumes by playing the Spoiler's answer.
+
+Proof:
+- `tests/save_test.gd` replays all 78 fixture runs, saving and reloading the
+  whole game at four points per deal/round (5,417 reloads): all 78 still match
+  the JS, every save re-saves byte-identically, card identity holds. Mutations
+  caught: rng link dropped, cards copied, global stream not restored, plain
+  dictionaries.
+- `tests/resume_test.gd`: a bot plays runs by click straight and with the app
+  killed every few saves (410 kills: intro, shop after a purchase, deal, count,
+  The Play mid-hand and mid-beat, round end); every decision sees the same
+  state. Mutations caught: no save after a purchase, round-end effects re-run on
+  resume, the mid-beat answer skipped.
+
 ## Found, not fixed: Ziah's call
 
 | what | where | detail |
 |---|---|---|
-| Skips are dead | web and Godot | `skipProgress`/`skips` are never incremented, so SKIP THIS ROUND only appears if something sets `run.skips`. DEPTH.md and SUBTRACTION.md describe overshoot accrual (100 x overshoot / target toward a Skip; 100 = one Skip). The web's round-end line still reads a leftover `run.surplus`. Restoring it is a balance change: simulate first |
-| `noCashOut` is dead | web and Godot | merged in `rules()` but never read; the web ends a round the moment the target falls. So Stink Hole and Skunk Line's "every round runs full" does nothing. Godot now matches the web (it used to honour the rule, which was a parity break) |
-| The Daily never locks | web and Godot | `Achv.recordDaily` is never called, so the Daily is replayable all day and its streak never grows |
-| Best Long Count never saved | web and Godot | `Achv.setEndless` is never called; the road always says "Best round 0" |
+| ~~Skips are dead~~ (removed 2026-10-18) | web and Godot | `skipProgress`/`skips` are never incremented, so SKIP THIS ROUND only appears if something sets `run.skips`. DEPTH.md and SUBTRACTION.md describe overshoot accrual (100 x overshoot / target toward a Skip; 100 = one Skip). The web's round-end line still reads a leftover `run.surplus`. Restoring it is a balance change: simulate first |
+| ~~`noCashOut` is dead~~ (now: no early-clear bonus, 2026-10-18) | web and Godot | merged in `rules()` but never read; the web ends a round the moment the target falls. So Stink Hole and Skunk Line's "every round runs full" does nothing. Godot now matches the web (it used to honour the rule, which was a parity break) |
+| Recut charm and Steady Hand do nothing without Foresight | web and Godot | Recut only shows while the starter is face up before the keep (Foresight). Nib had the same problem (fixed in balance2) |
 | Lost runs aren't in the history | web and Godot | `logRun` only runs on a won run |
 | "Best Act 1-0" | web and Godot | lose on round 1 only and the title line reads Act 1-0 (JS remainder of -1) |
-| em dashes in game copy | web and Godot | the shop-full line ("Every charm slot is spoken for..."), the skip flash ("Round skipped...") and The Gathering's text each contain one. Godot copies the web exactly |
 
 ## Port bugs found by UI tests
 

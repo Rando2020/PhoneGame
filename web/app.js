@@ -117,7 +117,7 @@ function splitCardEl(card, scale = 2) {
   put(card.rank2, card.suit2 || card.suit, 70 - 16, 98 - 22, false);
   put(card.rank, card.suit, 6, 34, true);
   put(card.rank2, card.suit2 || card.suit, 70 - 28, 52, true);
-  n.title = `${CRANK_LABEL[card.rank]} or ${CRANK_LABEL[card.rank2]} — counts as whichever scores better`;
+  n.title = `${CRANK_LABEL[card.rank]} or ${CRANK_LABEL[card.rank2]}: counts as whichever scores better`;
   return n;
 }
 
@@ -132,7 +132,7 @@ function cardEl(card, scale = 2) {
       ov.style.backgroundImage = `url(${ART.marks[card.enh]})`;
       n.appendChild(ov);
     }
-    n.title = meta ? `${meta.name} — ${meta.text}` : "";
+    n.title = meta ? `${meta.name}: ${meta.text}` : "";
   }
   const col = card.rank - 1;
   const row = SUITS.indexOf(card.suit);
@@ -351,7 +351,7 @@ function showSelect() {
     App.meldling = id;
     sfx("select");
     [...row.children].forEach((n) => n.classList.toggle("chosen", n.dataset.id === id));
-    nameL.textContent = `${ROSTER[id].name} — ${ROSTER[id].hp} HP`;
+    nameL.textContent = `${ROSTER[id].name} · ${ROSTER[id].hp} HP`;
     blurb.textContent = ROSTER[id].blurb;
   };
   for (const id of ids) {
@@ -381,7 +381,7 @@ function showTrack() {
   const c = el("div", "col");
   c.append(el("h2", "title", "THE GAUNTLET"));
   c.append(el("p", "dim",
-    `${ROSTER[App.run.meldling].name} — ${App.run.hp}/${App.run.maxHp} HP` +
+    `${ROSTER[App.run.meldling].name} · ${App.run.hp}/${App.run.maxHp} HP` +
     (App.run.relics.length ? ` · ${App.run.relics.map((r) => r.name).join(", ")}` : "")));
 
   const track = el("div", "track");
@@ -395,7 +395,7 @@ function showTrack() {
 
   const entry = GAUNTLET[App.node];
   const label = { battle: "Battle", cache: "Cache", rest: "Rest", elite: "Elite", boss: "BOSS" }[entry.type];
-  c.append(el("p", "gold", `Next: ${label}${entry.enemy ? " — " + ROSTER[entry.enemy].name : ""}`));
+  c.append(el("p", "gold", `Next: ${label}${entry.enemy ? " · " + ROSTER[entry.enemy].name : ""}`));
   c.append(btn("ADVANCE", () => {
     sfx("place");
     if (entry.type === "cache") showReward(true);
@@ -538,7 +538,7 @@ function updateVerdict() {
     verdict.textContent = v.action;
   } else {
     banner.textContent = `${sel.length} selected · ${v.label}`;
-    verdict.textContent = "—";
+    verdict.textContent = "-";
   }
   if (playB) playB.disabled = !v.valid || C.focus <= 0 || App.busy;
 }
@@ -546,7 +546,7 @@ function updateVerdict() {
 function doHint() {
   const C = App.combat;
   const ms = findMelds(C.hand);
-  if (!ms.length) { sfx("bad"); $(".banner").textContent = "No meld — Cycle to draw."; return; }
+  if (!ms.length) { sfx("bad"); $(".banner").textContent = "No meld. Cycle to draw."; return; }
   App.selected = ms[0].slice();
   sfx("PREP");
   refreshHandClasses();
@@ -603,7 +603,7 @@ function doEndTurn() {
     App.busy = false;
     if (C.over) return endBattle();
     renderBattle();
-    $(".banner").textContent = msg || "Your turn — Focus restored.";
+    $(".banner").textContent = msg || "Your turn. Focus restored.";
   }, 700);
 }
 
@@ -647,8 +647,8 @@ function showRest() {
   c.append(creatureEl(App.run.meldling, "idle", 4));
   c.append(el("p", "dim", `${App.run.hp}/${App.run.maxHp} HP`));
   const heal = Math.max(8, Math.round(App.run.maxHp * 0.32));
-  c.append(btn(`Rest — heal ${heal}`, () => { App.run.heal(heal); sfx("win"); App.node++; showTrack(); }, "big"));
-  c.append(btn("Train — +6 max HP", () => { App.run.maxHp += 6; App.run.heal(6); sfx("GRAND MELD"); App.node++; showTrack(); }));
+  c.append(btn(`Rest: heal ${heal}`, () => { App.run.heal(heal); sfx("win"); App.node++; showTrack(); }, "big"));
+  c.append(btn("Train: +6 max HP", () => { App.run.maxHp += 6; App.run.heal(6); sfx("GRAND MELD"); App.node++; showTrack(); }));
   root().append(c);
 }
 

@@ -94,7 +94,7 @@ func lay(who: String, card: Dictionary) -> int:
 		opp_score += gained
 	var hit31 := total == TARGET
 	if hit31:
-		reset("Thirty-one \u2014 reset")
+		reset("Thirty-one, reset")
 	last_lay = {"who": who, "card": card, "events": events, "gained": gained, "hit31": hit31}
 	return gained
 
@@ -137,7 +137,7 @@ func step() -> void:
 				score += 1
 			else:
 				opp_score += 1
-			reset("Go \u2014 reset")
+			reset("Go, reset")
 			turn = "you"
 			continue
 		if turn == "you":

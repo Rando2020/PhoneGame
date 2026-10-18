@@ -24,7 +24,7 @@ function showAdmin() {
   // ---- currency
   sect("CURRENCY");
   c.append(el("p", "small",
-    `Glim in run: ${Cb.run ? Cb.run.essence : "—"}   ·   Pegs: ${Achv.pegs()}`));
+    `Glim in run: ${Cb.run ? Cb.run.essence : "-"}   ·   Pegs: ${Achv.pegs()}`));
   act("+100 Glim", () => { if (Cb.run) Cb.run.essence += 100; }, "needs an active run");
   act("+1000 Glim", () => { if (Cb.run) Cb.run.essence += 1000; });
   act("+500 Pegs", () => Achv.addPegs(500));

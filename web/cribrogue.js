@@ -237,7 +237,7 @@ const CCHARMS = [
   /* ---- additive-mult charms. These are what make ORDER matter: an additive
      charm placed before a multiplier is worth far more than after it. ---- */
   { id: "ballast", name: "Ballast", tier: 2, cost: 8, rarity: "uncommon", cat: "mult",
-    text: "+0.8 mult. Placement matters — put it early.",
+    text: "+0.8 mult. Placement matters: put it early.",
     onCount: (ctx) => { ctx.mult += 0.8; return true; } },
   { id: "tallyman", name: "Tallyman", tier: 2, cost: 9, rarity: "uncommon", cat: "mult",
     text: "+0.3 mult per distinct category you scored.",
@@ -326,17 +326,22 @@ const CRIB_DECKS = {
   },
   nib: {
     name: "Nib", suit: "S",
-    text: "THE CUT: +2 recuts a round, and whatever the cut adds, it adds twice.",
-    rule: { recuts: 2, doubleCutValue: true },
+    /* balance2: its recuts only worked with Foresight, so Nib now sees the cut
+       (7.0% -> 13.6% bot clears, Street 1) */
+    text: "THE CUT: you see the cut before you keep, with +2 recuts. Whatever the cut adds, it adds twice, and a cut that scores is worth x1.5.",
+    rule: { recuts: 2, doubleCutValue: true, foresight: true },
+    charm: { onCount: (ctx) => { if (ctx.nibBonus) { ctx.mult *= 1.5; return true; } } },
   },
   muggins: {
     name: "Muggins", suit: "C",
-    text: "THE THIEF: when a Spoiler blocks points, take half of them anyway.",
+    /* balance2: was vanilla outside Spoiler rounds (2.8% -> 13.2%) */
+    text: "THE THIEF: takes half of any points a Spoiler blocks. +1 mult on Spoiler rounds, +0.3 mult otherwise.",
     rule: { muggins: true },
+    charm: { onCount: (ctx) => { ctx.mult += ctx.suppressedBy ? 1.0 : 0.3; return true; } },
   },
   pip_asc: {
     art: "pip", name: "Pip Ascended", suit: "S", ascended: true,
-    text: "RUNS ONLY — a run needs only two. x3.2 mult, +14 base each.",
+    text: "RUNS ONLY: a run needs only two. x3.2 mult, +14 base each.",
     rule: { onlyRuns: true, runNeed: 2 },
     charm: {
       onEvent: (e, ctx) => { if (e.kind === "run") { ctx.base += 14; return true; } },
@@ -364,14 +369,17 @@ const CRIB_DECKS = {
   },
   facet_asc: {
     art: "facet", name: "Facet Ascended", suit: "D", ascended: true,
-    text: "Dealt 9, keep 7 — everything scores at 0.75 mult, and the deck never recycles.",
+    text: "Dealt 9, keep 7. Everything scores at 0.75 mult, and the deck never recycles.",
     rule: { dealtBonus: 3, keepBonus: 3, deckTrim: 26, noRecycle: true },
     charm: { onCount: (ctx) => { ctx.mult *= 0.75; return true; } },
   },
   facet: {
     name: "Facet", suit: "D",
-    text: "BIG HANDS: dealt 7, keep 5 — but your deck starts 30 cards lighter.",
-    rule: { dealtBonus: 1, keepBonus: 1, deckTrim: 30 },
+    /* balance2: 22 cards ran dry after 2 deals on no-recycle Streets (0% there);
+       32 cards and x0.85 (32.0% -> 24.3% on Street 1) */
+    text: "BIG HANDS: dealt 7, keep 5. Your deck starts 20 cards lighter, and everything scores at 0.85 mult.",
+    rule: { dealtBonus: 1, keepBonus: 1, deckTrim: 20 },
+    charm: { onCount: (ctx) => { ctx.mult *= 0.85; return true; } },
   },
 };
 
@@ -386,7 +394,7 @@ const AFFINITY_WEAK = 0.6, AFFINITY_STRONG = 1.35;
 
 const BOSS_POOL = [
   // severity 1
-  { id: "ashfall",  name: "Ashfall",       art: "famine", sev: 1, text: "One suit turns to ash — those cards are inert.", rule: { noFlush: true, deadSuitRandom: true } , align: "S" },
+  { id: "ashfall",  name: "Ashfall",       art: "famine", sev: 1, text: "One suit turns to ash. Those cards are inert.", rule: { noFlush: true, deadSuitRandom: true } , align: "S" },
   { id: "auditor",  name: "The Auditor",   art: "auditor", sev: 1, text: "Fifteens score 1 instead of 2.",      rule: { fifteenPoints: 1 } , align: "H" },
   { id: "shortstop",name: "Shortstop",     art: "jokester", sev: 1, text: "Runs score nothing, and pairs score half.", rule: { noRuns: true, pairScale: 0.5 } , align: "C" },
   { id: "blight",   name: "Blight",        art: "deadwood", sev: 1, text: "Pairs score half.",                   rule: { pairScale: 0.5 } , align: "D" },
@@ -1220,7 +1228,8 @@ class CribRound {
     /* Three ways to be paid: clearing, clearing EARLY, and clearing CLEAN. */
     this.dealsSpared = Math.max(0, this.dealsLeft);
     this.mulligansSpared = Math.max(0, this.mulligansLeft);
-    this.earlyBonus = this.won ? this.dealsSpared * 4 : 0;
+    // The Stink Hole and Skunk Line (noCashOut): clearing early pays nothing extra
+    this.earlyBonus = this.won && !this.mods.noCashOut ? this.dealsSpared * 4 : 0;
     this.cleanBonus = this.won ? this.mulligansSpared * 3 : 0;
     this.baseGlim = this.won
       ? Math.max(4, 6 + Math.round(this.run.roundIndex() * 0.9)

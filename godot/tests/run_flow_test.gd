@@ -5,7 +5,7 @@ extends SceneTree
 ## (cribRoundIntro / afterCount / cribRoundEnd / showCribShop NEXT ROUND) directly
 ## to the engine; the two runs must agree after every round, and the screens
 ## must come in the web's order. Also: WALK AWAY on a Wager, SKIP with a banked
-## skip, the run-won screen, and layout (text above buttons, all on screen).
+## no SKIP even with one banked (Skips were removed), the run-won screen, and layout (text above buttons, all on screen).
 ##   godot --headless --path godot --script res://tests/run_flow_test.gd
 const SIZE := Vector2i(720, 1280)
 var checks := 0
@@ -129,18 +129,11 @@ func play(name: String, prep: Callable, opts := {}) -> void:
 			ok(not f.run.is_wager() and f.screen == "intro", "%s: walk away didn't strike the wager" % name)
 			ok(f._toast != null and f._toast.text == "You let the wager pass." and f._toast.get_index() == f.get_child_count() - 1, "%s: no walk-away flash on top" % name)
 			continue
-		if f.buttons.has("skip"):
-			await _press(f.buttons["skip"])
-			swap.call(true)
-			R.skips -= 1
-			R.essence += 8 + JS.round_(R.round_index() * 0.6)
-			R.open_shop()
-			swap.call(false)
-			seen["skip"] = true
-			ok(f.screen == "shop", "%s: skip didn't open the shop" % name)
-			ok(f._toast != null and f._toast.text.begins_with("Round skipped") and f._toast.get_index() == f.get_child_count() - 1, "%s: no skip flash on top" % name)
-			order.append("shop")
-		else:
+		# Skips were removed: even with one banked, there's no SKIP button
+		if f.run.skips > 0:
+			ok(not f.buttons.has("skip"), "%s: SKIP button is back" % name)
+			seen["no_skip"] = true
+		if true:
 			if f.run.is_wager():
 				seen["wager_played"] = true
 			await _press(f.buttons["deal"])
@@ -350,7 +343,7 @@ func _go() -> void:
 		, {"systems": ["the_play", "crib_cut"]})
 	Engine.time_scale = 1.0
 	print("run flow: %d rounds checked, %d Plays, %d clicks, paths %s, %d ms" % [rounds_checked, plays, clicks, seen.keys(), Time.get_ticks_msec() - t0])
-	var good := fails == 0 and rounds_checked >= 8 and plays >= 15 and seen.has("run_won") and seen.has("run_over") and seen.has("skip") and seen.has("walk")
+	var good := fails == 0 and rounds_checked >= 8 and plays >= 15 and seen.has("run_won") and seen.has("run_over") and seen.has("no_skip") and seen.has("walk")
 	print("run flow checks: %d, failures: %d" % [checks, fails])
 	print("RUN FLOW OK" if good else "RUN FLOW FAILED")
 	quit(0 if good else 1)

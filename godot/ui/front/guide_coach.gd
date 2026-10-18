@@ -19,7 +19,7 @@ const BEATS := [
 	{"at": "deal", "title": "Six cards.",
 		"body": "Keep four. Tap them. The two you leave behind are thrown to your Crib, which scores for you at the end of the round."},
 	{"at": "kept", "title": "Now look at the two numbers.",
-		"body": "LOCKED IN is what your four cards are worth on their own. EXPECTED AFTER CUT is what they're likely worth once a fifth card is turned. They often disagree — that disagreement is the whole game."},
+		"body": "LOCKED IN is what your four cards are worth on their own. EXPECTED AFTER CUT is what they're likely worth once a fifth card is turned. They often disagree, and that disagreement is the whole game."},
 	{"at": "cut", "title": "The cut decides.",
 		"body": "Only now is a fifth card turned, and it joins your four. A longer roll means a better card. You are betting on what's still in the deck."},
 	{"at": "counted", "title": "Fifteen two, fifteen four.",
