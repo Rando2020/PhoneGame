@@ -365,9 +365,72 @@ fx.playui = [];
   }
 }
 
+/* ---- the front door (web showCribSelect: selRoad, selStreet, selTrial,
+   selMeld, and Meta.record/line). For three saves: what is open, and the run
+   each choice builds (constructed exactly as the web's buttons do; unseeded
+   runs draw from Math.random, seeded here). Appended last. */
+fx.selectui = [];
+{
+  /* the web's UI-side Meta (cribrogue_ui.js), taken from the source itself */
+  const uiSrc = fs.readFileSync(path.join(WEB, "cribrogue_ui.js"), "utf8");
+  const metaSrc = uiSrc.slice(uiSrc.indexOf("const Meta = {"), uiSrc.indexOf("const Cb = {"));
+  const Meta = new Function("Store", "SAVE_KEY", "CRIB_ACTS", "CRIB_ROUNDS", metaSrc + "; return Meta;")(
+    { read: () => Achv.load(), write: (o) => Achv.save(o) }, "k", CRIB_ACTS, CRIB_ROUNDS);
+  const sig = (run) => ({ meld: run.meldling, street: run.street.id, trial: run.trial ? run.trial.id : null,
+    endless: !!run.endless, seed: run.seed === undefined ? null : run.seed,
+    cards: run.cards.map(cardOut), bosses: run.bossPlan.map((b) => b.id), wagers: Object.keys(run.wagerAt).sort() });
+  const builders = [
+    () => {},
+    () => { Achv.unlockStreet(3); Achv.grant("long_road"); Achv.markTrial("pauper"); Achv.markTrial("court");
+            Achv.markCleared("pip"); Achv.setEndless(31);
+            Meta.record({ meldling: "pip" }, 25, 412); Meta.record({ meldling: "thump" }, 7, 96); },
+    () => { Achv.unlockStreet(8); for (const a of ACHIEVEMENTS) Achv.grant(a.id);
+            for (const t of TRIALS) Achv.markTrial(t.id); for (const d of Object.keys(CRIB_DECKS)) Achv.markCleared(d);
+            Meta.record({ meldling: "facet" }, 13, 1500); },
+    /* lost on round 1 only: bestRound 0, which the web's line shows as "1-0" */
+    () => { Meta.record({ meldling: "pip" }, 0, 12); },
+  ];
+  const IDS = Object.keys(CRIB_DECKS);
+  builders.forEach((build, si) => {
+    Achv.save({ __v: 3 });
+    build();
+    const store = JSON.parse(JSON.stringify(Achv.load()));
+    const max = Achv.streetUnlocked();
+    const S = { store, maxStreet: max, line: Meta.line(), longRoad: Achv.has("long_road"),
+      trialsDone: TRIALS.filter((t) => Achv.trialDone(t.id)).length, bestEndless: Achv.bestEndless() || 0,
+      meldOpen: IDS.map((id) => Achv.meldlingUnlocked(id)), runs: [] };
+    const U = 4242 + si;
+    // The Five Acts on the first and the deepest open Street, every open Meldling
+    for (const st of [...new Set([1, max])])
+      IDS.forEach((id, k) => {
+        if (!Achv.meldlingUnlocked(id)) return;
+        Math.random = makeRng(U + st * 100 + k);
+        S.runs.push({ path: ["run", st, k], unseeded: U + st * 100 + k, run: sig(new CribRun(id, STREETS[st - 1])) });
+      });
+    // The Long Count, when open: the Street stays whatever was chosen last (First Street here)
+    if (Achv.has("long_road"))
+      IDS.forEach((id, k) => {
+        if (!Achv.meldlingUnlocked(id) || k % 2) return;
+        Math.random = makeRng(U + 900 + k);
+        const run = new CribRun(id, STREETS[0]); run.enterEndless(); run.endlessRound = 0;
+        S.runs.push({ path: ["endless", 1, k], unseeded: U + 900 + k, run: sig(run) });
+      });
+    // every Trial
+    TRIALS.forEach((t, k) => {
+      Math.random = makeRng(U + 500 + k);
+      S.runs.push({ path: ["trial", k], unseeded: U + 500 + k, run: sig(new CribRun(t.deck, STREETS[0], t)) });
+    });
+    // the Daily, for a fixed date
+    const dk = "2026-10-18", seed = dailySeed(dk), decks = ["pip", "thump", "clover", "facet"];
+    Math.random = makeRng(U + 700);
+    S.runs.push({ path: ["daily", dk], unseeded: U + 700, run: sig(new CribRun(decks[seed % decks.length], STREETS[0], null, seed)) });
+    fx.selectui.push(S);
+  });
+}
+
 if (require.main === module) {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(fx));
-  console.log(`wrote ${OUT}: count ${fx.count.length}, keep ${fx.keep.length}, peg ${fx.peg.length}, pegplay ${fx.pegplay.length}, runs ${fx.runs.length}, playui ${fx.playui.length}`);
+  console.log(`wrote ${OUT}: count ${fx.count.length}, keep ${fx.keep.length}, peg ${fx.peg.length}, pegplay ${fx.pegplay.length}, runs ${fx.runs.length}, playui ${fx.playui.length}, selectui ${fx.selectui.length}`);
 }
 module.exports = { fx };
