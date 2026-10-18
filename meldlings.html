@@ -6520,9 +6520,11 @@ const Meta = {
   line() {
     const m = this.load();
     if (!m.runs) return "No runs yet.";
-    const act = Math.ceil((m.bestRound || 1) / CRIB_ROUNDS);
-    const rd = ((m.bestRound - 1) % CRIB_ROUNDS) + 1;
-    return `Runs ${m.runs}  ·  Best Act ${act}-${rd}  ·  Cleared ${m.clears || 0}  ·  Best hand ${m.bestScore || 0}`;
+    const best = m.bestRound || 0;
+    const act = Math.ceil(Math.max(best, 1) / CRIB_ROUNDS);
+    const rd = ((Math.max(best, 1) - 1) % CRIB_ROUNDS) + 1;
+    const bestTxt = best > 0 ? `Best Act ${act}-${rd}` : "Best: no round cleared";
+    return `Runs ${m.runs}  ·  ${bestTxt}  ·  Cleared ${m.clears || 0}  ·  Best hand ${m.bestScore || 0}`;
   },
 };
 
@@ -6783,12 +6785,14 @@ function showHistory() {
   if (!h.length) c.append(el("p", "small dim", "No runs recorded yet."));
   for (const r of h) {
     const row = el("div", "row between histrow" + (r.cleared ? " cleared" : ""));
-    const act = Math.max(1, Math.ceil(r.reached / CRIB_ROUNDS));
-    const rd = ((Math.max(1, r.reached) - 1) % CRIB_ROUNDS) + 1;
+    // a lost run shows the round it fell on (reached counts rounds cleared)
+    const at = r.cleared ? r.reached : r.reached + 1;
+    const act = Math.max(1, Math.ceil(at / CRIB_ROUNDS));
+    const rd = ((Math.max(1, at) - 1) % CRIB_ROUNDS) + 1;
     row.append(el("span", "small", CRIB_DECKS[r.deck] ? CRIB_DECKS[r.deck].name : r.deck));
     row.append(el("span", "small dim", STREETS[r.street - 1].name));
     row.append(el("span", r.cleared ? "small gold" : "small",
-      r.cleared ? "CLEARED" : `Act ${act}-${rd}`));
+      r.cleared ? "CLEARED" : `Fell ${act}-${rd}`));
     c.append(row);
   }
   c.append(btn("Back", showCribSelect, "small"));
@@ -7714,6 +7718,9 @@ function cribRoundEnd() {
 
   if (!rd.won) {
     const m = Meta.record(run, run.roundIndex() - 1, rd.score);
+    // lost runs go in the Record too, not only wins
+    Achv.logRun({ deck: run.meldling, reached: run.roundIndex() - 1,
+                  street: run.street.id, score: rd.score, cleared: false, when: Date.now() });
     // the Daily is one attempt; the Long Count keeps its best (both were never saved)
     if (run.daily) Achv.recordDaily(run.daily, { reached: run.roundIndex() - 1, score: rd.score });
     if (run.endless) Achv.setEndless(run.roundIndex() - 1);
@@ -7940,7 +7947,6 @@ function cribRunWon() {
   c.append(el("p", "gold", `All ${CRIB_ACTS * CRIB_ROUNDS} rounds cleared on ${run.street.name}.`));
   if (run.street.id < STREETS.length)
     c.append(el("p", "small gold", `${STREETS[run.street.id].name} is open.`));
-  c.append(el("p", "small gold", Meta.line()));
   c.append(el("p", "small gold", Meta.line()));
   c.append(cribCharmRow(run));
   c.append(cribLevelRow(run));

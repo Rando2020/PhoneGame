@@ -399,6 +399,9 @@ func _round_end_effects() -> void:
 		_paid = true
 	if not rd.won:
 		RunRecord.record(run, run.round_index() - 1, rd.score)
+		# lost runs go in the Record too, not only wins
+		Achv.log_run({"deck": run.meldling, "reached": run.round_index() - 1, "street": run.street.id,
+			"score": rd.score, "cleared": false, "when": int(Time.get_unix_time_from_system() * 1000.0)})
 		# the Daily is one attempt; the Long Count keeps its best (web: same fix)
 		if run.daily != null:
 			Achv.record_daily(run.daily, {"reached": run.round_index() - 1, "score": rd.score})
