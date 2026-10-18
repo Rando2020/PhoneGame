@@ -3083,7 +3083,7 @@ const CCHARMS = [
     rule: { wrapRuns: true } },
   { id: "shortflush", name: "Half a Flush", tier: 3, cost: 9, rarity: "uncommon", cat: "flush", text: "Three-card flushes count.",
     rule: { flushNeed: 3 } },
-  { id: "recut",     name: "Recut",      tier: 3, cost: 9, rarity: "uncommon", cat: "rule", text: "Re-cut the starter once per deal.",
+  { id: "recut",     name: "Recut",      tier: 3, cost: 9, rarity: "uncommon", cat: "rule", text: "A cut that adds nothing to your hand is re-cut, once per deal.",
     rule: { recuts: 1 } },
   { id: "cribmaster", name: "Crib Master", tier: 3, cost: 10, rarity: "rare", cat: "rule", text: "The Crib scores at full mult.",
     rule: { cribFull: true } },
@@ -3172,7 +3172,7 @@ const CCHARMS = [
     text: "+2 Glim every time you count a hand.",
     onCount: (ctx) => { ctx.essence += 2; return true; } },
   { id: "steadyhand", name: "Steady Hand", tier: 3, cost: 10, rarity: "rare", cat: "rule",
-    text: "+1 mulligan and +1 recut each round.",
+    text: "+1 mulligan. A cut that adds nothing to your hand is re-cut, once per deal.",
     rule: { mulliganBonus: 1, recuts: 1 } },
   /* ---- additive-mult charms. These are what make ORDER matter: an additive
      charm placed before a multiplier is worth far more than after it. ---- */
@@ -3997,12 +3997,24 @@ class CribRound {
 
   commit(keepIdx) {
     if (this.phase !== "keep") return null;
+    const blind = !this.starter;
     this.cutStarter();                       // the reveal happens here
     let hand = keepIdx.map((i) => this.dealt[i]);
     if (this.mods.swapCrib && this.crib.length >= hand.length) {
       const swap = this.crib.slice(0, hand.length);
       this.crib = this.crib.slice(hand.length).concat(hand);
       hand = swap;
+    }
+    /* recuts2: a recut could only be used while the cut was face up before the
+       keep (Foresight), so Recut and Steady Hand did nothing for most players.
+       A blind cut that adds nothing to the kept hand is now re-cut, once per recut
+       (simulated: Recut 13 -> 21.5% clears on Pip, 13.5 -> 23.8% on Thump). */
+    this.autoRecuts = 0;
+    if (blind) {
+      while (this.recutsLeft > 0 && this.stock.length &&
+             countHand(hand, this.starter, false, this.mods).base === countHand(hand, null, false, this.mods).base) {
+        this.recut(); this.autoRecuts++;
+      }
     }
     const thrown = this.dealt.filter((_, i) => !keepIdx.includes(i));
     const luck = this.rollLuck(hand.concat([this.liveStarter(hand)]));

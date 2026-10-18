@@ -77,7 +77,12 @@ function play(seed, killEvery) {
   let seenSaves = P.run("RunSave.saves || 0"), since = 0, killNow = false;
   const mulled = {}, bought = {}, shopKilled = {};
   let lastLen = 0, stall = 0, end = "";
+  let lastGrow = 0, lastLog = 0;
   for (let guard = 0; guard < 6000; guard++) {
+    // nothing new decided for a long while (even through `continue`s) is a failure, not a hang
+    if (fails >= 10) break;                 // broken enough: report, don't grind on
+    if (log.length !== lastLog) { lastLog = log.length; lastGrow = guard; }
+    else if (guard - lastGrow > 600) { ok(false, `seed ${seed}: no progress on ${snap(P)}`); break; }
     // ---- the kill: a new page from the same storage, via the title's CONTINUE
     const saves = P.run("RunSave.saves || 0");
     if (killEvery > 0 && (saves > seenSaves || killNow)) {
@@ -177,6 +182,7 @@ for (const seed of seeds) {
   const [a, aEnd] = play(seed, 0);
   ok(a.length > 30, `seed ${seed}: the straight run made only ${a.length} decisions`);
   for (const k of [2, 5]) {
+    if (fails >= 10) break;
     const [b, bEnd] = play(seed, k);
     let first = -1;
     for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) { first = i; break; }

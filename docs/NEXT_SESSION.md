@@ -14,7 +14,7 @@ in small verified steps and leave every step green.
 <context>
 Read first: docs/PORT.md (status table, "The Play", "The front door", "The
 Peddler and the guided first round", "Decisions applied 2026-10-18", "Save
-and resume", "Web bug fixed", "Found, not fixed", "Port
+and resume", "Record fixes", "Recuts2", "Web save and resume", "Web bug fixed", "Found, not fixed", "Port
 bugs found by UI tests", UI facts, "Applying the web patches", "Balance
 decisions SHIPPED"), this file, and project memory design-principles.md
 (simulate before intuition; the Crib must feel strategic; counterfactual
@@ -24,7 +24,8 @@ Source of truth: GitHub Rando2020/PhoneGame (main). Clone it; work on a
 branch; open a PR. godot/ is the port, web/ the patched web game, docs/ these
 docs. If the repo and the docs disagree, trust the tests, then the code.
 State (PRs stack: #3 port-sync, #4 the-play, #5 front-door, #6 peddler,
-#7 decisions; if not merged, clone decisions. Verified from a fresh clone):
+#7 decisions, #8 history-and-save; if not merged, clone history-and-save.
+Verified from a fresh clone):
 - Engine proven identical to the JS: 78 full runs, 4000 hands, 1800 pegging
   cases. All seven original engine bugs fixed both sides; balance shipped
   (Clover Ascended Mimic, Usury x2, The Collector redesigned).
@@ -42,9 +43,13 @@ State (PRs stack: #3 port-sync, #4 the-play, #5 front-door, #6 peddler,
   dashes in game text, the Daily locks and the Long Count keeps its best,
   Skips removed (simulated: a trap), Stink Hole = no early-clear bonus,
   Meldling balance2 (Nib, Muggins, Facet: bot clears now 12-24% on Street 1,
-  was 2.8-32%). Godot saves and resumes a run exactly (engine/save_game.gd;
-  CONTINUE on the title).
-- Tests green, mutation-tested: parity, cache, card, cascade, cut, shop,
+  was 2.8-32%). Both versions save and resume a run exactly (Godot:
+  engine/save_game.gd; web: RunSave in cribrogue_ui.js; CONTINUE on the
+  title). Lost runs are in the Record; "Best Act 1-0" fixed. Recuts2: a blind
+  cut that adds nothing is re-cut automatically (Recut and Steady Hand were
+  dead without Foresight; now 18-24% bot clears vs 13% with nothing).
+- Web checks: save_check.js (910 kills), record_check, cribend_check.
+- Tests green, mutation-tested: parity (incl. recut group), cache, card, cascade, cut, shop,
   peg, front_door, peddler, guide, record, save, resume, run_flow,
   screen_test_shapes, screen_test_play, screen_leak.
 - Not ported: Deeds, Gallery, Record, How to play, theme, the guide's
@@ -54,28 +59,20 @@ State (PRs stack: #3 port-sync, #4 the-play, #5 front-door, #6 peddler,
 </context>
 
 <task>
-1. Save and resume in the WEB game (Ziah: Godot first, then web). Mirror
-   engine/save_game.gd in JS: card table for identity, charms by id, ordered
-   keys (JS keeps insertion order natively), the run rng / Math.random link,
-   The Play in progress; save to the Store at every step; CONTINUE on the
-   title. Done = a web check that plays real runs in the built html straight
-   and with save/reload at every step and gets identical results; mutation-
-   tested like save_test.gd.
-2. The Recut charm and Steady Hand do nothing without Foresight (same flaw Nib
-   had). Simulate fixes (e.g. owning a recut lets you see the cut before you
-   keep), pick by numbers, ship both sides with fixtures.
-3. If time remains: Deeds and Record screens (web showDeeds 469-523,
-   showHistory 260-315), then creature sprites.
+1. Deeds and Record screens in Godot (web showDeeds and showHistory in
+   cribrogue_ui.js; grep for them, line numbers moved). The Record now holds
+   lost runs ("Fell A-R"). Wire them to the title's icon row.
+2. Creature sprites (web creatureEl / ROSTER art) on the title parade, intro,
+   cascade and The Play.
+3. If time remains: How to play, then audio.
 </task>
 
 <open_decisions>
 Ask Ziah in ONE short message at the start:
-1. Any reaction to the Meldling changes (Nib sees the cut; Muggins steals
-   mult on Spoiler rounds; Facet's deck is bigger but scores x0.85)? He asked
-   for balanced approaches; bot clear rates are now 12-24% across all six.
-2. Lost runs never reach the run history (only wins are logged). Log them?
-3. The title line reads "Best Act 1-0" after only a round-1 loss. Fix the
-   wording in both?
+1. Recut now re-cuts automatically when the cut adds nothing. Should the cut
+   ceremony call it out (a "RECUT" beat), or stay silent as now?
+2. Foresight (legendary, 11 Glim) tests weak for the bot (9-11% clears vs
+   13-15% with nothing). Likely the bot's crude recut use; worth a closer sim?
 </open_decisions>
 
 <non_negotiables>

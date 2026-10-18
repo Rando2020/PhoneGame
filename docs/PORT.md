@@ -35,7 +35,7 @@ in Godot: intro, keep and count, cut ceremony, round end, shop, next round, run 
 | front door | showTitle (PLAY, Peddler), showCribSelect, Meta.record/line | `ui/front/front_door.gd`, `run_record.gd`, in `run_flow.gd` (opens on the title) | roads, Streets, Trials, Meldling carousel; NEW RUN and Title return here |
 | Peddler | showPeddler | `front_door.gd` (step "peddler"); `CardArt.back()` draws the equipped back | buy and equip card backs for Pegs |
 | guided first round | tutorial.js Guide, guideStart/Show/Finish | `ui/front/guide_coach.gd`, `RunFlow.start_guided` | six beats at the web's moments; PLAY ON / Skip coaching |
-| rest of UI, audio | `cribrogue_ui.js`, `app.js`, `audio.js` | none | not started: Deeds, Gallery, Record, How to play, theme, beat highlights, save and resume mid-run, audio, particles, creature sprites |
+| rest of UI, audio | `cribrogue_ui.js`, `app.js`, `audio.js` | none | not started: Deeds, Gallery, Record, How to play, theme, beat highlights, audio, particles, creature sprites |
 
 ## Parity test
 
@@ -357,15 +357,68 @@ Proof:
   state. Mutations caught: no save after a purchase, round-end effects re-run on
   resume, the mid-beat answer skipped.
 
+## Record fixes (2026-10-18, both sides)
+
+Lost runs are logged in the history (`logRun` / `Achv.log_run` on the lost
+round end; the row reads "Fell A-R", the round it fell on). The title line with
+no round cleared reads "Best: no round cleared" instead of "Best Act 1-0".
+record_check.js (18 checks) and record_test.gd (24) cover both; both fail when
+either fix is reverted.
+
+## Recuts2 (2026-10-18, both sides, parity green)
+
+A recut could only be used while the cut was face up before the keep, which
+only Foresight (and Nib) allowed, so Recut and Steady Hand did nothing. Now a
+BLIND cut that adds nothing to the kept hand is re-cut automatically in
+`commit`, once per recut left (`autoRecuts` / `auto_recuts` records how many).
+No extra tap. Simulated with forced builds, 400 runs each, bot clear rate:
+
+| | nothing | Recut | Steady Hand |
+|---|---|---|---|
+| Pip, before | 13.8 | 14.0 | 11.8 |
+| Pip, "see the cut" fix | 15.0 | 17.8 | 17.3 |
+| Pip, auto re-cut (shipped) | 13.0 | 21.5 | 18.0 |
+| Thump, before | 12.8 | 16.8 | 16.5 |
+| Thump, "see the cut" fix | 14.2 | 15.0 | 16.0 |
+| Thump, auto re-cut (shipped) | 13.5 | 23.8 | 23.0 |
+
+(95% CI about ±3.5.) Fixture group `recut` (48 rounds, 51 auto re-cuts) is
+appended to parity.json; parity_test checks it. Mutation caught: re-cutting a
+cut Foresight already showed (6 of 48 fail).
+
+## Web save and resume (2026-10-18)
+
+`RunSave` in cribrogue_ui.js mirrors save_game.gd. The whole state is saved as
+one object graph: every object written once, then referenced (`$r`), so card
+and charm identity holds; catalog objects (charms, Spoilers, Streets, Trials,
+Meldlings, and functions copied out of them, e.g. the Meldling's charm) by
+name; CribRun, CribRound and PegPlay are rebuilt from their prototypes without
+running constructors (no rng draws). makeRng now exposes `state()`; a seeded
+rng resumes from it, an unseeded run stays on Math.random (deck order, shop and
+Spoilers are saved, so a reload can't reroll them). Saved to localStorage
+`meldlings.run.v1` at: intro, every deal render (keep picks included), after a
+count settles (resume skips the cascade), every The Play render (mid-beat
+resumes by playing the Spoiler's answer), a won round (resumes into the shop),
+every shop render. Cleared on a lost or won run. Not saved in the guided round.
+The title shows CONTINUE, and PLAY becomes NEW RUN.
+
+`web/save_check.js`: a bot plays 6 seeds through the real UI buttons straight
+and with the page killed every 2 and every 5 saves (910 kills, all seven save
+kinds); every decision and the end state match. Mutations caught: the mid-beat
+answer skipped, rng state off by one, identity lost, "counted" resumed as a
+fresh deal screen (that one used to hang the check; it now fails with a
+message).
+
 ## Found, not fixed: Ziah's call
 
 | what | where | detail |
 |---|---|---|
 | ~~Skips are dead~~ (removed 2026-10-18) | web and Godot | `skipProgress`/`skips` are never incremented, so SKIP THIS ROUND only appears if something sets `run.skips`. DEPTH.md and SUBTRACTION.md describe overshoot accrual (100 x overshoot / target toward a Skip; 100 = one Skip). The web's round-end line still reads a leftover `run.surplus`. Restoring it is a balance change: simulate first |
 | ~~`noCashOut` is dead~~ (now: no early-clear bonus, 2026-10-18) | web and Godot | merged in `rules()` but never read; the web ends a round the moment the target falls. So Stink Hole and Skunk Line's "every round runs full" does nothing. Godot now matches the web (it used to honour the rule, which was a parity break) |
-| Recut charm and Steady Hand do nothing without Foresight | web and Godot | Recut only shows while the starter is face up before the keep (Foresight). Nib had the same problem (fixed in balance2) |
-| Lost runs aren't in the history | web and Godot | `logRun` only runs on a won run |
-| "Best Act 1-0" | web and Godot | lose on round 1 only and the title line reads Act 1-0 (JS remainder of -1) |
+| ~~Recut charm and Steady Hand do nothing without Foresight~~ (fixed 2026-10-18, recuts2) | web and Godot | see "Recuts2" |
+| ~~Lost runs aren't in the history~~ (fixed 2026-10-18) | web and Godot | lost runs now logged, shown as "Fell A-R" |
+| ~~"Best Act 1-0"~~ (fixed 2026-10-18) | web and Godot | reads "Best: no round cleared"; the web's run-won screen also printed the line twice |
+| Foresight looks weak for the bot | sims | forced build, 400 runs: Foresight 9.3-11.5% vs 12.8-15% with nothing (Pip, Thump). The bot's recut policy is crude, so this is unverified for humans. Not acted on |
 
 ## Port bugs found by UI tests
 

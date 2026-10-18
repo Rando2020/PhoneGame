@@ -304,7 +304,7 @@ static func _build_charms() -> Array:
 			"rule": {"wrapRuns": true}}),
 		C.call({"id": "shortflush", "name": "Half a Flush", "tier": 3, "cost": 9, "rarity": "uncommon", "cat": "flush", "text": "Three-card flushes count.",
 			"rule": {"flushNeed": 3}}),
-		C.call({"id": "recut", "name": "Recut", "tier": 3, "cost": 9, "rarity": "uncommon", "cat": "rule", "text": "Re-cut the starter once per deal.",
+		C.call({"id": "recut", "name": "Recut", "tier": 3, "cost": 9, "rarity": "uncommon", "cat": "rule", "text": "A cut that adds nothing to your hand is re-cut, once per deal.",
 			"rule": {"recuts": 1}}),
 		C.call({"id": "cribmaster", "name": "Crib Master", "tier": 3, "cost": 10, "rarity": "rare", "cat": "rule", "text": "The Crib scores at full mult.",
 			"rule": {"cribFull": true}}),
@@ -387,7 +387,7 @@ static func _build_charms() -> Array:
 		C.call({"id": "cutpurse", "name": "Cutpurse", "tier": 3, "cost": 9, "rarity": "rare", "cat": "rule",
 			"text": "+2 Glim every time you count a hand.", "on_count": func(ctx): return _cutpurse(ctx)}),
 		C.call({"id": "steadyhand", "name": "Steady Hand", "tier": 3, "cost": 10, "rarity": "rare", "cat": "rule",
-			"text": "+1 mulligan and +1 recut each round.", "rule": {"mulliganBonus": 1, "recuts": 1}}),
+			"text": "+1 mulligan. A cut that adds nothing to your hand is re-cut, once per deal.", "rule": {"mulliganBonus": 1, "recuts": 1}}),
 
 		# ---- additive-mult charms: these are what make ORDER matter
 		C.call({"id": "ballast", "name": "Ballast", "tier": 2, "cost": 8, "rarity": "uncommon", "cat": "mult",

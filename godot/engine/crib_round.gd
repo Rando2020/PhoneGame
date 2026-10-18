@@ -23,6 +23,7 @@ var starter = null
 var starter2 = null
 var crib_starter = null
 var recuts_left := 0
+var auto_recuts := 0
 var wager = null
 var wager_target := 0
 var wager_won := false
@@ -480,12 +481,20 @@ func keep_rank(keep_idx: Array) -> Dictionary:
 func commit(keep_idx: Array):
 	if phase != "keep":
 		return null
+	var blind: bool = starter == null
 	cut_starter()   # the reveal happens here
 	var hand: Array = keep_idx.map(func(i): return dealt[i])
 	if JS.truthy(mods.swapCrib) and crib.size() >= hand.size():
 		var swap := crib.slice(0, hand.size())
 		crib = crib.slice(hand.size()) + hand
 		hand = swap
+	# recuts2 (web: same): a blind cut that adds nothing to the kept hand is re-cut
+	auto_recuts = 0
+	if blind:
+		while recuts_left > 0 and stock.size() > 0 and \
+				Cribbage.count_hand(hand, starter, false, mods).base == Cribbage.count_hand(hand, null, false, mods).base:
+			recut()
+			auto_recuts += 1
 	var thrown := []
 	for i in dealt.size():
 		if not keep_idx.has(i):

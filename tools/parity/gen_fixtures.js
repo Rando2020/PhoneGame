@@ -457,9 +457,28 @@ fx.pedui = [];
   Date.now = realNow;
 }
 
+/* ---- recuts2: a blind cut that adds nothing is re-cut. Whole rounds with Recut
+   and/or Steady Hand owned (and with Foresight, where nothing re-cuts blind),
+   best-EV keeps; every deal's starter, auto re-cuts, score and stock. Appended last. */
+fx.recut = [];
+for (let i = 0; i < 48; i++) {
+  const seed = 9000 + i, meld = ["pip", "thump", "clover", "facet"][i % 4];
+  const ids = [["recut"], ["steadyhand"], ["recut", "steadyhand"], ["recut", "foresight"]][i % 4];
+  const run = new CribRun(meld, STREETS[0], null, seed);
+  for (const id of ids) run.charms.push(CCHARMS.find((c) => c.id === id));
+  const rd = new CribRound(run), deals = [];
+  while (!rd.over && rd.dealsLeft > 0 && deals.length < 6) {
+    if (!rd.newDeal()) break;
+    const res = rd.commit(rd.bestKeepEV().idx);
+    deals.push({ starter: rd.starter.rank + rd.starter.suit, auto: rd.autoRecuts, total: res.total,
+                 score: rd.score, stock: rd.stock.length });
+  }
+  fx.recut.push({ seed, meld, ids, deals });
+}
+
 if (require.main === module) {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(fx));
-  console.log(`wrote ${OUT}: count ${fx.count.length}, keep ${fx.keep.length}, peg ${fx.peg.length}, pegplay ${fx.pegplay.length}, runs ${fx.runs.length}, playui ${fx.playui.length}, selectui ${fx.selectui.length}, pedui ${fx.pedui.length}`);
+  console.log(`wrote ${OUT}: count ${fx.count.length}, keep ${fx.keep.length}, peg ${fx.peg.length}, pegplay ${fx.pegplay.length}, runs ${fx.runs.length}, playui ${fx.playui.length}, selectui ${fx.selectui.length}, pedui ${fx.pedui.length}, recut ${fx.recut.length}`);
 }
 module.exports = { fx };

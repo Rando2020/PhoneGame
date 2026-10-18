@@ -27,6 +27,7 @@ func _initialize() -> void:
 	test_count(fx)
 	test_keep(fx)
 	test_peg(fx)
+	test_recut(fx)
 	var runner = load("res://tests/parity_runs.gd")
 	if runner != null and runner.can_instantiate():
 		runner.new().run(self, fx)
@@ -43,6 +44,7 @@ func _initialize() -> void:
 	expect("keepevfast", fx.keep.size()); expect("keepoptEV", fx.keep.size())
 	expect("keepEV", fx.keepev.size()); expect("peg", fx.peg.size())
 	expect("pegplay", fx.pegplay.size())
+	expect("recut", fx.recut.size())
 	var total_fail := 0
 	print("")
 	for k in passes.keys() + fails.keys():
@@ -188,3 +190,25 @@ func test_peg(fx) -> void:
 		var log := p.log.map(func(l): return {"who": l.who, "label": l.label, "points": l.points})
 		check("pegplay", i, {"score": c.score, "oppScore": c.oppScore, "log": c.log},
 			{"score": p.score, "oppScore": p.opp_score, "log": log})
+
+
+## recuts2: a blind cut that adds nothing to the kept hand is re-cut.
+func test_recut(fx) -> void:
+	var autos := 0
+	for i in fx.recut.size():
+		var c = fx.recut[i]
+		var run := CribRun.new(c.meld, Meta.STREETS[0], null, int(c.seed))
+		for id in c.ids:
+			run.charms.append(CribData.charm_by_id(id))
+		var rd := CribRound.new(run)
+		var deals := []
+		while not rd.over and rd.deals_left > 0 and deals.size() < 6:
+			if rd.new_deal() == null:
+				break
+			var res = rd.commit(rd.best_keep_ev().idx)
+			autos += rd.auto_recuts
+			deals.append({"starter": "%d%s" % [rd.starter.rank, rd.starter.suit], "auto": rd.auto_recuts,
+				"total": res.total, "score": rd.score, "stock": rd.stock.size()})
+		check("recut", i, c.deals, deals)
+	if autos == 0:
+		check("recut", "any", "some auto re-cuts", "none at all")
