@@ -75,11 +75,8 @@ func _clear() -> void:
 	_page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_page)
-	var bg := ColorRect.new()
-	bg.color = BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_page.add_child(bg)
+	_page.add_child(Surface.make("menu"))
+	Press.watch(self)
 
 
 func _col() -> Vector2:
@@ -141,7 +138,7 @@ func _button(key: String, text: String, big: bool, cb_: Callable) -> Button:
 	b.pressed.connect(cb_)
 	_page.add_child(b)
 	var w := maxf(300.0 if big else 200.0, b.get_combined_minimum_size().x + 32.0)
-	b.size = Vector2(minf(w, size.x - MARGIN * 2.0), 80.0 if big else 56.0)
+	b.size = Vector2(minf(w, size.x - MARGIN * 2.0), Press.MIN_H + 6.0 if big else Press.MIN_H)   # 44 pt minimum
 	b.position.x = (size.x - b.size.x) / 2.0
 	buttons[key] = b
 	return b
@@ -186,18 +183,7 @@ func _title() -> void:
 	_clear()
 	var y := _line(_top() + size.y * 0.12, "MELDLINGS", 56, GOLD)
 	y = _line(y, "Count it. Cut it. Break it.", 22, DIM)
-	# the parade: all six, bobbing out of step
-	var c0 := _col()
-	var per := c0.y / 3.0
-	parade.clear()
-	for k in MeldReact.SIGNATURE.size():
-		var id: String = MeldReact.SIGNATURE.keys()[k]
-		var sp := MeldSprite.new(id)
-		sp.size = Vector2(per, per)
-		sp.position = Vector2(c0.x + (k % 3) * per, y + 24.0 + floorf(k / 3.0) * per * 0.92)
-		sp.step(k * 0.43)                 # out of step, so they don't bob as one
-		_page.add_child(sp)
-		parade.append(sp)
+	var parade_top := y
 	var m := Achv.load_store()
 	var first_time := not JS.truthy(m.get("guided")) and not JS.truthy(m.get("runs"))
 	_button("play", "PLAY  \u00b7  first round" if first_time else "PLAY", true, func():
@@ -217,6 +203,20 @@ func _title() -> void:
 	var l := _label(_page, RunRecord.line(), 16, DIM, Vector2(c.x, 0), c.y)
 	l.position.y = minf(top - l.size.y - 8.0, _bottom())
 	l.name = "line"
+	# the parade: all six, bobbing out of step, sized to the space above the buttons
+	var c0 := _col()
+	var room := maxf(0.0, l.position.y - 16.0 - (parade_top + 24.0))
+	var per := minf(c0.y / 3.0, room / 1.92)
+	var px0 := (size.x - per * 3.0) / 2.0
+	parade.clear()
+	for k in MeldReact.SIGNATURE.size():
+		var id: String = MeldReact.SIGNATURE.keys()[k]
+		var sp := MeldSprite.new(id)
+		sp.size = Vector2(per, per)
+		sp.position = Vector2(px0 + (k % 3) * per, parade_top + 24.0 + floorf(k / 3.0) * per * 0.92)
+		sp.step(k * 0.43)                 # out of step, so they don't bob as one
+		_page.add_child(sp)
+		parade.append(sp)
 
 
 # ------------------------------------------------------------------ road

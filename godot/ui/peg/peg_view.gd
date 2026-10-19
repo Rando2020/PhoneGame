@@ -40,6 +40,7 @@ var meld_sprite: MeldSprite     ## your Meldling, across the table from the Spoi
 var spoiler_sprite: SpoilerSprite  ## the Spoiler (on a plain round, the table's jester)
 ## who sits across on a round with no Spoiler
 const TABLE_FOE := {"art": "jokester", "sev": 1}
+var juice: Juice
 
 
 func open(session: PegSession) -> void:
@@ -113,11 +114,9 @@ func render() -> void:
 	_page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_page)
-	var bg := ColorRect.new()
-	bg.color = BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_page.add_child(bg)
+	var felt := Surface.make("spoiler" if s.rd.run.boss() != null else "round")
+	_page.add_child(felt)
+	Press.watch(self)
 	hand_views.clear()
 	pile_views.clear()
 	continue_button = null
@@ -142,6 +141,8 @@ func render() -> void:
 	_lab(str(p.opp_score), 26, RED, Vector2(c.x + third * 2.0, y + fpx - 6.0), third)
 	total_label = _lab(str(p.total), 64, GOLD if p.total == PegPlay.TARGET else (RED if p.total >= 26 else INK),
 		Vector2(c.x + third, y - 8.0), third)
+	if p.total == PegPlay.TARGET:
+		Glow.apply(total_label)        # 31 lights up
 	var of_ := _lab("of %d" % PegPlay.TARGET, 16, DIM, Vector2(c.x + third, total_label.position.y + total_label.size.y - 10.0), third)
 	y = maxf(you.position.y + you.size.y, of_.position.y + of_.size.y) + 10.0
 	# progress toward 31
@@ -190,11 +191,18 @@ func render() -> void:
 	_anim = ""
 	# --- bottom: the hand, or the payout
 	var bottom: float = size.y - ins.bottom - MARGIN
+	# the table's edge, just above your hand
+	Surface.rail(_page, bottom - card_size(0.82).y - 64.0, size.x, 26.0)
 	if meld_sprite == null:
 		meld_sprite = MeldSprite.new(s.rd.run.meldling)
 		add_child(meld_sprite)
+	if juice == null:
+		juice = Juice.new()
+		juice.target = self
+		add_child(juice)
 	move_child(meld_sprite, get_child_count() - 1)
 	move_child(spoiler_sprite, get_child_count() - 1)
+	move_child(juice, get_child_count() - 1)
 	if p.over:
 		meld_sprite.hide()
 		_render_result(y, bottom)
@@ -288,6 +296,7 @@ func _on_card(_v: CardView, i: int) -> void:
 	var ll = s.play.last_lay
 	if meld_sprite != null and ll != null and ll.who == "you" and not ll.events.is_empty():
 		meld_sprite.react("cheer")
+	juice_lay()
 	waiting = true
 	render()
 	changed.emit()
@@ -296,6 +305,17 @@ func _on_card(_v: CardView, i: int) -> void:
 	_beat = create_tween()
 	_beat.tween_interval(BEAT)
 	_beat.tween_callback(_answer)
+
+
+## 31 in The Play: a burst from the total, a shake, a buzz on the same frame.
+func juice_lay() -> void:
+	var ll = s.play.last_lay
+	if juice == null or ll == null or not JS.truthy(ll.get("hit31")):
+		return
+	var at := total_label.position + total_label.size / 2.0 if total_label != null else size / 2.0
+	juice.burst(at, 40, ["gold", "white", "green"])
+	juice.shake(10.0, 300.0)
+	Haptics.pulse(40)
 
 
 func _answer() -> void:
@@ -307,6 +327,7 @@ func _answer() -> void:
 	var fl = s.play.last_lay
 	if spoiler_sprite != null and fl != null and fl.who == "them" and not fl.events.is_empty():
 		spoiler_sprite.on_event("peg")
+	juice_lay()
 	render()
 	changed.emit()
 

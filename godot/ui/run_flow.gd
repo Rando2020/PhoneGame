@@ -49,7 +49,9 @@ var front: FrontDoor
 
 ## The title and the select steps. `step` "" keeps where the player was.
 func show_front_door(step := "") -> void:
+	_no_slide = screen == "front"     # moving between front-door steps doesn't slide the page
 	_clear()
+	_no_slide = false
 	_set_screen("front")
 	if step != "":
 		cb.step = step
@@ -163,17 +165,46 @@ func _notification(what: int) -> void:
 
 
 func _rerender() -> void:
+	_no_slide = true          # a resize redraws in place: no transition
 	match screen:
 		"intro": show_intro()
 		"round_end": _render_round_end()
 		"run_won": show_run_won()
+	_no_slide = false
 
 
 # ------------------------------------------------------------------ page helpers
+## Page transitions: the new page slides in from the right while the old one
+## leaves to the left along the same path, on a critically damped spring
+## (damping 1.0, response 0.35 s). Interruptible: a page change mid-slide
+## drops the leaving page and starts from where the current one is.
+const SLIDE_RESPONSE := 0.35
+var _outgoing: Control = null
+var _slide_v := 0.0
+var _no_slide := false
+var juice: Juice = null           ## the page's bursts and shake
+var surface: Surface = null
+
+
 func _clear() -> void:
 	buttons.clear()
+	var animate: bool = _page != null and not _no_slide and not MeldSprite.reduce_motion and size.x > 0.0
+	var from_x: float = _page.position.x if _page != null else 0.0
+	if _outgoing != null:
+		_outgoing.queue_free()
+		_outgoing = null
+	# the guide coach belongs to its round: it goes now, not when the slide ends
+	if coach != null and is_instance_valid(coach):
+		coach.queue_free()
+	coach = null
+	if animate:
+		# the current page becomes the leaving one; nothing in it takes input
+		_outgoing = _page
+		_outgoing.propagate_call("set", ["mouse_filter", Control.MOUSE_FILTER_IGNORE])
+		for b in _outgoing.find_children("*", "BaseButton", true, false):
+			(b as BaseButton).disabled = true
 	for c in get_children():
-		if c == _toast:
+		if c == _toast or c == _outgoing:
 			continue
 		remove_child(c)
 		c.queue_free()
@@ -182,13 +213,50 @@ func _clear() -> void:
 	_page = Control.new()
 	_page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_page)
-	var bg := ColorRect.new()
-	bg.color = BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_page.add_child(bg)
+	var boss = run.boss() if run != null else null
+	surface = Surface.make("spoiler" if boss != null and screen != "shop" else "round")
+	_page.add_child(surface)
+	juice = Juice.new()
+	# no shake at page level: the page itself is what slides (a shake here would
+	# fight the spring and restore a stale position)
+	juice.target = null
+	_page.add_child(juice)
+	Press.watch(self)
+	if animate:
+		_page.position.x = from_x + size.x
+		_slide_v = 0.0
 	if _toast != null:
 		move_child(_toast, -1)
+
+
+## Snap any transition to rest (tests that measure layout; nothing in play needs it).
+func settle() -> void:
+	if _page != null:
+		_page.position.x = 0.0
+	_slide_v = 0.0
+	if _outgoing != null:
+		_outgoing.queue_free()
+		_outgoing = null
+
+
+func _process(delta: float) -> void:
+	if _page == null or (_outgoing == null and absf(_page.position.x) < 0.01):
+		return
+	var w := TAU / SLIDE_RESPONSE
+	var left := minf(delta, 0.25)
+	while left > 0.0:
+		var h := minf(left, 1.0 / 240.0)
+		_slide_v += (-_page.position.x * w * w - _slide_v * 2.0 * w) * h
+		_page.position.x += _slide_v * h
+		left -= h
+	if _outgoing != null:
+		_outgoing.position.x = _page.position.x - size.x
+	if absf(_page.position.x) < 0.5 and absf(_slide_v) < 20.0:
+		_page.position.x = 0.0
+		_slide_v = 0.0
+		if _outgoing != null:
+			_outgoing.queue_free()
+			_outgoing = null
 
 
 ## The web's flash(): one line over whatever screen comes next, gone in 1.6 s.
@@ -309,7 +377,7 @@ func _place_buttons(order: Array) -> void:
 	var y: float = size.y - ins.bottom - MARGIN * 1.5
 	for i in order.size():
 		var b: Button = buttons[order[i]]
-		var h := 80.0 if i == 0 else 56.0
+		var h := Press.MIN_H + 6.0 if i == 0 else Press.MIN_H   # 44 pt minimum
 		# a label wider than the button grows it rightward, off centre: size to fit
 		var w := maxf(300.0 if i == 0 else 260.0, b.get_combined_minimum_size().x + 32.0)
 		w = minf(w, size.x - MARGIN * 2.0)
@@ -497,8 +565,13 @@ func _render_round_end() -> void:
 		_button("title", "Title", false, func(): show_front_door("title"))
 		_place_buttons(["new_run", "title"])
 
+	if rd.won:
+		_page.move_child(juice, -1)
+		juice.burst(Vector2(size.x / 2.0, size.y * 0.22), 40, ["gold", "white", "green"])
+
 
 ## Web "New Run": back to the select steps, where the player left them.
+
 func _new_run() -> void:
 	show_front_door()
 
@@ -508,7 +581,9 @@ func show_shop() -> void:
 	_clear()
 	_set_screen("shop")
 	shop = load("res://scenes/shop_screen.tscn").instantiate()
+	shop.juice = juice
 	_page.add_child(shop)
+	_page.move_child(juice, -1)
 	shop.open(run)
 	shop.next_round.connect(_on_next_round, CONNECT_ONE_SHOT)
 	shop.acted.connect(func(_k): save_now())

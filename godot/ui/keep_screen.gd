@@ -48,7 +48,9 @@ var peg_view: PegView
 var peg_session: PegSession
 var last_kr := {}
 var meld_sprite: MeldSprite   ## your Meldling, reacting to the round
-var spoiler_sprite: SpoilerSprite  ## the Spoiler across from it, on Spoiler rounds          ## the last keep's rank (the cascade's coaching line needs it)
+var spoiler_sprite: SpoilerSprite  ## the Spoiler across from it, on Spoiler rounds
+var surface: Surface            ## the felt (darker on a Spoiler round)
+var juice: Juice                ## bursts and shake, over everything          ## the last keep's rank (the cascade's coaching line needs it)
 
 const BG := Color(0.102, 0.094, 0.149)
 ## Widest the content column grows: six cards side by side with no overlap.
@@ -139,11 +141,9 @@ func _label(font_size: int, color: Color) -> Label:
 
 
 func _build() -> void:
-	var bg := ColorRect.new()
-	bg.color = BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	surface = Surface.make("round")
+	add_child(surface)
+	Press.watch(self)
 
 	status_label = _label(28, INK)
 	add_child(status_label)
@@ -153,6 +153,9 @@ func _build() -> void:
 	spoiler_sprite = SpoilerSprite.new()
 	spoiler_sprite.hide()
 	add_child(spoiler_sprite)
+	juice = Juice.new()
+	juice.target = self
+	add_child(juice)          # in the tree from the start, so it's freed with the screen
 
 	cut_view = CutView.new()
 	cut_view.hide()
@@ -248,6 +251,13 @@ func _show_deal() -> void:
 	meld_sprite.on_event("deal", rd)
 	var boss = run.boss() if run != null else null
 	spoiler_sprite.visible = boss != null
+	var want := "spoiler" if boss != null else "round"
+	if surface.kind != want:
+		var s2 := Surface.make(want)
+		add_child(s2)
+		move_child(s2, surface.get_index())
+		surface.queue_free()
+		surface = s2
 	if boss != null and spoiler_sprite.art != String(boss.art):
 		spoiler_sprite.set_boss(boss)
 	_update_status()
@@ -412,6 +422,7 @@ func _on_cascade_finished() -> void:
 	# the reaction lands with the total
 	if last_result != null:
 		meld_sprite.on_event("count", rd, last_result)
+		juice_count()
 		if spoiler_sprite.visible:
 			spoiler_sprite.on_event("count", rd, last_result)
 	_update_status()
@@ -513,6 +524,17 @@ func _light(cards) -> void:
 
 ## Round-end facts go to the status bar and the button, not under the count:
 ## the cascade footer stays about the hand that was just counted.
+## A big count (the cheer threshold): a burst from the counted hand and a shake.
+func juice_count() -> void:
+	if last_result == null or rd == null:
+		return
+	if int(last_result.get("total", 0)) >= MeldReact.big_count(rd):
+		move_child(juice, -1)
+		var at := counted_row.position + counted_row.size / 2.0
+		juice.burst(at, 34, ["gold", "white"])
+		juice.shake(8.0, 260.0)
+
+
 func _show_round_end() -> void:
 	meld_sprite.on_event("round_won" if rd.won else "run_lost", rd)
 	if spoiler_sprite.visible:

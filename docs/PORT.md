@@ -466,6 +466,49 @@ your Meldling on a Spoiler round.
 stung, share off by one, end poses not holding, the Spoiler on every round, the
 Spoiler covering its score.
 
+## The juice layer (2026-10-19)
+
+Presentation only; no await; Reduce Motion (MeldSprite.reduce_motion) skips
+particles, shake, slides and the press spring.
+
+- Surfaces: `tools/make_surfaces.py` (1.5 s) writes tileable felt (round,
+  spoiler, menu), a wood rail and a vignette to `art/surfaces/` (copied to
+  `godot/art/surfaces/`). `ui/fx/surface.gd` Surface replaces every flat
+  background: menu felt on the front door, round felt elsewhere, the darker
+  spoiler felt on Spoiler rounds (keep screen, The Play, intro, round end); a
+  wood rail along the shop's top and The Play's table edge above your hand.
+- `ui/fx/juice.gd` Juice: burst(at, count, colours) draws its own particles;
+  shake(strength, ms) decays and restores the target. Own fixed-seed rng.
+  Fires: a big count (MeldReact.big_count) bursts from the counted hand and
+  shakes the keep screen; 31 in The Play bursts, shakes and buzzes 40 ms; a
+  cleared round bursts; a legendary purchase bursts and buzzes 50 ms. RunFlow's
+  page-level Juice doesn't shake (the page is what slides; a shake there would
+  fight the spring), so the round end and shop burst without a shake.
+- Glow (`ui/fx/glow.gd`): a gold outline on the cascade's fifteen lines and on
+  The Play's total at 31.
+- Press (`ui/fx/press.gd`): every button in the tree (Press.watch on the
+  SceneTree's node_added) scales to 0.97 and brightens on touch-down and
+  springs back on release, and is at least 81 px (44 pt) tall, grown about its
+  centre and kept by custom_minimum_size through re-layouts.
+- RunFlow page changes slide: the new page from the right, the old one out to
+  the left on the same path, spring damping 1.0, response 0.35 s, fixed
+  substeps. Interruptible: a change mid-slide drops the leaving page and
+  starts beyond the current one. A resize redraws in place (no slide). The
+  leaving page takes no input.
+- `tests/juice_test.gd` (88+ checks). Mutations caught: bursts ignoring Reduce
+  Motion, the big-count threshold off by one, every cascade line glowing, the
+  81 px minimum lost on re-layout (missed at first: the check now re-lays out),
+  a 40 px minimum (missed at first: the test read the threshold from the code
+  under test; now a literal 81), the leaving page never freed, any purchase
+  bursting.
+- Broke and fixed in this pass: KeepScreen's Juice was only added to the tree on
+  a big count, so it leaked on every other screen (screen_leak_test: +24
+  objects over 11 screens; now 0). The title parade overlapped the buttons at
+  720x1280 (front_door_test); it now sizes to the space left. The guide coach
+  outlived its round on the leaving page (guide_test); `_clear` frees it now.
+  front_door_test and run_flow_test measured pages mid-slide; they call the new
+  `RunFlow.settle()` before measuring.
+
 ## Found, not fixed: Ziah's call
 
 | what | where | detail |

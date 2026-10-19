@@ -102,6 +102,7 @@ func check_page(f: RunFlow, shape: Vector2i, where: String) -> void:
 
 func to_road(f: RunFlow) -> void:
 	f.show_front_door("road")
+	f.settle()
 	await process_frame
 
 
@@ -139,6 +140,7 @@ func _go() -> void:
 		if first:
 			ok(f.screen == "round" and f.coach != null and f.run.meldling == "thump" and int(f.run.street.id) == 1, "%s: fresh PLAY didn't start the guided round" % where)
 			f.show_front_door("road")
+			f.settle()        # measure the page at rest, not mid-slide
 			await process_frame
 		ok(f.cb.step == "road", "%s: PLAY didn't open the roads" % where)
 		check_page(f, shape, where + " road")

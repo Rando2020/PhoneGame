@@ -177,6 +177,9 @@ func _add_row(b: Dictionary) -> void:
 	var val := _lab(24, KIND_COLOR.get(b.kind, INK), HORIZONTAL_ALIGNMENT_RIGHT)
 	val.text = b.value
 	row.add_child(val)
+	if b.kind == "fifteen":       # a 15 lights up
+		Glow.apply(name_l)
+		Glow.apply(val)
 	list.add_child(row)
 	_rows.append(row)
 	_trim()

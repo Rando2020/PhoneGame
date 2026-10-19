@@ -65,6 +65,7 @@ func state(run, rd) -> Dictionary:
 
 ## Text never runs under the buttons; every button on screen.
 func check_page(f: RunFlow, where: String) -> void:
+	f.settle()        # measure the page at rest, not mid-slide
 	var top := float(SIZE.y)
 	for b in f.buttons.values():
 		var r: Rect2 = b.get_global_rect()

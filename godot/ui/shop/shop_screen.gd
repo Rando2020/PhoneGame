@@ -23,6 +23,7 @@ const MAX_COLUMN := 920.0
 const STALL_SCALE := 0.75
 
 var run
+var juice: Juice = null    ## set by RunFlow: a legendary purchase bursts
 var sell_buttons := {}
 var offer_buttons := {}
 var card_buttons := {}
@@ -39,11 +40,9 @@ var _toast_tween: Tween
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	var bg := ColorRect.new()
-	bg.color = BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	add_child(Surface.make("round"))
+	Surface.rail(self, 0.0, 4096.0, 22.0)      # the shop counter's wood rail, along the top
+	Press.watch(self)
 	_scroll = ScrollContainer.new()
 	_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -81,6 +80,10 @@ func buy_charm(ch: Charm) -> bool:
 	if ch.on_acquire.is_valid():
 		ch.on_acquire.call(run)
 	run.shop_state.offer = run.shop_state.offer.filter(func(x): return x.id != ch.id)
+	if ch.rarity == "legendary" and juice != null:
+		juice.burst(size / 2.0, 46, ["gold", "white", "green"])
+		juice.shake(6.0, 240.0)
+		Haptics.pulse(50)
 	_after("charm", "Bought %s" % ch.name)
 	return true
 
