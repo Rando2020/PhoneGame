@@ -162,7 +162,7 @@ static func gallery(fd: FrontDoor) -> void:
 		b.text = tab[1]
 		b.toggle_mode = true
 		b.button_pressed = gal_tab == tab[0]
-		b.add_theme_font_size_override("font_size", 20)
+		b.add_theme_font_size_override("font_size", TypeScale.px(20))
 		b.size = Vector2(tw, Press.MIN_H)
 		b.position = Vector2(c.x + (i % 3) * (tw + 8.0), y + floorf(i / 3.0) * (Press.MIN_H + 8.0))
 		var id: String = tab[0]
@@ -462,7 +462,30 @@ static func reduce_motion_saved() -> bool:
 	var m := Achv.load_store()
 	if m.has("reduce_motion"):
 		return JS.truthy(m.reduce_motion)
+	var os := os_access()
+	if os != null:
+		return bool(os.call("reduce_motion"))
 	return false       # Godot 4.3 exposes no OS Reduce Motion setting: off until chosen
+
+
+## The native iOS plugin (docs/PORT.md, "Dynamic Type and Reduce Motion"), when
+## the build has it: reduce_motion() -> bool, content_size() -> the UIKit
+## category string, and a `changed` signal. Without it: null, in-game settings only.
+static func os_access() -> Object:
+	return Engine.get_singleton("MeldAccess") if Engine.has_singleton("MeldAccess") else null
+
+
+## The phone's text size category onto our three steps.
+static func text_step_for(category: String) -> int:
+	var c := category.trim_prefix("UICTContentSizeCategory")
+	if c.begins_with("Accessibility") or c == "XXXL":
+		return 2
+	if c in ["XL", "XXL"]:
+		return 1
+	return 0
+
+
+static var _os_hooked := false
 
 
 ## Apply saved settings at start (RunFlow._ready).
@@ -470,6 +493,22 @@ static func apply() -> void:
 	MeldSprite.reduce_motion = reduce_motion_saved()
 	var m := Achv.load_store()
 	CascadeView.speed_i = clampi(int(m.get("cascade_speed", 0)), 0, CascadeView.SPEEDS.size() - 1)
+	var ti := int(m.get("text_scale", -1))
+	var os := os_access()
+	if ti < 0:
+		ti = text_step_for(String(os.call("content_size"))) if os != null else 0
+	TypeScale.scale = TypeScale.STEPS[clampi(ti, 0, TypeScale.STEPS.size() - 1)]
+	TypeScale.apply_fallback()
+	if os != null and not _os_hooked and os.has_signal("changed"):
+		_os_hooked = true
+		os.connect("changed", apply)    # the player changed it in iOS Settings
+
+
+const TEXT_NAMES := ["Standard", "Large", "Larger"]
+
+
+static func _text_i() -> int:
+	return maxi(0, TypeScale.STEPS.find(TypeScale.scale))
 
 
 static func _save(key: String, v) -> void:
@@ -493,12 +532,17 @@ static func settings(fd: FrontDoor) -> void:
 		["speed", "Count speed", "%dx" % CascadeView.speed_k(), func():
 			CascadeView.speed_i = (CascadeView.speed_i + 1) % CascadeView.SPEEDS.size()
 			_save("cascade_speed", CascadeView.speed_i)],
+		["text", "Text size", TEXT_NAMES[_text_i()], func():
+			var i := (_text_i() + 1) % TypeScale.STEPS.size()
+			TypeScale.scale = TypeScale.STEPS[i]
+			TypeScale.apply_fallback()
+			_save("text_scale", i)],
 	]
 	for r in rows:
 		_lab(fd, fd._page, r[1], 24, fd.INK, c.x, y + 24.0, c.y * 0.55)
 		var b := Button.new()
 		b.text = r[2]
-		b.add_theme_font_size_override("font_size", 22)
+		b.add_theme_font_size_override("font_size", TypeScale.px(22))
 		b.size = Vector2(180, Press.MIN_H)
 		b.position = Vector2(c.x + c.y - 180.0, y)
 		var act: Callable = r[3]

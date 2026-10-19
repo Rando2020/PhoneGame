@@ -52,12 +52,10 @@ func _add_chip(name: String, tint: Color, empty: bool) -> void:
 	l.text = name
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.clip_text = true
-	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	l.add_theme_font_size_override("font_size", 17)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", TypeScale.px(17))
 	l.add_theme_color_override("font_color", INK)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	l.set_anchors_preset(Control.PRESET_FULL_RECT)
 	p.add_child(l)
 	add_child(p)
 	chips.append({"name": name, "panel": p, "label": l, "tint": tint, "empty": empty})
@@ -68,15 +66,54 @@ func _notification(what: int) -> void:
 		_layout()
 
 
+## Chips per row: all in one row when every name fits in two lines without
+## breaking a word; else rows of 3 (~215 px a name), so names read whole at
+## 11 pt and up instead of trimming to "Qua...".
+func per_row(n: int) -> int:
+	if n <= 3:
+		return maxi(1, n)
+	var w := (size.x - GAP * (n - 1)) / n - 8.0
+	for c in chips:
+		var l: Label = c.label
+		if l.text == "":
+			continue
+		var font := l.get_theme_font("font")
+		var fs := l.get_theme_font_size("font_size")
+		for word in l.text.split(" "):
+			if font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w:
+				return 3
+		if font.get_multiline_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, w, fs).y > font.get_height(fs) * 2.0 + 2.0:
+			return 3
+	return n
+
+
+var row_h := H                 ## grows when a name wraps to two lines
+
+
+func height() -> float:
+	var n := chips.size()
+	var rows := ceili(float(maxi(1, n)) / per_row(n))
+	return rows * row_h + (rows - 1) * GAP
+
+
 func _layout() -> void:
 	var n := chips.size()
 	if n == 0:
 		return
-	var w := (size.x - GAP * (n - 1)) / n
+	var per := per_row(n)
+	var w := (size.x - GAP * (per - 1)) / per
+	row_h = H
+	for c in chips:
+		var l: Label = c.label
+		l.size = Vector2(w - 8.0, 0)
+		row_h = maxf(row_h, l.get_minimum_size().y + 6.0)
 	for i in n:
 		var p: Panel = chips[i].panel
-		p.position = Vector2(i * (w + GAP), 0)
-		p.size = Vector2(w, H)
+		p.position = Vector2((i % per) * (w + GAP), (i / per) * (row_h + GAP))
+		p.size = Vector2(w, row_h)
+		var l: Label = chips[i].label
+		l.position = Vector2(4, 0)
+		l.size = Vector2(w - 8.0, row_h)
 		p.pivot_offset = p.size / 2.0
 
 

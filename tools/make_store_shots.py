@@ -23,7 +23,7 @@ GOLD, INK = (232, 182, 76), (246, 238, 224)
 SHOTS = [
     ("shot_count", "Every count lands.", "Fifteens, pairs and runs tick up, then the multiplier slams."),
     ("flow_won_end", "They cheer you on.", "Six Meldlings, each with its own face and its own trick."),
-    ("peg_mid", "The Play.", "Peg to 31 against the Spoiler, then add it to your score."),
+    ("peg_busy", "The Play.", "Peg to 31 against the Spoiler, then add it to your score."),
     ("flow_boss", "Beat the Spoilers.", "Every fifth round a Spoiler breaks a rule. Build for it."),
     ("shop", "Build your run.", "Charms, marked cards and Reckonings at the Peg House."),
     ("menu_gallery_meld", "Collect them all.", "Every Meldling, every pose, in the Gallery."),

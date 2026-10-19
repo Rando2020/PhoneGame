@@ -74,6 +74,7 @@ func sig(run: CribRun) -> Dictionary:
 
 ## Every button on screen; action buttons centred; nothing above overlaps them.
 func check_page(f: RunFlow, shape: Vector2i, where: String) -> void:
+	f.settle()     # measure at rest, not mid-slide
 	pages += 1
 	var screen := Rect2(Vector2.ZERO, Vector2(shape))
 	for k in f.front.buttons:

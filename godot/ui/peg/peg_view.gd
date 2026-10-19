@@ -70,7 +70,7 @@ func _lab(text: String, fs: int, col: Color, at: Vector2, w: float) -> Label:
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.position = at
@@ -280,7 +280,7 @@ func _render_result(y: float, bottom: float) -> void:
 		ry += 34.0
 	continue_button = Button.new()
 	continue_button.text = "CONTINUE"
-	continue_button.add_theme_font_size_override("font_size", 30)
+	continue_button.add_theme_font_size_override("font_size", TypeScale.px(30))
 	_page.add_child(continue_button)
 	var bw := maxf(300.0, continue_button.get_combined_minimum_size().x + 32.0)
 	continue_button.size = Vector2(bw, 80)

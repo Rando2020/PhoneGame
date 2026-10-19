@@ -24,7 +24,7 @@ func _go() -> void:
 	var s := PegSession.start(rd, kept)
 	var v := PegView.new()
 	root.add_child(v)
-	v.size = Vector2(root.size)
+	v.size = root.get_visible_rect().size
 	v.open(s)
 	s.lay(s.playable_indices()[0])
 	s.answer()
@@ -37,5 +37,25 @@ func _go() -> void:
 	v.render()
 	for i in 20: await process_frame
 	root.get_texture().get_image().save_png("/tmp/peg_payout_%s.png" % tag)
+	# the store shot (seed found by search): a full pile at 23, both sides on
+	# the board, cards still in hand, the Act 3 Spoiler across the table
+	var br := CribRun.new("thump", null, null, 5294)
+	for id in ["keystone2", "ballast"]:
+		br.charms.append(CribData.charm_by_id(id))
+	br.act = 3
+	br.round = 5
+	var bd := CribRound.new(br)
+	bd.new_deal()
+	var bidx: Array = bd.best_keep_ev().idx
+	var bkept: Array = bidx.map(func(i): return bd.dealt[i])
+	bd.commit(bidx)
+	var bs := PegSession.start(bd, bkept)
+	while not (bs.play.pile.size() >= 6 and bs.play.mine.size() >= 1):
+		bs.lay(bs.playable_indices()[0])
+		bs.answer()
+	v.open(bs)
+	v.render()
+	for i in 20: await process_frame
+	root.get_texture().get_image().save_png("/tmp/peg_busy_%s.png" % tag)
 	print("peg shots saved %s: pegs %d, Spoiler %d, gain %d" % [tag, s.play.score, s.play.opp_score, s.gain()])
 	quit()

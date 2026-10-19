@@ -49,6 +49,7 @@ func snap() -> Dictionary:
 
 
 func check_page(f: RunFlow, shape: Vector2i, where: String) -> void:
+	f.settle()     # measure at rest, not mid-slide
 	var screen := Rect2(Vector2.ZERO, Vector2(shape))
 	var back: Rect2 = f.front.buttons["back"].get_global_rect()
 	ok(screen.encloses(back) and absf(back.get_center().x - shape.x / 2.0) <= 1.0, "%s: Back off screen or centre" % where)

@@ -246,6 +246,8 @@ func _clear() -> void:
 
 ## Snap any transition to rest (tests that measure layout; nothing in play needs it).
 func settle() -> void:
+	if front != null and is_instance_valid(front):
+		front.settle()
 	if _page != null:
 		_page.position.x = 0.0
 	_slide_v = 0.0
@@ -284,7 +286,7 @@ func flash(msg: String) -> void:
 		_toast = Label.new()
 		_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_toast.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_toast.add_theme_font_size_override("font_size", 22)
+		_toast.add_theme_font_size_override("font_size", TypeScale.px(22))
 		_toast.add_theme_color_override("font_color", INK)
 		_toast.add_theme_color_override("font_outline_color", BG)
 		_toast.add_theme_constant_override("outline_size", 8)
@@ -329,6 +331,107 @@ func _spoiler_at(y: float, px: float, boss: Dictionary, pose: String, x := -1.0,
 	return y + px
 
 
+## The act at a glance: one pip per round, done ones gold, this one ringed,
+## the Spoiler's round (the last) marked. Reads run.act/round only.
+func _act_track(y: float, done_this := false) -> float:
+	var c := _col()
+	var n := CribData.ROUNDS
+	var d := 34.0
+	var w := minf(c.y, 440.0)
+	var x0 := (size.x - w) / 2.0
+	var step := (w - d) / float(n - 1)
+	var line := ColorRect.new()
+	line.color = Color(INK, 0.18)
+	line.position = Vector2(x0 + d / 2.0, y + d / 2.0 - 2.0)
+	line.size = Vector2(w - d, 4)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_page.add_child(line)
+	for i in n:
+		var r := i + 1
+		var done := r < run.round or (r == run.round and done_this)
+		var here := r == run.round
+		var boss := r == n
+		var p := Panel.new()
+		var sb := StyleBoxFlat.new()
+		sb.set_corner_radius_all(int(d / 2.0))
+		sb.bg_color = GOLD if done else PANEL
+		sb.border_color = (RED if boss else GOLD) if (here or boss) else Color(INK, 0.3)
+		sb.set_border_width_all(4 if here else 2)
+		p.add_theme_stylebox_override("panel", sb)
+		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.position = Vector2(x0 + i * step, y)
+		p.size = Vector2(d, d)
+		_page.add_child(p)
+		if boss:
+			var k := Label.new()
+			k.text = "!"
+			k.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			k.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			k.add_theme_font_size_override("font_size", TypeScale.px(22))
+			k.add_theme_color_override("font_color", PANEL if done else RED)
+			k.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			k.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			p.add_child(k)
+	return _line(y + d + 6.0, "ACT %d  ·  ROUND %d OF %d  ·  SPOILER AT %d" % [run.act, run.round, n, n], 17, DIM)
+
+
+## Your charms as chips (the Meldling's knack first), under a small heading.
+func _charm_row(y: float) -> float:
+	var c := _col()
+	y = _line(y, "YOUR CHARMS", 16, GOLD)
+	var bar := CharmBar.new()
+	_page.add_child(bar)
+	bar.position = Vector2(c.x, y)
+	bar.size = Vector2(c.y, CharmBar.H)
+	bar.build(run)
+	bar.size = Vector2(c.y, bar.height())
+	return y + bar.size.y + 10.0
+
+
+## Use the room left above the buttons: the Meldling (or the pair) grows into up
+## to half of it, then the block is centred, so no band sits empty. `first` is
+## the page child where the content starts; `bottom` is where it ends.
+func _fill(first: int, top: float, bottom: float) -> void:
+	var btn_top := size.y
+	for k in buttons:
+		btn_top = minf(btn_top, (buttons[k] as Control).position.y)
+	var free := btn_top - 20.0 - bottom
+	if free <= 0.0:
+		return
+	var art: Array = []
+	for v in [meld_view, spoiler_view]:
+		if v != null and is_instance_valid(v) and v.get_parent() == _page:
+			art.append(v)
+	if not art.is_empty():
+		var grow := minf(free * 0.5, 140.0)
+		var art_bottom: float = art[0].position.y + art[0].size.y
+		for i in range(first, _page.get_child_count()):
+			var n := _page.get_child(i) as Control
+			if n != null and not art.has(n) and not buttons.values().has(n) and n.position.y >= art_bottom - 1.0:
+				n.position.y += grow
+		var pair := art.size() == 2
+		for v in art:
+			var cx: float = v.position.x + v.size.x / 2.0
+			v.size += Vector2(grow, grow) * (0.5 if pair else 1.0)
+			v.position.x = cx - v.size.x / 2.0
+		if pair:
+			var gap := 24.0
+			var x0: float = (size.x - art[0].size.x * 2.0 - gap) / 2.0
+			art[0].position.x = x0
+			art[1].position.x = x0 + art[0].size.x + gap
+			for i in range(first, _page.get_child_count()):
+				var n := _page.get_child(i) as Control
+				if n != null and not art.has(n) and not buttons.values().has(n) and n.position.y >= art_bottom - 1.0 + grow:
+					n.position.y -= grow * 0.5
+			grow *= 0.5
+		free -= grow
+	var shift := free / 2.0
+	for i in range(first, _page.get_child_count()):
+		var n := _page.get_child(i) as Control
+		if n != null and not buttons.values().has(n) and n != juice and n != surface:
+			n.position.y += shift
+
+
 func _meld_at(y: float, px: float, pose: String, quiet := false) -> float:
 	meld_view = MeldSprite.new(run.meldling)
 	meld_view.size = Vector2(px, px)
@@ -344,7 +447,7 @@ func _line(y: float, text: String, fs: int, colr: Color) -> float:
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
 	l.add_theme_color_override("font_color", colr)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.position = Vector2(c.x, y)
@@ -379,7 +482,7 @@ func _panel(y: float, lines: Array) -> float:
 func _button(key: String, text: String, big: bool, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", 30 if big else 22)
+	b.add_theme_font_size_override("font_size", TypeScale.px(30 if big else 22))
 	b.pressed.connect(cb)
 	_page.add_child(b)
 	buttons[key] = b
@@ -422,6 +525,7 @@ func show_intro() -> void:
 	Sound.music(music_for(run))
 	var ins := SafeArea.insets(self)
 	var y: float = ins.top + MARGIN * 2.0
+	var first := _page.get_child_count()
 	y = _line(y, "ACT %d  ·  ROUND %d / %d" % [run.act, run.round, CribData.ROUNDS], 20, DIM)
 	if run.is_wager():
 		y = _line(y, "A WAGER", 18, GOLD)
@@ -451,7 +555,9 @@ func show_intro() -> void:
 		var b: Dictionary = run.boss_plan[i]
 		var mark := "" if i + 1 != run.act else "  <"
 		plan.append(["A%d %s%s" % [i + 1, b.name, mark], 17, DIM if i + 1 < run.act else SEV[b.sev]])
-	y = _line(y + 10.0, "SPOILERS ON THE ROAD", 16, GOLD)
+	y = _act_track(y + 10.0)
+	y = _charm_row(y + 4.0)
+	y = _line(y, "SPOILERS ON THE ROAD", 16, GOLD)
 	y = _panel(y, plan)
 	var order := ["deal"]
 	_button("deal", "DEAL", true, _on_deal)
@@ -459,6 +565,7 @@ func show_intro() -> void:
 		_button("walk", "WALK AWAY", false, _on_walk_away)
 		order.append("walk")
 	_place_buttons(order)
+	_fill(first, ins.top, y)
 	save_now()
 
 
@@ -538,6 +645,7 @@ func _render_round_end() -> void:
 		Sound.play("win" if rd.won else "lose")
 	var ins := SafeArea.insets(self)
 	var y: float = ins.top + MARGIN * 2.0
+	var first := _page.get_child_count()
 	var head := "ROUND CLEARED" if rd.won else "RUN OVER"
 	var colr := INK if rd.won else RED
 	if rd.wager != null:
@@ -584,6 +692,8 @@ func _render_round_end() -> void:
 		box.append(["Glim  +%d" % rd.essence_earned, 22, GOLD])
 	y = _panel(y + 4.0, box)
 	if rd.won:
+		y = _act_track(y + 6.0, true)
+	if rd.won:
 		_button("shop", "SHOP", true, func():
 			run.open_shop()
 			show_shop())
@@ -594,6 +704,7 @@ func _render_round_end() -> void:
 		_button("new_run", "NEW RUN", true, _new_run)
 		_button("title", "Title", false, func(): show_front_door("title"))
 		_place_buttons(["new_run", "title"])
+	_fill(first, ins.top, y)
 
 	if rd.won:
 		_page.move_child(juice, -1)

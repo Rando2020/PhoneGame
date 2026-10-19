@@ -152,7 +152,7 @@ func _toast(msg: String) -> void:
 func _label(fs: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var l := Label.new()
 	l.horizontal_alignment = align
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
@@ -170,7 +170,7 @@ func _box(col: Color, border: Color, radius := 8) -> StyleBoxFlat:
 func _button(text: String, fs := 22) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", fs)
+	b.add_theme_font_size_override("font_size", TypeScale.px(fs))
 	return b
 
 
@@ -231,9 +231,14 @@ func render() -> void:
 		chips.append(ch)
 	var empties: int = maxi(0, run.slots() - run.charms.size())
 	var n := chips.size() + empties
-	var cw := (col - 6.0 * (n - 1)) / n
+	# more than 4 chips: rows of 3, so a name gets ~215 px at 11 pt and up
+	var per := n if n <= 4 else 3
+	var cw := (col - 6.0 * (per - 1)) / per
+	var ch_h := 72.0
 	for i in n:
-		var p := _place(Panel.new(), Vector2(x0 + i * (cw + 6), y), Vector2(cw, 58))
+		var cx := x0 + (i % per) * (cw + 6)
+		var cy := y + (i / per) * (ch_h + 6)
+		var p := _place(Panel.new(), Vector2(cx, cy), Vector2(cw, ch_h))
 		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		if i >= chips.size():
 			p.add_theme_stylebox_override("panel", _box(PANEL, Color(INK, 0.12)))
@@ -241,28 +246,24 @@ func render() -> void:
 		var ch: Charm = chips[i]
 		var tint := DECK_TINT if ch.tier == 0 else Color(CribData.RARITY.get(ch.rarity, CribData.RARITY.common).tint)
 		p.add_theme_stylebox_override("panel", _box(PANEL, tint))
-		# names get the full chip width; a sellable chip keeps a strip at the
-		# top for the x so the two never overlap
-		var top: float = 18.0 if ch.tier != 0 else 2.0
-		var name_w: float = cw - 6.0
-		var name_h: float = 58.0 - top - 2.0
-		var nm := _label(_fit_size(ch.name, name_w, name_h, 14, 8), INK, HORIZONTAL_ALIGNMENT_CENTER)
+		# a sellable chip keeps the right edge for the x so the two never overlap
+		var xw: float = 30.0 if ch.tier != 0 else 0.0
+		var nm := _label(18, INK, HORIZONTAL_ALIGNMENT_CENTER)
 		nm.text = ch.name
-		nm.autowrap_mode = TextServer.AUTOWRAP_WORD
+		nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		nm.position = Vector2(3, top)
-		nm.size = Vector2(name_w, name_h)
+		nm.position = Vector2(4, 2)
+		nm.size = Vector2(cw - 8.0 - xw, ch_h - 4.0)
 		p.add_child(nm)
 		if ch.tier != 0:
-			# visible x is small; the touch target is the whole top strip corner
-			var x := _button("×", 16)
+			var x := _button("×", 22)
 			x.flat = true
 			x.position = Vector2(cw - 34, 0)
-			x.size = Vector2(34, 26)
+			x.size = Vector2(34, 34)
 			x.pressed.connect(sell.bind(ch.id))
 			p.add_child(x)
 			sell_buttons[ch.id] = x
-	y += 58 + 16
+	y += ceili(float(n) / per) * (ch_h + 6) + 10
 
 	# ---- charm offers + reroll
 	var oh := _label(19, INK)
@@ -302,20 +303,22 @@ func render() -> void:
 		var tx := _label(15, DIM)
 		tx.text = ch.text
 		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tx.position = Vector2(14, 36)
-		tx.size = Vector2(col - 110, 48)
+		tx.position = Vector2(14, nm.position.y + nm.get_minimum_size().y - 2.0)
+		tx.size = Vector2(col - 110, 0)
 		b.add_child(tx)
+		var row_h := maxf(88.0, tx.position.y + tx.get_minimum_size().y + 6.0)
+		b.size.y = row_h
 		var cost := _label(26, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
 		cost.text = str(ch.cost)
 		cost.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		cost.position = Vector2(col - 80, 0)
-		cost.size = Vector2(66, 88)
+		cost.size = Vector2(66, row_h)
 		b.add_child(cost)
 		if b.disabled:
 			for k in [nm, tx, cost]:
 				k.modulate.a = 0.45
 		offer_buttons[ch.id] = b
-		y += 88 + 8
+		y += row_h + 8
 	if full:
 		var fl := _label(16, RED)
 		fl.text = "Every charm slot is spoken for. Pawn one first."
@@ -327,7 +330,7 @@ func render() -> void:
 	var sh := _label(19, INK)
 	sh.text = "THE STALL  ·  take a card into your deck"
 	_place(sh, Vector2(x0, y), Vector2(col, 28))
-	y += 30
+	y += 38
 	var shown := []
 	for i in run.shop_state.cards.size():
 		if not run.shop_state.cards[i].get("sold", false):
@@ -367,34 +370,33 @@ func render() -> void:
 	# ---- Reckonings
 	var rh := _label(19, INK)
 	rh.text = "RECKONINGS  ·  +%d base per scoring event, each level" % CribData.LEVEL_GAIN
+	rh.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_place(rh, Vector2(x0, y), Vector2(col, 28))
-	y += 30
+	rh.size.y = maxf(28.0, rh.get_minimum_size().y)
+	y += rh.size.y + 2.0
 	var lw := (col - 8.0 * 3) / 4.0
 	var li := 0
+	var tile_h := 84.0
 	for cat in CribData.LEVEL_CATS:
 		var cost: int = run.level_cost_for(cat)
 		var b := Button.new()
 		_place(b, Vector2(x0 + li * (lw + 8), y), Vector2(lw, 84))
 		b.disabled = run.essence < cost
 		b.pressed.connect(buy_level.bind(cat))
-		var t1 := _label(17, INK, HORIZONTAL_ALIGNMENT_CENTER)
-		t1.text = cat
-		t1.position = Vector2(0, 4)
-		t1.size = Vector2(lw, 24)
-		b.add_child(t1)
-		var t2 := _label(20, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-		t2.text = "%d → %d" % [run.levels[cat], run.levels[cat] + 1]
-		t2.position = Vector2(0, 28)
-		t2.size = Vector2(lw, 26)
-		b.add_child(t2)
-		var t3 := _label(16, DIM, HORIZONTAL_ALIGNMENT_CENTER)
-		t3.text = str(cost)
-		t3.position = Vector2(0, 56)
-		t3.size = Vector2(lw, 22)
-		b.add_child(t3)
+		var ty := 4.0
+		for part in [[cat, 17, INK], ["%d → %d" % [run.levels[cat], run.levels[cat] + 1], 20, GOLD], [str(cost), 16, DIM]]:
+			var t := _label(part[1], part[2], HORIZONTAL_ALIGNMENT_CENTER)
+			t.text = part[0]
+			t.position = Vector2(0, ty)
+			t.size = Vector2(lw, 0)
+			b.add_child(t)
+			ty += t.get_minimum_size().y - 4.0
+		tile_h = maxf(tile_h, ty + 8.0)
 		level_buttons[cat] = b
 		li += 1
-	y += 84 + 20
+	for k in level_buttons:
+		level_buttons[k].size.y = tile_h
+	y += tile_h + 20
 
 	# ---- next round: bottom of the screen if there is room, else after the content
 	var nb_y: float = maxf(y, size.y - ins.bottom - MARGIN * 1.5 - 80)
@@ -405,41 +407,6 @@ func render() -> void:
 	_content.size = _content.custom_minimum_size
 	toast.position = Vector2(x0, nb_y - 44)
 	toast.size = Vector2(col, 36)
-
-
-## Largest font size (from hi down to lo) at which `text`, word-wrapped greedily
-## the way Label wraps it, fits a width x height box without breaking a word.
-## Measured with the real font, not estimated (a width guess hid "House").
-## Two lines are preferred; three only when two can't fit at any size.
-func _fit_size(text: String, width: float, height: float, hi: int, lo: int) -> int:
-	var font := get_theme_default_font()
-	var words := text.split(" ")
-	for max_lines in [2, 3]:
-		var fs := _fit_lines(font, words, width - 4.0, height, hi, lo, max_lines)
-		if fs > 0:
-			return fs
-	return lo
-
-
-func _fit_lines(font: Font, words: PackedStringArray, avail: float, height: float, hi: int, lo: int, max_lines: int) -> int:
-	var gap := float(get_theme_constant("line_spacing", "Label"))
-	for fs in range(hi, lo - 1, -1):
-		var lines := 1
-		var cur := ""
-		var ok := true
-		for w in words:
-			if font.get_string_size(w, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > avail:
-				ok = false
-				break
-			var trial: String = w if cur == "" else cur + " " + w
-			if font.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= avail:
-				cur = trial
-			else:
-				lines += 1
-				cur = w
-		if ok and lines <= max_lines and lines * (font.get_height(fs) + gap) <= height:
-			return fs
-	return -1
 
 
 ## Height the content needs, to check it fits without scrolling.

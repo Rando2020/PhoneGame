@@ -49,7 +49,7 @@ func _ready() -> void:
 	_label = Label.new()
 	_label.text = label_text
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_label.add_theme_font_size_override("font_size", 14)
+	_label.add_theme_font_size_override("font_size", TypeScale.px(14))
 	_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.65))
 	_label.position = Vector2(0, size.y + 4)
 	_label.size = Vector2(size.x, 20)
@@ -58,7 +58,7 @@ func _ready() -> void:
 
 	_count_label = Label.new()
 	_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_count_label.add_theme_font_size_override("font_size", 22)
+	_count_label.add_theme_font_size_override("font_size", TypeScale.px(22))
 	_count_label.add_theme_color_override("font_color", Color(1, 0.9, 0.6))
 	_count_label.add_theme_color_override("font_outline_color", Color(0.1, 0.09, 0.14))
 	_count_label.add_theme_constant_override("outline_size", 6)

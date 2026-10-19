@@ -65,23 +65,97 @@ func render() -> void:
 		_: _title()
 
 
+## How deep each step sits: going deeper slides in from the right, back from the left.
+const DEPTH := {"title": 0, "road": 1, "peddler": 1, "deeds": 1, "record": 1, "gallery": 1,
+	"howto": 1, "settings": 1, "street": 2, "trial": 3, "meld": 3}
+var _outgoing: Control = null
+var _slide_v := 0.0
+var _slide_dir := 0.0         ## +1 in from the right, -1 from the left, 0 none
+var _fade: Tween = null
+
+
 func go(step: String) -> void:
+	var was: String = cb.step
 	cb.step = step
+	_slide_dir = 0.0
+	if _page != null and size.x > 0.0 and was != step:
+		_slide_dir = -1.0 if int(DEPTH.get(step, 1)) < int(DEPTH.get(was, 1)) else 1.0
 	render()
+	_slide_dir = 0.0
+
+
+## Snap a transition to rest (tests that measure layout).
+func settle() -> void:
+	if _page != null:
+		_page.position.x = 0.0
+		_page.modulate.a = 1.0
+	_slide_v = 0.0
+	if _fade != null:
+		_fade.kill()
+		_fade = null
+	if _outgoing != null:
+		_outgoing.queue_free()
+		_outgoing = null
+
+
+func _process(delta: float) -> void:
+	if _page == null or (_outgoing == null and absf(_page.position.x) < 0.01):
+		return
+	if _fade != null:
+		return
+	var w := TAU / RunFlow.SLIDE_RESPONSE
+	var left := minf(delta, 0.25)
+	while left > 0.0:
+		var h := minf(left, 1.0 / 240.0)
+		_slide_v += (-_page.position.x * w * w - _slide_v * 2.0 * w) * h
+		_page.position.x += _slide_v * h
+		left -= h
+	if _outgoing != null:
+		_outgoing.position.x = _page.position.x - signf(_page.position.x) * size.x if absf(_page.position.x) > 0.01 else -size.x
+	if absf(_page.position.x) < 0.5 and absf(_slide_v) < 20.0:
+		_page.position.x = 0.0
+		_slide_v = 0.0
+		if _outgoing != null:
+			_outgoing.queue_free()
+			_outgoing = null
 
 
 # ------------------------------------------------------------------ helpers
 func _clear() -> void:
 	buttons.clear()
+	if _outgoing != null:
+		_outgoing.queue_free()
+		_outgoing = null
+	if _fade != null:
+		_fade.kill()
+		_fade = null
 	if _page != null:
-		remove_child(_page)
-		_page.queue_free()
+		if _slide_dir != 0.0:
+			# the current page leaves; nothing in it takes input
+			_outgoing = _page
+			_outgoing.propagate_call("set", ["mouse_filter", Control.MOUSE_FILTER_IGNORE])
+			for b in _outgoing.find_children("*", "BaseButton", true, false):
+				(b as BaseButton).disabled = true
+		else:
+			remove_child(_page)
+			_page.queue_free()
 	_page = Control.new()
 	_page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_page)
 	_page.add_child(Surface.make("menu"))
 	Press.watch(self)
+	if _outgoing != null:
+		if MeldSprite.reduce_motion:
+			# Reduce Motion: a cross-fade in place, no travel
+			_page.modulate.a = 0.0
+			_fade = create_tween()
+			_fade.tween_property(_page, "modulate:a", 1.0, 0.2)
+			_fade.parallel().tween_property(_outgoing, "modulate:a", 0.0, 0.2)
+			_fade.tween_callback(settle)
+		else:
+			_page.position.x = _slide_dir * size.x
+			_slide_v = 0.0
 
 
 func _col() -> Vector2:
@@ -103,7 +177,7 @@ func _label(parent: Control, text: String, fs: int, col: Color, at: Vector2, w: 
 	l.text = text
 	l.horizontal_alignment = align
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.position = at
@@ -139,7 +213,7 @@ func _box(col: Color, border: Color) -> StyleBoxFlat:
 func _button(key: String, text: String, big: bool, cb_: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", 30 if big else 22)
+	b.add_theme_font_size_override("font_size", TypeScale.px(30 if big else 22))
 	b.pressed.connect(cb_)
 	_page.add_child(b)
 	var w := maxf(300.0 if big else 200.0, b.get_combined_minimum_size().x + 32.0)
@@ -212,7 +286,7 @@ func _title() -> void:
 	for i in icons.size():
 		var ib := Button.new()
 		ib.text = icons[i][1]
-		ib.add_theme_font_size_override("font_size", 16)
+		ib.add_theme_font_size_override("font_size", TypeScale.px(16))
 		ib.clip_text = true
 		ib.size = Vector2(iw, Press.MIN_H)
 		ib.position = Vector2(c.x + i * (iw + 6.0), top)
@@ -299,7 +373,7 @@ func _street() -> void:
 	# the steppers sit either side of the face, big enough for a thumb
 	var prev := Button.new()
 	prev.text = "<"
-	prev.add_theme_font_size_override("font_size", 34)
+	prev.add_theme_font_size_override("font_size", TypeScale.px(34))
 	prev.disabled = i == 0
 	prev.size = Vector2(72, 72)
 	prev.position = Vector2(c.x, face_y + 6.0)
@@ -310,7 +384,7 @@ func _street() -> void:
 	buttons["prev"] = prev
 	var next := Button.new()
 	next.text = ">"
-	next.add_theme_font_size_override("font_size", 34)
+	next.add_theme_font_size_override("font_size", TypeScale.px(34))
 	next.disabled = i >= max_street - 1
 	next.size = Vector2(72, 72)
 	next.position = Vector2(c.x + c.y - 72.0, face_y + 6.0)
@@ -396,7 +470,7 @@ func _meld() -> void:
 	for pair in [["prev", -1, c.x], ["next", 1, c.x + c.y - 72.0]]:
 		var b := Button.new()
 		b.text = "<" if pair[1] < 0 else ">"
-		b.add_theme_font_size_override("font_size", 34)
+		b.add_theme_font_size_override("font_size", TypeScale.px(34))
 		b.size = Vector2(72, 72)
 		b.position = Vector2(pair[2], face_y)
 		var step: int = pair[1]

@@ -88,3 +88,24 @@ What can't be done here (no Mac): building and signing the .ipa, running it on a
 simulator or device, TestFlight, and App Store Connect upload. The exported
 Xcode project (`build/ios/`, regenerate with the export command in PORT.md)
 opens in Xcode on a Mac; set the Team ID and bundle id there.
+
+
+# Re-check, 2026-10-19 (after pass 9)
+
+Measured by tests, not by hand: `text_size_test` (13 screens x 2 shapes x 3
+text sizes), `dead_space_test`, `menu_slide_test`, `drag_test`, `os_access_test`.
+Every new check was mutation-tested (each fails when its fix is undone).
+
+| # | finding | status | measured now |
+|---|---|---|---|
+| 1 | Text too small | fixed (floor) | 0 of 227 labels under 20 px (11 pt) at 720x1560; also 0 at 720x1280 and at Large and Larger. No text off screen, trimmed or overlapping on any of 78 screen states. Body text is 21 to 22 px (11.5 to 12 pt): over Apple's floor, under the 17 pt default for reading apps |
+| 7 | Screens cut | fixed | menu steps slide on the RunFlow spring (in from the right going deeper, the left going back); cross-fade with Reduce Motion |
+| 8 | Cards can't be dragged | fixed | keep hand: 1:1 drag holding the grab point; flick up throws, flick down keeps; release hands its speed to a spring home; tap still works (now on release, 0.97 on touch-down). Same keep as by taps |
+| 9 | Reduce Motion ignores the phone | partly | in-game switch works everywhere; the phone's setting is wired through a plugin hook (tested with a stand-in); the plugin itself needs a Mac (PORT.md) |
+| 10 | Text ignores the phone's text size | partly | in-game Text size (3 steps, every screen re-laid out); the phone's setting comes through the same hook; plugin needs a Mac |
+| 12 | Dead space | fixed | tallest empty band, intro and round end, was 25 to 47% of the height; now 5 to 16% (act track, your charms, the Meldling grows into spare room, block centred) |
+| 18 | Safe areas | unverified | needs a simulator or device (PORT.md checklist, step 6) |
+
+Found this pass:
+- The Play store screenshot rendered at the wrong width (since pass 8): fixed; the shot is now a busier moment (6 cards on the pile at 23, 7 to 6).
+- On tall phones The Play still has an empty middle between the pile and your hand.

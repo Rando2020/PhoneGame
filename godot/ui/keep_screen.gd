@@ -99,15 +99,16 @@ func _layout() -> void:
 	status_label.position = Vector2(x0, ins.top + MARGIN * 2.0)
 	status_label.size = Vector2(col, 80)
 
-	charm_bar.position = Vector2(x0, status_label.position.y + 84.0)
-	charm_bar.size = Vector2(col, CharmBar.H)
+	charm_bar.position = Vector2(x0, status_label.position.y + maxf(84.0, status_label.get_minimum_size().y + 4.0))
+	charm_bar.size = Vector2(col, charm_bar.size.y)    # width first: the row height depends on it
+	charm_bar.size = Vector2(col, charm_bar.height())
 
 	# Mulligan sits left of Keep in the thumb row, only while it can be used.
 	mulligan_button.size = Vector2(minf(170.0, keep_button.position.x - x0 - 12.0), 64)
 	mulligan_button.position = Vector2(x0, keep_button.position.y + 8.0)
 
 	# starter before the count; the counted row takes the same band after it
-	var band_y := charm_bar.position.y + CharmBar.H + 12.0
+	var band_y := charm_bar.position.y + charm_bar.height() + 12.0
 	var band_h := card.y + counted_row.lift_amount + 12.0
 	starter_view.position = Vector2((size.x - card.x) / 2.0, band_y + band_h - card.y)
 	counted_row.position = Vector2(x0, band_y)
@@ -136,7 +137,7 @@ func _label(font_size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_font_size_override("font_size", TypeScale.px(font_size))
 	l.add_theme_color_override("font_color", color)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
@@ -177,7 +178,7 @@ func _build() -> void:
 
 	recut_button = Button.new()
 	recut_button.text = "Recut"
-	recut_button.add_theme_font_size_override("font_size", 24)
+	recut_button.add_theme_font_size_override("font_size", TypeScale.px(24))
 	recut_button.pressed.connect(_on_recut)
 	add_child(recut_button)
 
@@ -197,12 +198,12 @@ func _build() -> void:
 	hand.selection_changed.connect(_on_selection)
 
 	keep_button = Button.new()
-	keep_button.add_theme_font_size_override("font_size", 30)
+	keep_button.add_theme_font_size_override("font_size", TypeScale.px(30))
 	keep_button.pressed.connect(_on_button)
 	add_child(keep_button)
 
 	mulligan_button = Button.new()
-	mulligan_button.add_theme_font_size_override("font_size", 22)
+	mulligan_button.add_theme_font_size_override("font_size", TypeScale.px(22))
 	mulligan_button.pressed.connect(_on_mulligan)
 	add_child(mulligan_button)
 
@@ -219,6 +220,7 @@ func start_round(run_: CribRun = null) -> void:
 		peg_view.queue_free()
 		peg_view = null
 	charm_bar.build(run)
+	_layout()
 	next_deal()
 
 
@@ -479,6 +481,7 @@ func resume_round(run_: CribRun, rd_: CribRound, ui: Dictionary, peg = null) -> 
 	run = run_
 	rd = rd_
 	charm_bar.build(run)
+	_layout()
 	last_result = rd.last_count
 	last_kr = ui.get("kr", {})
 	peg_pending = ui.get("peg_pending", false)

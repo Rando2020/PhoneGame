@@ -682,3 +682,48 @@ Dictionaries by value and would credit duplicate cards with each other's events.
 - Screenshots: render each state with `SHOT_SIZE=WxH`, then `python3 tools/make_store_shots.py store/screenshots`. 18 files: 6 shots at 6.9in (1320x2868), 6.5in (1284x2778) and 5.5in (1242x2208). iPhone only, so no iPad set.
 - Export (Linux, Xcode project only): `godot --headless --path godot --export-release "iOS" ../build/ios/Meldlings.ipa`. Portrait, iPhone only, iOS 14+, privacy manifest C617.1, 35F9.1, E174.1, CA92.1, no tracking (copy in `godot/ios/PrivacyInfo.xcprivacy`).
 - Needs a Mac: set the real Team ID and bundle id (placeholders ABCDE12345 and com.example.meldlings), build and sign in Xcode, run on a simulator or device, archive, upload to App Store Connect, TestFlight.
+
+## Dynamic Type and Reduce Motion (pass 9)
+
+Godot 4.3 can't read either iOS setting: its class reference (863 classes,
+`godot --doctool`) has no Reduce Motion, content size or accessibility API.
+What ships without a Mac:
+- Text: every size passes `TypeScale.px()` (20 px = 11 pt floor) times the
+  Settings "Text size" choice (Standard 1.0, Large 1.15, Larger 1.3).
+- Motion: the Settings "Reduce Motion" switch (no shake, particles, bounces;
+  menu and page moves cross-fade, cards land without travel).
+- The hook: `Menus.os_access()` looks for an engine singleton `MeldAccess`.
+  When present, the phone's settings are followed until the player picks their
+  own, and its `changed` signal re-applies at once (tests/os_access_test.gd
+  plays it with a stand-in).
+
+The plugin, to build on a Mac (Godot iOS plugin: a `.gdip` plus a static
+library, `ios/plugins/meld_access/`), registers `MeldAccess` with:
+- `reduce_motion() -> bool`: `UIAccessibility.isReduceMotionEnabled`
+- `content_size() -> String`: `UIApplication.sharedApplication.preferredContentSizeCategory`
+  (for example `UICTContentSizeCategoryXL`)
+- signal `changed`, sent on `UIAccessibilityReduceMotionStatusDidChangeNotification`
+  and `UIContentSizeCategoryDidChangeNotification`
+Then tick it under Plugins in the iOS export preset. Unverified until built.
+
+## On a Mac: build to TestFlight
+
+1. Install Xcode (current release) and sign in with the Apple Developer account.
+2. Developer account: note the Team ID (10 characters, Membership page). Create
+   an App ID with the real bundle id (replace `com.example.meldlings`).
+3. In `godot/export_presets.cfg` (or the Godot editor's iOS preset) set
+   `application/app_store_team_id` (replace `ABCDE12345`) and
+   `application/bundle_identifier`. Keep `export_project_only=true`.
+4. Export: `godot --headless --path godot --export-release "iOS" ../build/ios/Meldlings.ipa`,
+   then open `build/ios/Meldlings.xcodeproj`.
+5. Xcode, Signing & Capabilities: tick "Automatically manage signing", pick the team.
+6. Simulator check (audit #18, safe areas): run on iPhone 16 Pro Max, iPhone SE
+   (3rd gen) and an iPhone with a Dynamic Island. On every screen, nothing under
+   the island, the notch or the home bar; buttons reachable. Also turn on
+   Settings > Accessibility > Reduce Motion and Larger Text once the plugin is in.
+7. Run on a real iPhone once: haptics, sound with the ring switch, frame rate.
+8. Product > Archive, then Distribute App > App Store Connect > Upload.
+9. App Store Connect: create the app (same bundle id), add the 18 screenshots
+   from `store/screenshots/`, the privacy answers (no data collected; matches
+   `godot/ios/PrivacyInfo.xcprivacy`), then add the build to TestFlight.
+10. Install from TestFlight, play a full run, then submit for review.

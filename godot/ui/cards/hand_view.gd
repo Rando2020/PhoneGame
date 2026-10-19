@@ -211,6 +211,7 @@ func _make_view(card: Dictionary) -> CardView:
 	add_child(v)
 	v.setup_card(card)
 	v.pressed.connect(_on_card_pressed)
+	v.drag_ended.connect(_on_card_flicked)
 	return v
 
 
@@ -278,6 +279,39 @@ func _on_card_pressed(view: CardView) -> void:
 
 	_apply_states()
 	_emit_selection()
+
+
+## A drag let go. Up (toward the Crib, above the hand) throws the card: it
+## leaves the keep. Down keeps it. Where it would have coasted to counts, so a
+## short fast flick works like a long slow drag. Anything less: no change. The
+## card springs home from where it was let go, at the speed it was moving.
+## The same selection a tap makes: presentation only.
+const FLICK_THROW := -80.0     ## px of projected travel up
+const FLICK_KEEP := 60.0       ## px down
+const COAST := 0.12            ## s of coasting counted in the projection
+var flicks: Array = []         ## "throw"/"keep"/"none", in order (tests)
+
+
+func _on_card_flicked(view: CardView, travel: Vector2, velocity: Vector2) -> void:
+	if _views.find(view) < 0:
+		return
+	view.release_to(view.position, velocity)
+	var proj := travel.y + velocity.y * COAST
+	var did := "none"
+	if proj <= FLICK_THROW and view in _selected:
+		_selected.erase(view)
+		did = "throw"
+	elif proj >= FLICK_KEEP and not view in _selected:
+		if _selected.size() >= max_select:
+			view.flash_reject()
+		else:
+			_selected.append(view)
+			did = "keep"
+	flicks.append(did)
+	_apply_states()
+	if did != "none":
+		Haptics.pulse(10)
+		_emit_selection()
 
 
 ## The keep's verdict: {valid, count, need}. Replaces MeldRules.classify.

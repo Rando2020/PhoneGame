@@ -23,7 +23,7 @@ var _rest := Vector2.ZERO
 func _lab(fs: int, col: Color) -> Label:
 	var l := Label.new()
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
