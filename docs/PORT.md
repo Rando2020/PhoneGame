@@ -674,3 +674,11 @@ variant (29.3%) was rejected for rivalling Usury. Checks: `web/balance_check.js`
 `web/collector_check.js` (both fail on the old engine). The GDScript Collector
 matches cards by identity (is_same), not Array.has, which compares
 Dictionaries by value and would credit duplicate cards with each other's events.
+
+## App Store readiness (pass 8)
+
+- Icon: `python3 tools/make_appicon.py godot/ios/icons` (Pip cheering on green felt, 11 sizes, opaque RGB).
+- Launch screen: `godot/tests/launch_shot.gd` renders the title's first frame to `godot/ios/launch.png`; used as the boot splash and the storyboard image.
+- Screenshots: render each state with `SHOT_SIZE=WxH`, then `python3 tools/make_store_shots.py store/screenshots`. 18 files: 6 shots at 6.9in (1320x2868), 6.5in (1284x2778) and 5.5in (1242x2208). iPhone only, so no iPad set.
+- Export (Linux, Xcode project only): `godot --headless --path godot --export-release "iOS" ../build/ios/Meldlings.ipa`. Portrait, iPhone only, iOS 14+, privacy manifest C617.1, 35F9.1, E174.1, CA92.1, no tracking (copy in `godot/ios/PrivacyInfo.xcprivacy`).
+- Needs a Mac: set the real Team ID and bundle id (placeholders ABCDE12345 and com.example.meldlings), build and sign in Xcode, run on a simulator or device, archive, upload to App Store Connect, TestFlight.

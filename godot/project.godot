@@ -6,6 +6,11 @@ config_version=5
 config/name="Meldlings"
 run/main_scene="res://scenes/run_flow.tscn"
 config/features=PackedStringArray("4.3", "Mobile")
+config/icon="res://ios/icons/icon_180.png"
+boot_splash/bg_color=Color(0.086, 0.078, 0.137, 1)
+boot_splash/image="res://ios/launch.png"
+boot_splash/fullsize=true
+boot_splash/use_filter=true
 
 [display]
 
