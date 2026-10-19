@@ -38,6 +38,9 @@ var _paid := false   ## round-end Glim already added (the web adds it once, on r
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	Menus.apply()             # saved settings: Reduce Motion, count speed
+	deed_toast = DeedToast.new()
+	add_child(deed_toast)
 	show_front_door("title")
 
 
@@ -45,6 +48,16 @@ func _ready() -> void:
 ## Street and Meldling between runs, as the web does.
 var cb := {"step": "title", "mode": "", "street": null, "meld_idx": 0}
 var front: FrontDoor
+
+
+var deed_toast: DeedToast = null
+
+
+## New deeds: queued toasts over whatever screen is up.
+func announce_deeds(ids: Array) -> void:
+	if deed_toast != null and not ids.is_empty():
+		move_child(deed_toast, -1)
+		deed_toast.announce(ids)
 
 
 ## The title and the select steps. `step` "" keeps where the player was.
@@ -144,6 +157,7 @@ func resume() -> void:
 			keep.in_run = true
 			_page.add_child(keep)
 			keep.round_finished.connect(_on_round_finished, CONNECT_ONE_SHOT)
+			keep.deeds_earned.connect(announce_deeds)
 			keep.save_point.connect(save_now)
 			keep.resume_round(run, parts[1], ui, parts[3])
 		"round_end":
@@ -205,7 +219,7 @@ func _clear() -> void:
 		for b in _outgoing.find_children("*", "BaseButton", true, false):
 			(b as BaseButton).disabled = true
 	for c in get_children():
-		if c == _toast or c == _outgoing:
+		if c == _toast or c == _outgoing or c == deed_toast:
 			continue
 		remove_child(c)
 		c.queue_free()
@@ -457,6 +471,7 @@ func _on_deal() -> void:
 	keep.meldling = meldling
 	_page.add_child(keep)
 	keep.round_finished.connect(_on_round_finished, CONNECT_ONE_SHOT)
+	keep.deeds_earned.connect(announce_deeds)
 	keep.save_point.connect(save_now)
 	keep.start_round(run)
 
@@ -494,13 +509,13 @@ func _round_end_effects() -> void:
 	var max_lv := 0
 	for k in run.levels:
 		max_lv = maxi(max_lv, run.levels[k])
-	Achv.check("round", {"won": rd.won, "act": run.act, "round": run.round, "score": rd.score,
+	announce_deeds(Achv.check("round", {"won": rd.won, "act": run.act, "round": run.round, "score": rd.score,
 		"target": rd.target, "deckSize": run.deck_size(),
 		"cribTotal": rd.crib_result.total if rd.crib_result != null else 0,
 		"maxReckoning": max_lv,
 		"hallowed": run.charms.filter(func(c): return c.rarity == "legendary").size(),
 		"shattered": rd.shattered_all.size(),
-		"actCleared": rd.won and run.round == CribData.ROUNDS})
+		"actCleared": rd.won and run.round == CribData.ROUNDS}))
 	if rd.won and not _paid:
 		run.essence += rd.essence_earned
 		_paid = true
@@ -627,7 +642,7 @@ var _won_pegs := 0
 
 ## Port of cribRunWon's state changes, in its order. Runs once.
 func _run_won_effects() -> void:
-	Achv.check("run", {"cleared": true, "street": run.street.id})
+	announce_deeds(Achv.check("run", {"cleared": true, "street": run.street.id}))
 	Achv.mark_cleared(run.meldling)
 	if run.trial != null:
 		Achv.mark_trial(run.trial.id)

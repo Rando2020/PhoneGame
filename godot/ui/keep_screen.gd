@@ -14,6 +14,7 @@ signal committed
 ## The round's state just changed in a way a resume must reproduce (a deal, a
 ## mulligan, a recut, a count, a lay in The Play). RunFlow saves the game here.
 signal save_point
+signal deeds_earned(ids: Array)   ## the count's deeds (web doCribCount's Achv.check)
 ## In a run (RunFlow), the finished round is handed back instead of restarting.
 signal round_finished
 
@@ -47,6 +48,7 @@ var peg_kept: Array = []
 var peg_view: PegView
 var peg_session: PegSession
 var last_kr := {}
+var optimal_streak := 0      ## web Cb.optimalStreak: best-possible keeps in a row
 var meld_sprite: MeldSprite   ## your Meldling, reacting to the round
 var spoiler_sprite: SpoilerSprite  ## the Spoiler across from it, on Spoiler rounds
 var surface: Surface            ## the felt (darker on a Spoiler round)
@@ -357,6 +359,16 @@ func _commit() -> void:
 	var pre_stock: Array = rd.stock.duplicate()   # the web scores the cut against this
 	var res = rd.commit(idx)
 	Sound.play("toCrib")
+	# web doCribCount: the count's deeds, checked on the real commit
+	optimal_streak = optimal_streak + 1 if (kr != null and int(kr.get("rank", 0)) == 1) else 0
+	var got := Achv.check("count", {
+		"total": res.total, "base": res.base,
+		"perfect": int(res.base) >= 29 and not JS.truthy(res.get("levelBonus")) and not JS.truthy(res.get("enhBase")),
+		"cutJack": rd.starter != null and int(rd.starter.rank) == 11,
+		"cutSaved": JS.truthy(res.get("crossedTarget")) and int(res.scoreBefore) + int(res.handOnly) < rd.target,
+		"optimalStreak": optimal_streak})
+	if not got.is_empty():
+		deeds_earned.emit(got)
 	committed.emit()
 	# the cut's tier, before round end can touch the stock (Foresight: no ceremony)
 	last_cut_plan = null if knew_starter else CutPlan.build(CutPlan.quality_like_web(rd, kept, pre_stock))

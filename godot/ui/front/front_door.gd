@@ -57,6 +57,11 @@ func render() -> void:
 		"trial": _trial()
 		"meld": _meld()
 		"peddler": _peddler()
+		"deeds": Menus.deeds(self)
+		"record": Menus.record(self)
+		"gallery": Menus.gallery(self)
+		"howto": Menus.howto(self)
+		"settings": Menus.settings(self)
 		_: _title()
 
 
@@ -200,6 +205,25 @@ func _title() -> void:
 		stack = ["resume", "play", "peddler"]
 	var top := _stack_bottom(stack)
 	var c := _col()
+	# the web's icon bar: Deeds, Gallery, Record, How to play, and Settings
+	var icons := [["deeds", "Deeds"], ["gallery", "Gallery"], ["record", "Record"], ["howto", "How to play"], ["settings", "Settings"]]
+	var iw := (c.y - 4.0 * 6.0) / icons.size()
+	top -= Press.MIN_H + 4.0
+	for i in icons.size():
+		var ib := Button.new()
+		ib.text = icons[i][1]
+		ib.add_theme_font_size_override("font_size", 16)
+		ib.clip_text = true
+		ib.size = Vector2(iw, Press.MIN_H)
+		ib.position = Vector2(c.x + i * (iw + 6.0), top)
+		var step: String = icons[i][0]
+		ib.pressed.connect(func():
+			if step == "howto":
+				Menus.tut_step = 0
+			go(step))
+		_page.add_child(ib)
+		buttons["icon_" + step] = ib
+	top -= 8.0
 	var l := _label(_page, RunRecord.line(), 16, DIM, Vector2(c.x, 0), c.y)
 	l.position.y = minf(top - l.size.y - 8.0, _bottom())
 	l.name = "line"

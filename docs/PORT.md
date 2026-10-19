@@ -554,6 +554,45 @@ Godot screen yet.
 growing, ticks not climbing, boss music on every intro, the sound a frame
 after the haptic, no pause in the background, mute not saved.
 
+## The remaining screens (2026-10-19)
+
+`ui/front/menus.gd` Menus, as FrontDoor steps reached from a new icon row on
+the title (Deeds, Gallery, Record, How to play, Settings): they share the front
+door's felt, menu music, press feedback and 44 pt buttons. Front-door steps
+don't slide the page (only RunFlow page changes do).
+
+- Deeds: web showDeeds, word for word (secret deeds read "???" / "A hidden
+  deed." until earned).
+- Record: web showHistory. By Meldling sorted by average (stable on ties, as the
+  web's sort), with the Meldling's sprite; last ten with lost runs as "Fell A-R".
+  The web labels the average "average act reached" but it's rounds reached;
+  ported as the web shows it.
+- Gallery: web showGallery's six tabs. Meldlings and Spoilers now show the new
+  art: a portrait and every pose (7 per Meldling, 5 per Spoiler), locked
+  Meldlings as silhouettes. Owned backs equip on tap.
+- How to play: web showTutorial's six beats, the new art (Kingpin as the
+  Spoiler beat), the same card illustrations; PLAY marks it done and goes to
+  the roads.
+- Settings: Sound on or off, volume (25% steps), Reduce Motion, count speed
+  (1x, 2x, 4x); all saved and applied at start (`Menus.apply`). Godot 4.3
+  exposes no OS Reduce Motion setting, so it starts off until chosen
+  (unverified on iOS: a native plugin could read it).
+- Deed toasts (`ui/fx/deed_toast.gd`): web announceDeeds / pumpDeeds, queued,
+  3.4 s each, the deed sound and a 20 ms buzz; it lives on RunFlow, so a page
+  change doesn't cut it short. Found while porting: the port never checked the
+  count's deeds (web doCribCount calls Achv.check("count"): 40+ hand, 29, his
+  heels, the cut saving the round, five best keeps in a row). KeepScreen now
+  does, on the real commit, and RunFlow announces round and run deeds too.
+
+`tools/parity/gen_menus.js` renders the WEB's screens for four stores and every
+How to play step into `godot/tests/fixtures/menus.json` (twice: identical).
+`tests/menus_test.gd` (247 checks: per screen title 20, deeds 4, record 4,
+gallery 24, how to play 14, settings 7, toast 5, plus buttons and dashes)
+compares every screen's texts, in order, against them. Mutations caught: a lost
+run's round, secret names shown, the Spoiler's suit dropped, a word changed in
+How to play, Reduce Motion not saved, toasts not queuing (missed at first: the
+test now announces mid-toast).
+
 ## Found, not fixed: Ziah's call
 
 | what | where | detail |
