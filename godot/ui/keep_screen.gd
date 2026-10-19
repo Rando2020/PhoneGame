@@ -47,7 +47,8 @@ var peg_kept: Array = []
 var peg_view: PegView
 var peg_session: PegSession
 var last_kr := {}
-var meld_sprite: MeldSprite   ## your Meldling, reacting to the round          ## the last keep's rank (the cascade's coaching line needs it)
+var meld_sprite: MeldSprite   ## your Meldling, reacting to the round
+var spoiler_sprite: SpoilerSprite  ## the Spoiler across from it, on Spoiler rounds          ## the last keep's rank (the cascade's coaching line needs it)
 
 const BG := Color(0.102, 0.094, 0.149)
 ## Widest the content column grows: six cards side by side with no overlap.
@@ -123,6 +124,8 @@ func _layout() -> void:
 	var ms := clampf(cascade.size.y * 0.42, 110.0, 200.0)
 	meld_sprite.size = Vector2(ms, ms)
 	meld_sprite.position = Vector2(x0 + col - ms, hand.position.y - ms - 4.0)
+	spoiler_sprite.size = Vector2(ms, ms)
+	spoiler_sprite.position = Vector2(x0, hand.position.y - ms - 4.0)
 
 
 func _label(font_size: int, color: Color) -> Label:
@@ -147,6 +150,9 @@ func _build() -> void:
 
 	meld_sprite = MeldSprite.new("pip")
 	add_child(meld_sprite)
+	spoiler_sprite = SpoilerSprite.new()
+	spoiler_sprite.hide()
+	add_child(spoiler_sprite)
 
 	cut_view = CutView.new()
 	cut_view.hide()
@@ -240,6 +246,10 @@ func _show_deal() -> void:
 	if run != null and meld_sprite.meld != MeldReact.art_id(run.meldling):
 		meld_sprite.set_meld(run.meldling)
 	meld_sprite.on_event("deal", rd)
+	var boss = run.boss() if run != null else null
+	spoiler_sprite.visible = boss != null
+	if boss != null and spoiler_sprite.art != String(boss.art):
+		spoiler_sprite.set_boss(boss)
 	_update_status()
 	keep_button.disabled = true
 	keep_button.text = "Keep 0/%d" % rd.keep_count()
@@ -402,6 +412,8 @@ func _on_cascade_finished() -> void:
 	# the reaction lands with the total
 	if last_result != null:
 		meld_sprite.on_event("count", rd, last_result)
+		if spoiler_sprite.visible:
+			spoiler_sprite.on_event("count", rd, last_result)
 	_update_status()
 	if peg_pending:
 		keep_button.text = "The Play"
@@ -503,6 +515,8 @@ func _light(cards) -> void:
 ## the cascade footer stays about the hand that was just counted.
 func _show_round_end() -> void:
 	meld_sprite.on_event("round_won" if rd.won else "run_lost", rd)
+	if spoiler_sprite.visible:
+		spoiler_sprite.on_event("round_won" if rd.won else "run_lost", rd)
 	_update_status()
 	keep_button.text = "Continue" if in_run else "New round"
 	keep_button.disabled = false

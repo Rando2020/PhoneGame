@@ -233,6 +233,17 @@ func _col() -> Vector2:
 ## Stacks centred lines top-down; returns the y below what it placed.
 ## Your Meldling on the page, centred at y; plays `pose` as it appears.
 var meld_view: MeldSprite = null
+var spoiler_view: SpoilerSprite = null
+
+
+## The Spoiler on the page, centred at y (or at x when given).
+func _spoiler_at(y: float, px: float, boss: Dictionary, pose: String, x := -1.0) -> float:
+	spoiler_view = SpoilerSprite.new(boss)
+	spoiler_view.size = Vector2(px, px)
+	spoiler_view.position = Vector2((size.x - px) / 2.0 if x < 0.0 else x, y)
+	_page.add_child(spoiler_view)
+	spoiler_view.react(pose)
+	return y + px
 
 
 func _meld_at(y: float, px: float, pose: String) -> float:
@@ -332,6 +343,7 @@ func show_intro() -> void:
 		var sev_name: String = ["", "A SPOILER", "A GRIM SPOILER", "A RUINOUS SPOILER"][boss.sev]
 		y = _line(y, "%s  ·  ACT %d BOSS" % [sev_name, run.act], 18, SEV[boss.sev])
 		y = _line(y, boss.name, 44, SEV[boss.sev])
+		y = _spoiler_at(y, 220.0, boss, "smug")
 		y = _panel(y + 6.0, [["THE SPOILER DECREES", 18, SEV[boss.sev]], [boss.text, 20, INK]])
 	else:
 		y = _line(y, "TARGET %d" % run.target(), 52, INK)
@@ -439,7 +451,17 @@ func _render_round_end() -> void:
 		head = "%d SHORT" % -rd.margin
 		colr = RED
 	y = _line(y, head, 44, colr)
-	y = _meld_at(y, 200.0, "victory" if rd.won else "deflated")
+	var boss_end = run.boss()
+	if boss_end != null:
+		# a Spoiler round: you and it, side by side
+		var px := 190.0
+		var gap := 24.0
+		var x0 := (size.x - px * 2.0 - gap) / 2.0
+		_meld_at(y, px, "victory" if rd.won else "deflated")
+		meld_view.position.x = x0
+		y = _spoiler_at(y, px, boss_end, "defeated" if rd.won else "gloat", x0 + px + gap)
+	else:
+		y = _meld_at(y, 200.0, "victory" if rd.won else "deflated")
 	var m = rd.mvp()
 	if m != null:
 		var lines := [["THIS WON YOU THE ROUND" if m.decisive else "BIGGEST CONTRIBUTOR", 16, DIM],

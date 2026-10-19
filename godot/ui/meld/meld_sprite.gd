@@ -53,7 +53,7 @@ func set_meld(meld_id: String, is_locked := false) -> void:
 
 
 func _show() -> void:
-	_tex.texture = texture(meld, pose)
+	_tex.texture = _texture_for(pose)
 	_tex.modulate = Color(0.02, 0.02, 0.05, 0.55) if locked else Color(1, 1, 1, _fade)
 
 
@@ -62,7 +62,7 @@ func react(p: String) -> void:
 	if p == "" or locked:
 		return
 	pose = p
-	timer = float(MeldReact.HOLD.get(p, 1.2))
+	timer = _hold(p)
 	reactions += 1
 	_damping = 0.6 if p in ["cheer", "victory"] else 1.0
 	if reduce_motion:
@@ -70,8 +70,21 @@ func react(p: String) -> void:
 	else:
 		_scale = Vector2(1.14, 0.84)   # land: squash, then the spring pops it back
 		_vel = Vector2.ZERO
-	Haptics.pulse(int(MeldReact.BUZZ.get(p, 0)))
+	Haptics.pulse(_buzz(p))
 	_show()
+
+
+# ---- overridden by SpoilerSprite
+func _texture_for(p: String) -> Texture2D:
+	return texture(meld, p)
+
+
+func _hold(p: String) -> float:
+	return float(MeldReact.HOLD.get(p, 1.2))
+
+
+func _buzz(p: String) -> int:
+	return int(MeldReact.BUZZ.get(p, 0))
 
 
 ## The event entry point: MeldReact decides, this plays it.

@@ -440,6 +440,32 @@ slam, clover lucky, facet sparkle, nib snip, muggins steal.
   signature (missed at first; the check was added), never returning to idle,
   no haptic, the old spring.
 
+## Spoilers as characters (2026-10-19)
+
+Art: `make_meldlings2.py spoilers` (also part of a full run) draws every
+Spoiler art id at each severity it is used with (CribData.BOSS_POOL: 9 art ids,
+15 combinations, 5 poses, 75 sprites, 3.4 s) into `art/spoilers/`, copied to
+`godot/art/spoilers/` as `spoiler_<art>_s<sev>_<pose>.png`. Villain read: a
+heavier outline, fierce brows, a silhouette or prop per rule (The Auditor a
+ledger with spectacles, Famine gaunt with a bowl, Shortstop / Shears a jester,
+Blight a stump, Leaden / Chains / Iron Grip a block with a padlock, The Thief /
+The Levy a masked sack, Miser's Curse a crowned kingpin, The Fog / The Hush a
+cloud, Eclipse a dark disc with a corona). Severity: 2 darker and colder, 3
+darkest with red eyes and a red glow.
+
+`ui/meld/spoiler_sprite.gd` SpoilerSprite extends MeldSprite (same motion):
+count: stung when the count makes its share of the target (target over the
+round's starting deals), else smug when its rule took points (res.suppressed),
+else nothing; peg: smug; round won: defeated; run lost: gloat (both hold). No
+haptics of its own. Placed: boss intro, keep screen on Spoiler rounds only
+(left, opposite your Meldling), The Play (right, its score under it; a round
+with no Spoiler gets the table's jester, art jokester sev 1), round end beside
+your Meldling on a Spoiler round.
+
+`tests/spoiler_test.gd` (130 checks). Mutations caught: smug checked before
+stung, share off by one, end poses not holding, the Spoiler on every round, the
+Spoiler covering its score.
+
 ## Found, not fixed: Ziah's call
 
 | what | where | detail |

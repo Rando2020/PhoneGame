@@ -37,6 +37,9 @@ var _beat: Tween
 var _anim := ""                ## who laid the newest pile card: "you" / "foe"
 var _page: Control
 var meld_sprite: MeldSprite     ## your Meldling, across the table from the Spoiler
+var spoiler_sprite: SpoilerSprite  ## the Spoiler (on a plain round, the table's jester)
+## who sits across on a round with no Spoiler
+const TABLE_FOE := {"art": "jokester", "sev": 1}
 
 
 func open(session: PegSession) -> void:
@@ -128,9 +131,15 @@ func render() -> void:
 	# --- the two sides across the count
 	var third := c.y / 3.0
 	var boss = s.rd.run.boss()
-	var you := _lab("YOU\n%d" % p.score, 26, GOLD, Vector2(c.x, y), third)
-	_lab("%s\n%d" % [(boss.name if boss != null else "THE SPOILER").to_upper(), p.opp_score], 26, RED,
-		Vector2(c.x + third * 2.0, y), third)
+	# the Spoiler is a character now: it sits right, its score under it
+	if spoiler_sprite == null:
+		spoiler_sprite = SpoilerSprite.new(boss if boss != null else TABLE_FOE)
+		add_child(spoiler_sprite)
+	var fpx := minf(third * 0.7, 120.0)
+	spoiler_sprite.size = Vector2(fpx, fpx)
+	spoiler_sprite.position = Vector2(c.x + third * 2.0 + (third - fpx) / 2.0, y - 10.0)
+	var you := _lab("YOU\n%d" % p.score, 26, GOLD, Vector2(c.x, y + fpx - 42.0), third)
+	_lab(str(p.opp_score), 26, RED, Vector2(c.x + third * 2.0, y + fpx - 6.0), third)
 	total_label = _lab(str(p.total), 64, GOLD if p.total == PegPlay.TARGET else (RED if p.total >= 26 else INK),
 		Vector2(c.x + third, y - 8.0), third)
 	var of_ := _lab("of %d" % PegPlay.TARGET, 16, DIM, Vector2(c.x + third, total_label.position.y + total_label.size.y - 10.0), third)
@@ -185,6 +194,7 @@ func render() -> void:
 		meld_sprite = MeldSprite.new(s.rd.run.meldling)
 		add_child(meld_sprite)
 	move_child(meld_sprite, get_child_count() - 1)
+	move_child(spoiler_sprite, get_child_count() - 1)
 	if p.over:
 		meld_sprite.hide()
 		_render_result(y, bottom)
@@ -294,6 +304,9 @@ func _answer() -> void:
 	waiting = false
 	s.answer()
 	_anim = "foe"
+	var fl = s.play.last_lay
+	if spoiler_sprite != null and fl != null and fl.who == "them" and not fl.events.is_empty():
+		spoiler_sprite.on_event("peg")
 	render()
 	changed.emit()
 
