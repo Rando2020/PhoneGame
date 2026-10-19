@@ -166,7 +166,7 @@ def pose_of(name, pose):
     return tup
 
 
-def draw_char(name, pose, W=512):
+def draw_char(name, pose, W=512, out=256):
     shape, P, spread, eye_dy, _ = CAST[name]
     F = FACE[name]
     squash, lean, hop, eyes, mouth, brows, arms, extra = pose_of(name, pose)
@@ -361,9 +361,9 @@ def draw_char(name, pose, W=512):
         d.ellipse([X - r, Y - r, X + r, Y + r], fill=gold, outline=gold_d, width=round(1.2 * S))
         d.ellipse([X - r * 0.55, Y - r * 0.55, X + r * 0.55, Y + r * 0.55], outline=gold_d, width=round(0.8 * S))
         star(d, X + 5 * S, Y - 5 * S, 1.2 * S, (255, 255, 240))
-    small = img.resize((256, 256), Image.LANCZOS)
-    glow = small.getchannel("A").filter(ImageFilter.GaussianBlur(10)).point(lambda v: int(v * 0.35))
-    halo = Image.new("RGBA", (256, 256), P["light"] + (0,))
+    small = img.resize((out, out), Image.LANCZOS)
+    glow = small.getchannel("A").filter(ImageFilter.GaussianBlur(10 * out / 256)).point(lambda v: int(v * 0.35))
+    halo = Image.new("RGBA", (out, out), P["light"] + (0,))
     halo.putalpha(glow)
     return Image.alpha_composite(halo, small)
 
