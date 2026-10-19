@@ -509,6 +509,51 @@ particles, shake, slides and the press spring.
   front_door_test and run_flow_test measured pages mid-slide; they call the new
   `RunFlow.settle()` before measuring.
 
+## Audio (2026-10-19)
+
+`tools/make_audio2.py` (9 s) renders the WEB synth offline: every voice(),
+noise(), kick(), snare() and hat() from web/audio.js and its call sites,
+transcribed with the same oscillator, frequency, slide, detune, vibrato,
+attack, exponential decay, gain, filter and delay send, through the web's
+shared delay (0.18 s, feedback 0.28, wet 0.30) and limiter. 44 one-shots
+(`audio2/sfx/*.wav`, 3.2 MB) and 10 seamless 8-bar loops (`audio2/music/*.ogg`,
+1.7 MB; the tail is wrapped onto the head), copied to `godot/audio/`. The
+docstring maps each web call to its id.
+
+`ui/fx/sound.gd` Sound: play(id, pitch) from a pool of 8 voices (oldest
+stolen), tick(kind, index) climbing the web's pentatonic ladder, music(ctx) with
+a 0.6 s crossfade, mute and volume saved in the Achv store (sound_muted,
+sound_volume), and everything paused while the app is backgrounded
+(NOTIFICATION_APPLICATION_PAUSED / FOCUS_OUT).
+
+Where it plays (in the same call as the haptic and juice):
+- Reactions: MeldReact.SOUND (eager select, nervous deselect, cheer level,
+  victory win, deflated lose, and each signature); Spoiler smug plays the web's
+  Spoiler voice, stung a sour note, defeated and gloat are silent (your win or
+  lose plays). The round-end page's sprites react quiet: its win / lose plays
+  once, as the web's cribRoundEnd.
+- Press: a click on every touch-down.
+- Cascade: a tick per scoring line, rising; the gild, cut and level lines'
+  notes; at the slam, ramp_burst, slam_1..3 by ratio, and the tier's chord.
+- Cut ceremony: a strike every 90 ms of the roll, climbing (280 + 34n Hz), and
+  the landing per tier.
+- Keep screen: deal, select, mulligan and the throw to the crib.
+- The Play: a lay ticks by points (or places), 31 slams, the payout plays win
+  or bad.
+- Shop: buy, a legendary's fanfare, level, reroll, sell.
+- Music: menu on the front door; the intro picks boss, endless or act 1..5 as
+  the web does (RunFlow.music_for); shop; The Play.
+
+Not ported: the web's live tension ramp that rises under a count (only its
+final burst is here), and the music's proximity filter (opens as you near the
+target). Both need live synthesis or a filter bus; unverified whether the
+count feels thinner without them. The deed and guide sounds exist but have no
+Godot screen yet.
+
+`tests/sound_test.gd` (127 checks). Mutations caught: mute ignored, the pool
+growing, ticks not climbing, boss music on every intro, the sound a frame
+after the haptic, no pause in the background, mute not saved.
+
 ## Found, not fixed: Ziah's call
 
 | what | where | detail |

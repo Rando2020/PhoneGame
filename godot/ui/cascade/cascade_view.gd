@@ -239,6 +239,7 @@ func play(p: Dictionary, light_cb := Callable(), charm_cb := Callable()) -> void
 	charm_light = charm_cb
 	speed_button.visible = true
 	done = false
+	_tick_i = 0
 	_set_shown(0)
 	_seq = create_tween()
 	for i in plan.beats.size():
@@ -258,10 +259,17 @@ func play(p: Dictionary, light_cb := Callable(), charm_cb := Callable()) -> void
 
 
 var _seq: Tween
+var _tick_i := 0      ## the count's line index: each tick climbs the pentatonic ladder
+const LINE_SOUND := {"gild": "line_gild", "cut": "line_cut", "level": "line_level", "block": "deselect", "zero": "deselect"}
 
 
 func _begin_beat(b: Dictionary) -> void:
 	_add_row(b)
+	if b.kind in ["fifteen", "pair", "run", "flush", "nobs", "charm"]:
+		Sound.tick(b.kind, _tick_i)
+		_tick_i += 1
+	elif LINE_SOUND.has(b.kind):
+		Sound.play(LINE_SOUND[b.kind])
 	if b.kind == "charm" and charm_light.is_valid():
 		charm_light.call([b.label])
 	if not b.cards.is_empty() and light.is_valid():
@@ -275,6 +283,11 @@ func _begin_beat(b: Dictionary) -> void:
 
 func _slam() -> void:
 	var slam: Dictionary = plan.beats[plan.beats.size() - 1]
+	# web: rampBurst, slam(1 + min(2, ratio)), then the tier's chord
+	Sound.play("ramp_burst")
+	Sound.play("slam_%d" % clampi(int(round(1.0 + minf(2.0, plan.ratio))), 1, 3))
+	var cls: String = plan.tier.cls if plan.tier.cls != "" else "t-none"
+	Sound.play("chord_" + cls)
 	mult_label.text = slam.mult_line
 	if light.is_valid():
 		light.call(null)

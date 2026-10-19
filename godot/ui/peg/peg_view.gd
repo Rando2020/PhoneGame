@@ -45,6 +45,7 @@ var juice: Juice
 
 func open(session: PegSession) -> void:
 	s = session
+	Sound.music("play")
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP      # the table underneath gets nothing
 	render()
@@ -291,7 +292,11 @@ func _render_result(y: float, bottom: float) -> void:
 func _on_card(_v: CardView, i: int) -> void:
 	if waiting or s.play.over or i >= s.play.mine.size() or not s.play.playable(i):
 		return
-	s.lay(i)
+	var gained := s.lay(i)
+	if gained > 0:
+		Sound.tick("pair", mini(6, gained))
+	else:
+		Sound.play("toCrib")
 	_anim = "you"
 	var ll = s.play.last_lay
 	if meld_sprite != null and ll != null and ll.who == "you" and not ll.events.is_empty():
@@ -315,6 +320,7 @@ func juice_lay() -> void:
 	var at := total_label.position + total_label.size / 2.0 if total_label != null else size / 2.0
 	juice.burst(at, 40, ["gold", "white", "green"])
 	juice.shake(10.0, 300.0)
+	Sound.play("slam_1")
 	Haptics.pulse(40)
 
 
@@ -345,4 +351,6 @@ func _gui_input(event: InputEvent) -> void:
 func _on_continue() -> void:
 	if continue_button == null or s.applied:
 		return
-	finished.emit(s.apply())
+	var g := s.apply()
+	Sound.play("win" if g > 0 else "bad")
+	finished.emit(g)

@@ -248,6 +248,7 @@ func _show_deal() -> void:
 	hand.max_select = rd.keep_count()
 	if run != null and meld_sprite.meld != MeldReact.art_id(run.meldling):
 		meld_sprite.set_meld(run.meldling)
+	Sound.play("deal")
 	meld_sprite.on_event("deal", rd)
 	var boss = run.boss() if run != null else null
 	spoiler_sprite.visible = boss != null
@@ -298,6 +299,7 @@ func _on_mulligan() -> void:
 	if not mulligan_button.visible or rd.mulligan() == null:
 		return
 	crib_strip.refresh(rd)
+	Sound.play("toCrib")
 	keep_button.disabled = true
 	keep_button.text = "Keep 0/%d" % rd.keep_count()
 	_deal_hand()
@@ -324,6 +326,7 @@ func _on_selection(_cards: Array, verdict: Dictionary) -> void:
 		return
 	keep_button.disabled = not verdict.valid
 	keep_button.text = "Keep %d/%d" % [verdict.count, verdict.need]
+	Sound.play("select")
 
 
 func _on_button() -> void:
@@ -353,6 +356,7 @@ func _commit() -> void:
 	var kept: Array = idx.map(func(i): return rd.dealt[i])
 	var pre_stock: Array = rd.stock.duplicate()   # the web scores the cut against this
 	var res = rd.commit(idx)
+	Sound.play("toCrib")
 	committed.emit()
 	# the cut's tier, before round end can touch the stock (Foresight: no ceremony)
 	last_cut_plan = null if knew_starter else CutPlan.build(CutPlan.quality_like_web(rd, kept, pre_stock))

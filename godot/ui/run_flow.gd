@@ -55,6 +55,7 @@ func show_front_door(step := "") -> void:
 	_set_screen("front")
 	if step != "":
 		cb.step = step
+	Sound.music("menu")
 	front = FrontDoor.new()
 	front.can_resume = has_save()
 	_page.add_child(front)
@@ -305,21 +306,21 @@ var spoiler_view: SpoilerSprite = null
 
 
 ## The Spoiler on the page, centred at y (or at x when given).
-func _spoiler_at(y: float, px: float, boss: Dictionary, pose: String, x := -1.0) -> float:
+func _spoiler_at(y: float, px: float, boss: Dictionary, pose: String, x := -1.0, quiet := false) -> float:
 	spoiler_view = SpoilerSprite.new(boss)
 	spoiler_view.size = Vector2(px, px)
 	spoiler_view.position = Vector2((size.x - px) / 2.0 if x < 0.0 else x, y)
 	_page.add_child(spoiler_view)
-	spoiler_view.react(pose)
+	spoiler_view.react(pose, quiet)
 	return y + px
 
 
-func _meld_at(y: float, px: float, pose: String) -> float:
+func _meld_at(y: float, px: float, pose: String, quiet := false) -> float:
 	meld_view = MeldSprite.new(run.meldling)
 	meld_view.size = Vector2(px, px)
 	meld_view.position = Vector2((size.x - px) / 2.0, y)
 	_page.add_child(meld_view)
-	meld_view.react(pose)
+	meld_view.react(pose, quiet)
 	return y + px
 
 
@@ -389,11 +390,22 @@ func _place_buttons(order: Array) -> void:
 
 # ------------------------------------------------------------------ intro
 ## Port of cribRoundIntro.
+## The web's intro track: the boss theme on a Spoiler round, the Long Count's
+## own loop, else the act's (act 5's beyond it).
+static func music_for(r: CribRun) -> String:
+	if r.boss() != null:
+		return "boss"
+	if r.endless:
+		return "endless"
+	return "act%d" % mini(5, r.act)
+
+
 func show_intro() -> void:
 	_clear()
 	_set_screen("intro")
 	var boss = run.boss()
 	var m := run.rules()
+	Sound.music(music_for(run))
 	var ins := SafeArea.insets(self)
 	var y: float = ins.top + MARGIN * 2.0
 	y = _line(y, "ACT %d  ·  ROUND %d / %d" % [run.act, run.round, CribData.ROUNDS], 20, DIM)
@@ -411,7 +423,8 @@ func show_intro() -> void:
 		var sev_name: String = ["", "A SPOILER", "A GRIM SPOILER", "A RUINOUS SPOILER"][boss.sev]
 		y = _line(y, "%s  ·  ACT %d BOSS" % [sev_name, run.act], 18, SEV[boss.sev])
 		y = _line(y, boss.name, 44, SEV[boss.sev])
-		y = _spoiler_at(y, 220.0, boss, "smug")
+		y = _spoiler_at(y, 220.0, boss, "smug", -1.0, true)
+		Sound.play("boss_intro")
 		y = _panel(y + 6.0, [["THE SPOILER DECREES", 18, SEV[boss.sev]], [boss.text, 20, INK]])
 	else:
 		y = _line(y, "TARGET %d" % run.target(), 52, INK)
@@ -506,6 +519,8 @@ func _round_end_effects() -> void:
 func _render_round_end() -> void:
 	_clear()
 	_set_screen("round_end")
+	if not _no_slide:          # a resize redraw doesn't play it again
+		Sound.play("win" if rd.won else "lose")
 	var ins := SafeArea.insets(self)
 	var y: float = ins.top + MARGIN * 2.0
 	var head := "ROUND CLEARED" if rd.won else "RUN OVER"
@@ -525,11 +540,11 @@ func _render_round_end() -> void:
 		var px := 190.0
 		var gap := 24.0
 		var x0 := (size.x - px * 2.0 - gap) / 2.0
-		_meld_at(y, px, "victory" if rd.won else "deflated")
+		_meld_at(y, px, "victory" if rd.won else "deflated", true)
 		meld_view.position.x = x0
-		y = _spoiler_at(y, px, boss_end, "defeated" if rd.won else "gloat", x0 + px + gap)
+		y = _spoiler_at(y, px, boss_end, "defeated" if rd.won else "gloat", x0 + px + gap, true)
 	else:
-		y = _meld_at(y, 200.0, "victory" if rd.won else "deflated")
+		y = _meld_at(y, 200.0, "victory" if rd.won else "deflated", true)
 	var m = rd.mvp()
 	if m != null:
 		var lines := [["THIS WON YOU THE ROUND" if m.decisive else "BIGGEST CONTRIBUTOR", 16, DIM],
@@ -580,6 +595,7 @@ func _new_run() -> void:
 func show_shop() -> void:
 	_clear()
 	_set_screen("shop")
+	Sound.music("shop")
 	shop = load("res://scenes/shop_screen.tscn").instantiate()
 	shop.juice = juice
 	_page.add_child(shop)

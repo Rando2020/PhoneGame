@@ -11,6 +11,10 @@ const SIGNATURE := {"pip": "fifteen", "thump": "slam", "clover": "lucky",
 ## how long a reaction holds before idle (seconds); <= 0 holds until replaced
 const HOLD := {"eager": 1.1, "nervous": 2.4, "cheer": 1.6, "victory": 0.0, "deflated": 0.0,
 	"fifteen": 1.6, "slam": 1.4, "lucky": 1.6, "sparkle": 1.6, "snip": 1.4, "steal": 1.6}
+## sound per reaction (tools/make_audio2.py ids), played with the haptic
+const SOUND := {"eager": "select", "nervous": "deselect", "cheer": "level", "victory": "win",
+	"deflated": "lose", "fifteen": "tick_fifteen", "slam": "slam_1", "lucky": "cut_good",
+	"sparkle": "line_gild", "snip": "cut", "steal": "buy"}
 ## haptic pulse per reaction, in ms (0: none)
 const BUZZ := {"cheer": 25, "victory": 70, "fifteen": 25, "slam": 35, "lucky": 25,
 	"sparkle": 25, "snip": 25, "steal": 25}

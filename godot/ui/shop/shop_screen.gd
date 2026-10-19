@@ -80,10 +80,14 @@ func buy_charm(ch: Charm) -> bool:
 	if ch.on_acquire.is_valid():
 		ch.on_acquire.call(run)
 	run.shop_state.offer = run.shop_state.offer.filter(func(x): return x.id != ch.id)
-	if ch.rarity == "legendary" and juice != null:
-		juice.burst(size / 2.0, 46, ["gold", "white", "green"])
-		juice.shake(6.0, 240.0)
+	if ch.rarity == "legendary":
+		Sound.play("milestone")
+		if juice != null:
+			juice.burst(size / 2.0, 46, ["gold", "white", "green"])
+			juice.shake(6.0, 240.0)
 		Haptics.pulse(50)
+	else:
+		Sound.play("buy")
 	_after("charm", "Bought %s" % ch.name)
 	return true
 
@@ -93,6 +97,7 @@ func buy_card(i: int) -> bool:
 	if entry.get("sold", false) or not run.buy_card(entry):
 		return false
 	entry["sold"] = true
+	Sound.play("buy")
 	_after("card", "Added %s to your deck" % Cribbage.card_str(entry.card))
 	return true
 
@@ -100,6 +105,7 @@ func buy_card(i: int) -> bool:
 func do_reroll() -> bool:
 	if not run.reroll():
 		return false
+	Sound.play("cut")
 	_after("reroll", "")
 	return true
 
@@ -107,6 +113,7 @@ func do_reroll() -> bool:
 func buy_level(cat: String) -> bool:
 	if not run.buy_level(cat):
 		return false
+	Sound.play("level")
 	_after("level", "%s Reckoning %d" % [cat.capitalize(), run.levels[cat]])
 	return true
 
@@ -119,6 +126,7 @@ func sell(id: String) -> bool:
 	var got: int = run.sell(id)
 	if got == 0:
 		return false
+	Sound.play("toCrib")
 	_after("sell", "Pawned %s for %d Glim" % [name, got])
 	return true
 

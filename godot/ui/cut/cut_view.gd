@@ -75,6 +75,7 @@ func play(p: Dictionary) -> void:
 	done = false
 	_rest = position
 	card.setup(1, "S", false)
+	_strikes = -1
 	_seq = create_tween()
 	# the roll: a wobble that grows as the wait stretches
 	_seq.tween_method(_wobble, 0.0, 1.0, p.roll)
@@ -83,7 +84,15 @@ func play(p: Dictionary) -> void:
 	_seq.tween_callback(_complete)
 
 
+var _strikes := -1
+
+
 func _wobble(prog: float) -> void:
+	# web: a roll strike every 90 ms, its pitch stepping up (280 + n * 34 Hz)
+	var n := int(prog * plan.roll / 0.09)
+	if n != _strikes:
+		_strikes = n
+		Sound.play("cut_roll", (280.0 + n * 34.0) / 280.0)
 	card.rotation = deg_to_rad(sin(prog * 70.0) * (2.0 + prog * 5.0))
 
 
@@ -97,6 +106,7 @@ func _final_state() -> void:
 
 func _reveal() -> void:
 	_final_state()
+	Sound.play("cut_" + String(plan.tier))
 	card.pop(0.18, 0.25)
 	_shake(plan.shake)
 	_burst(plan.pips)

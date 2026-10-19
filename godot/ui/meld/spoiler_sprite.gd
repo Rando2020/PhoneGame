@@ -49,6 +49,15 @@ func _buzz(_p: String) -> int:
 	return 0
 
 
+## smug: the web's Spoiler voice; stung: a sour note. defeated and gloat are
+## silent here: your round's win or lose already plays on that beat.
+const SOUND := {"smug": "spoiler_peg", "stung": "deselect"}
+
+
+func _sound(p: String) -> String:
+	return String(SOUND.get(p, ""))
+
+
 ## The target share of one deal: the round's target over its starting deals.
 static func share(rd: CribRound) -> int:
 	return int(ceil(float(rd.target) / maxf(1.0, CribData.DEALS + int(rd.mods.get("dealBonus", 0)))))

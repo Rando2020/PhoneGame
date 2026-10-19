@@ -57,8 +57,10 @@ func _show() -> void:
 	_tex.modulate = Color(0.02, 0.02, 0.05, 0.55) if locked else Color(1, 1, 1, _fade)
 
 
-## Play a reaction ("" or unknown does nothing). Fires its haptic now.
-func react(p: String) -> void:
+## Play a reaction ("" or unknown does nothing). Fires its sound and haptic in
+## the same call. quiet: no sound or buzz (a second sprite echoing a beat that
+## already played, as the round-end page does).
+func react(p: String, quiet := false) -> void:
 	if p == "" or locked:
 		return
 	pose = p
@@ -70,7 +72,9 @@ func react(p: String) -> void:
 	else:
 		_scale = Vector2(1.14, 0.84)   # land: squash, then the spring pops it back
 		_vel = Vector2.ZERO
-	Haptics.pulse(_buzz(p))
+	if not quiet:
+		Sound.play(_sound(p))
+		Haptics.pulse(_buzz(p))
 	_show()
 
 
@@ -85,6 +89,10 @@ func _hold(p: String) -> float:
 
 func _buzz(p: String) -> int:
 	return int(MeldReact.BUZZ.get(p, 0))
+
+
+func _sound(p: String) -> String:
+	return String(MeldReact.SOUND.get(p, ""))
 
 
 ## The event entry point: MeldReact decides, this plays it.

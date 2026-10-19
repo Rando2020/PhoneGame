@@ -62,6 +62,7 @@ static func _down(b: BaseButton) -> void:
 			t.kill()
 	b.scale = Vector2(DOWN_SCALE, DOWN_SCALE)
 	b.self_modulate = Color(BRIGHT, BRIGHT, BRIGHT)
+	Sound.play("click")
 
 
 static func _up(b: BaseButton) -> void:
