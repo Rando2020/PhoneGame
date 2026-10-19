@@ -109,3 +109,32 @@ Every new check was mutation-tested (each fails when its fix is undone).
 Found this pass:
 - The Play store screenshot rendered at the wrong width (since pass 8): fixed; the shot is now a busier moment (6 cards on the pile at 23, 7 to 6).
 - On tall phones The Play still has an empty middle between the pile and your hand.
+
+
+# Re-check, 2026-10-19 (after pass 10)
+
+New tests: `peg_drag_test`, `live_text_test`, `drag_hint_test`; The Play added to
+`dead_space_test`; body text, two How to play steps, three Gallery tabs and
+"text on a card" added to `text_size_test` (96 screen states, 541 checks).
+Every new check was mutation-tested.
+
+| item | before | after |
+|---|---|---|
+| The Play, tallest empty band | 15 to 41% of the height (payout 41% at 720x1560) | 5 to 16%: your Meldling and the Spoiler face off and react to each lay, both sides' pegs as a track, the round so far |
+| Reading text at 17 pt (31 px) or more | 0 of 48 lines | 50 of 50 (deeds, charms, Meldlings, decks, Spoilers, marks, How to play); names at the same size in gold |
+| Drag in The Play | tap only | 1:1 drag; flick up onto the pile lays it; 16 lays across 4 seeds: drag and tap leave the same play, step for step |
+| Text size changes (#10) | next screen | the screen you're on, from Settings or from iOS (5 screens, 3 sizes, 43 checks) |
+| Drag hint | none | one line on the first deal ever, saved at the first Keep; a 7th How to play step after the web's 6 (which still match the web word for word) |
+| iOS plugin (#9, #10) | spec only | source in `ios_plugin/meld_access/`; **unverified**: never compiled (needs a Mac) |
+
+Bugs found by the new checks, fixed:
+- Gallery and How to play cards were drawn shifted (a card scales about its
+  centre; `_card_at` placed its unscaled corner): suit headings and two
+  How to play labels sat on cards.
+- The Play: "of 31" overlapped the count.
+- Touch-down feedback reset a small card (The Play draws them at 0.82) to full size.
+- A finger that stopped before lifting still flicked (release speed now 0 after 50 ms still).
+- A held card kept its hover sway under the finger (drag_test caught it 1 run in 2).
+- The Play printed the Spoiler's name again over its score; it's "THEM" (the character is the name).
+
+Still open: #18 safe areas (device), the plugin build (Mac).

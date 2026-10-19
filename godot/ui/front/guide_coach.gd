@@ -108,7 +108,7 @@ func _render(i: int) -> void:
 		var l := Label.new()
 		l.text = part[0]
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.add_theme_font_size_override("font_size", TypeScale.px(part[1]))
+		TypeScale.set_size(l, part[1])
 		l.add_theme_color_override("font_color", part[2])
 		l.position = Vector2(16, y)
 		l.size = Vector2(w - 32.0, 0)
@@ -133,7 +133,7 @@ func _render(i: int) -> void:
 func _btn(text: String, at: Vector2) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", TypeScale.px(20))
+	TypeScale.set_size(b, 20)
 	box.add_child(b)
 	b.size = Vector2(maxf(140.0, b.get_combined_minimum_size().x + 28.0), 56)
 	b.position = at

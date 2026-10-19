@@ -73,7 +73,7 @@ func _lab(text: String, fs: int, col: Color, at: Vector2, w: float) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.position = at

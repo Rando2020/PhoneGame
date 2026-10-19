@@ -727,3 +727,11 @@ Then tick it under Plugins in the iOS export preset. Unverified until built.
    from `store/screenshots/`, the privacy answers (no data collected; matches
    `godot/ios/PrivacyInfo.xcprivacy`), then add the build to TestFlight.
 10. Install from TestFlight, play a full run, then submit for review.
+
+## Pass 10 notes
+
+- Body text: `TypeScale.BODY` (31 px, 17 pt) for every description a player
+  reads; set through `TypeScale.set_size()`, which keeps the base size on the
+  node so `TypeScale.relayout()` can restyle a live screen.
+- The MeldAccess plugin source is in `ios_plugin/meld_access/` (README has the
+  build steps). Unverified until built on a Mac.

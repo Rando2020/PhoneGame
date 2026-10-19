@@ -35,7 +35,12 @@ const TUT_STEPS := [
 	{"title": "Spoilers",
 		"body": "Every fifth round is a Spoiler with a rule that breaks something. You can see all five at the start of a run. Build for them.",
 		"art": "kingpin", "anchor": "boss"},
+	# native only (the web has no drag): after the web's six, so those match it
+	{"title": "Drag or tap",
+		"body": "Tap a card, or drag it. Flick a card up toward the Crib to throw it, or down to keep it. In The Play, flick a card up onto the pile to lay it.",
+		"art": "nib", "anchor": "drag"},
 ]
+const WEB_TUT_STEPS := 6       ## the first six are the web's, word for word
 
 static var gal_tab := "cards"
 static var tut_step := 0
@@ -84,8 +89,8 @@ static func deeds(fd: FrontDoor) -> void:
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		inner.add_child(row)
 		_lab(fd, row, "✔" if got else "·", 26, fd.GOLD if got else fd.DIM, 14, 14, 30)
-		var n := _lab(fd, row, a.name if (got or not secret) else "???", 22, fd.GOLD if got else fd.DIM, 52, 10, c.y - 70.0)
-		var t := _lab(fd, row, a.text if (got or not secret) else "A hidden deed.", 17, fd.DIM, 52, 14 + n.size.y, c.y - 70.0)
+		var n := _lab(fd, row, a.name if (got or not secret) else "???", TypeScale.BODY, fd.GOLD if got else fd.DIM, 52, 10, c.y - 70.0)
+		var t := _lab(fd, row, a.text if (got or not secret) else "A hidden deed.", TypeScale.BODY, fd.DIM, 52, 14 + n.size.y, c.y - 70.0)
 		row.size = Vector2(c.y, t.position.y + t.size.y + 12.0)
 		yy += row.size.y + 8.0
 	_done(inner, fd, yy)
@@ -162,7 +167,7 @@ static func gallery(fd: FrontDoor) -> void:
 		b.text = tab[1]
 		b.toggle_mode = true
 		b.button_pressed = gal_tab == tab[0]
-		b.add_theme_font_size_override("font_size", TypeScale.px(20))
+		TypeScale.set_size(b, 20)
 		b.size = Vector2(tw, Press.MIN_H)
 		b.position = Vector2(c.x + (i % 3) * (tw + 8.0), y + floorf(i / 3.0) * (Press.MIN_H + 8.0))
 		var id: String = tab[0]
@@ -194,7 +199,8 @@ static func _card_at(parent: Control, card: Dictionary, sc: float, at: Vector2) 
 	parent.add_child(v)
 	v.setup_card(card, true)
 	v.scale = Vector2(sc, sc)
-	v.position = at
+	# CardView scales about its centre: offset so the drawn card's top-left is `at`
+	v.position = at - v.size * (1.0 - sc) / 2.0
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return v
 
@@ -241,9 +247,9 @@ static func _gal_marks(fd: FrontDoor, box: Control) -> float:
 	for k in CribData.ENHANCEMENTS:
 		var m: Dictionary = CribData.ENHANCEMENTS[k]
 		_card_at(box, {"rank": 5, "suit": "H", "enh": k}, 0.6, Vector2(c.x, y))
-		var n := _lab(fd, box, m.name, 22, fd.GOLD, c.x + 110.0, y + 6.0, c.y - 110.0)
-		_lab(fd, box, m.text, 17, fd.DIM, c.x + 110.0, y + 10.0 + n.size.y, c.y - 110.0)
-		y += maxf(ch, 70.0) + 12.0
+		var n := _lab(fd, box, m.name, TypeScale.BODY, fd.GOLD, c.x + 110.0, y + 6.0, c.y - 110.0)
+		var mt := _lab(fd, box, m.text, TypeScale.BODY, fd.DIM, c.x + 110.0, y + 10.0 + n.size.y, c.y - 110.0)
+		y = maxf(y + maxf(ch, 70.0) + 12.0, mt.position.y + mt.size.y + 12.0)
 	return y
 
 
@@ -301,8 +307,8 @@ static func _gal_meld(fd: FrontDoor, box: Control) -> float:
 		sp.position = Vector2(c.x, y)
 		box.add_child(sp)
 		sp.set_meld(id, not open)
-		var n := _lab(fd, box, ("%s %s" % [d.name, Cribbage.SUIT_SYM.get(d.suit, "")]) if open else "???", 22, fd.GOLD if open else fd.DIM, c.x + 108.0, y + 4.0, c.y - 108.0)
-		var t := _lab(fd, box, d.text if open else "Locked.", 17, fd.DIM, c.x + 108.0, y + 8.0 + n.size.y, c.y - 108.0)
+		var n := _lab(fd, box, ("%s %s" % [d.name, Cribbage.SUIT_SYM.get(d.suit, "")]) if open else "???", TypeScale.BODY, fd.GOLD if open else fd.DIM, c.x + 108.0, y + 4.0, c.y - 108.0)
+		var t := _lab(fd, box, d.text if open else "Locked.", TypeScale.BODY, fd.DIM, c.x + 108.0, y + 8.0 + n.size.y, c.y - 108.0)
 		y = maxf(y + 100.0, t.position.y + t.size.y + 8.0)
 		# every pose, in a strip (a silhouette while locked)
 		var art := MeldReact.art_id(id)
@@ -334,8 +340,8 @@ static func _gal_spoil(fd: FrontDoor, box: Control) -> float:
 			sp.position = Vector2(c.x, y)
 			box.add_child(sp)
 			var align: String = Cribbage.SUIT_SYM.get(b.get("align", ""), "") if b.get("align") != null else ""
-			var n := _lab(fd, box, String(b.name) + ("  " + align if align != "" else ""), 22, fd.INK, c.x + 100.0, y + 4.0, c.y - 100.0)
-			var t := _lab(fd, box, b.text, 17, fd.DIM, c.x + 100.0, y + 8.0 + n.size.y, c.y - 100.0)
+			var n := _lab(fd, box, String(b.name) + ("  " + align if align != "" else ""), TypeScale.BODY, fd.GOLD, c.x + 100.0, y + 4.0, c.y - 100.0)
+			var t := _lab(fd, box, b.text, TypeScale.BODY, fd.DIM, c.x + 100.0, y + 8.0 + n.size.y, c.y - 100.0)
 			y = maxf(y + 92.0, t.position.y + t.size.y + 8.0)
 			# its five poses
 			var pw := minf(64.0, (c.y - 100.0) / SpoilerSprite.POSES.size())
@@ -391,8 +397,8 @@ static func howto(fd: FrontDoor) -> void:
 	box.position = Vector2(c.x, y)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fd._page.add_child(box)
-	var t := _lab(fd, box, st.title, 26, fd.GOLD, 16, 12, c.y - 32.0)
-	var b := _lab(fd, box, st.body, 20, fd.INK, 16, 18 + t.size.y, c.y - 32.0)
+	var t := _lab(fd, box, st.title, 34, fd.GOLD, 16, 12, c.y - 32.0)
+	var b := _lab(fd, box, st.body, TypeScale.BODY, fd.INK, 16, 18 + t.size.y, c.y - 32.0)
 	box.size = Vector2(c.y, b.position.y + b.size.y + 14.0)
 	y += box.size.y + 16.0
 	_tut_visual(fd, String(st.anchor), y)
@@ -413,6 +419,11 @@ static func howto(fd: FrontDoor) -> void:
 		stack = ["skip", "next", "prev"]
 	stack = ["next", "skip"] if tut_step == 0 else ["next", "prev", "skip"]
 	fd._stack_bottom(stack)
+
+
+## A card row's visible bottom (_card_at puts the drawn card's top-left at y).
+static func _row_bottom(y: float, sc: float) -> float:
+	return y + CardArt.BASE_H * CardView.PIXEL_SCALE * sc
 
 
 static func _tut_visual(fd: FrontDoor, anchor: String, y: float) -> void:
@@ -438,7 +449,7 @@ static func _tut_visual(fd: FrontDoor, anchor: String, y: float) -> void:
 			row.call([C.call(5, "H"), C.call(5, "S"), C.call(10, "C"), C.call(11, "D")])
 		"crib":
 			row.call([C.call(2, "S"), C.call(9, "H")])
-			_lab(fd, fd._page, "→ your Crib", 20, fd.GOLD, c.x, y + CardArt.BASE_H * CardView.PIXEL_SCALE * sc + 8.0, c.y, HORIZONTAL_ALIGNMENT_CENTER)
+			_lab(fd, fd._page, "→ your Crib", 20, fd.GOLD, c.x, _row_bottom(y, sc) + 8.0, c.y, HORIZONTAL_ALIGNMENT_CENTER)
 		"count":
 			var yy := y
 			for pair in [["Fifteen 2", "+2"], ["Fifteen 4", "+2"], ["Pair of 5s", "+2"], ["Run of 3", "+3"]]:
@@ -447,6 +458,11 @@ static func _tut_visual(fd: FrontDoor, anchor: String, y: float) -> void:
 				yy += 34.0
 		"shop":
 			row.call([C.call(5, "H", "gilded"), C.call(7, "C", "glass"), C.call(12, "S", "coin")])
+		"drag":
+			row.call([C.call(2, "S"), C.call(9, "H")])
+			var below := _row_bottom(y, sc) + 8.0
+			_lab(fd, fd._page, "Flick up: to your Crib", 22, fd.GOLD, c.x, below, c.y, HORIZONTAL_ALIGNMENT_CENTER)
+			_lab(fd, fd._page, "Flick down: keep it", 22, Color(0.43, 0.79, 0.54), c.x, below + 34.0, c.y, HORIZONTAL_ALIGNMENT_CENTER)
 		"boss":
 			var px := minf(150.0, c.y / 3.0)
 			var arts := ["deadwood", "jokester", "fog"]
@@ -497,8 +513,12 @@ static func apply() -> void:
 	var os := os_access()
 	if ti < 0:
 		ti = text_step_for(String(os.call("content_size"))) if os != null else 0
+	var was := TypeScale.scale
 	TypeScale.scale = TypeScale.STEPS[clampi(ti, 0, TypeScale.STEPS.size() - 1)]
 	TypeScale.apply_fallback()
+	var tree := Engine.get_main_loop() as SceneTree
+	if was != TypeScale.scale and tree != null:
+		TypeScale.relayout(tree.root)      # e.g. changed in iOS Settings: this screen now
 	if os != null and not _os_hooked and os.has_signal("changed"):
 		_os_hooked = true
 		os.connect("changed", apply)    # the player changed it in iOS Settings
@@ -535,14 +555,14 @@ static func settings(fd: FrontDoor) -> void:
 		["text", "Text size", TEXT_NAMES[_text_i()], func():
 			var i := (_text_i() + 1) % TypeScale.STEPS.size()
 			TypeScale.scale = TypeScale.STEPS[i]
-			TypeScale.apply_fallback()
-			_save("text_scale", i)],
+			_save("text_scale", i)
+			TypeScale.relayout(fd.get_tree().root)],
 	]
 	for r in rows:
 		_lab(fd, fd._page, r[1], 24, fd.INK, c.x, y + 24.0, c.y * 0.55)
 		var b := Button.new()
 		b.text = r[2]
-		b.add_theme_font_size_override("font_size", TypeScale.px(22))
+		TypeScale.set_size(b, 22)
 		b.size = Vector2(180, Press.MIN_H)
 		b.position = Vector2(c.x + c.y - 180.0, y)
 		var act: Callable = r[3]

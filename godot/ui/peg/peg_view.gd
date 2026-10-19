@@ -70,7 +70,7 @@ func _lab(text: String, fs: int, col: Color, at: Vector2, w: float) -> Label:
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.position = at
@@ -131,20 +131,18 @@ func render() -> void:
 	# --- the two sides across the count
 	var third := c.y / 3.0
 	var boss = s.rd.run.boss()
-	# the Spoiler is a character now: it sits right, its score under it
+	# the two scores flank the count; the characters face off lower down
 	if spoiler_sprite == null:
 		spoiler_sprite = SpoilerSprite.new(boss if boss != null else TABLE_FOE)
 		add_child(spoiler_sprite)
-	var fpx := minf(third * 0.7, 120.0)
-	spoiler_sprite.size = Vector2(fpx, fpx)
-	spoiler_sprite.position = Vector2(c.x + third * 2.0 + (third - fpx) / 2.0, y - 10.0)
-	var you := _lab("YOU\n%d" % p.score, 26, GOLD, Vector2(c.x, y + fpx - 42.0), third)
-	_lab(str(p.opp_score), 26, RED, Vector2(c.x + third * 2.0, y + fpx - 6.0), third)
+	# the Spoiler is a character, not a name (spoiler_test): "THEM", as on its peg lane
+	var you := _lab("YOU\n%d" % p.score, 26, GOLD, Vector2(c.x, y + 10.0), third)
+	_lab("THEM\n%d" % p.opp_score, 26, RED, Vector2(c.x + third * 2.0, y + 10.0), third)
 	total_label = _lab(str(p.total), 64, GOLD if p.total == PegPlay.TARGET else (RED if p.total >= 26 else INK),
 		Vector2(c.x + third, y - 8.0), third)
 	if p.total == PegPlay.TARGET:
 		Glow.apply(total_label)        # 31 lights up
-	var of_ := _lab("of %d" % PegPlay.TARGET, 16, DIM, Vector2(c.x + third, total_label.position.y + total_label.size.y - 10.0), third)
+	var of_ := _lab("of %d" % PegPlay.TARGET, 16, DIM, Vector2(c.x + third, total_label.position.y + total_label.size.y + 2.0), third)
 	y = maxf(you.position.y + you.size.y, of_.position.y + of_.size.y) + 10.0
 	# progress toward 31
 	var bar_w := minf(300.0, c.y)
@@ -193,7 +191,8 @@ func render() -> void:
 	# --- bottom: the hand, or the payout
 	var bottom: float = size.y - ins.bottom - MARGIN
 	# the table's edge, just above your hand
-	Surface.rail(_page, bottom - card_size(0.82).y - 64.0, size.x, 26.0)
+	if not p.over:
+		Surface.rail(_page, bottom - card_size(0.82).y - 64.0, size.x, 26.0)
 	if meld_sprite == null:
 		meld_sprite = MeldSprite.new(s.rd.run.meldling)
 		add_child(meld_sprite)
@@ -205,16 +204,83 @@ func render() -> void:
 	move_child(spoiler_sprite, get_child_count() - 1)
 	move_child(juice, get_child_count() - 1)
 	if p.over:
-		meld_sprite.hide()
 		_render_result(y, bottom)
 	else:
 		_render_hand(bottom)
-		# your Meldling fills the gap between the pile and your hand
-		var room: float = hand_views[0].position.y - 12.0 - y if not hand_views.is_empty() else 0.0
-		var px := clampf(room, 0.0, 220.0)
-		meld_sprite.visible = px >= 90.0
+		var hand_top: float = hand_views[0].position.y - 12.0 if not hand_views.is_empty() else bottom
+		_stage(y, hand_top, "idle", "idle")
+
+
+## The middle of the table, between the call and your hand (or the payout):
+## your Meldling and the Spoiler facing off, both sides' pegs as a track, and
+## what The Play adds to your round so far. Sized to the room, then centred.
+## Reads the play only; the characters' poses are presentation.
+var lanes: Array = []          ## [you, them] track rows (tests)
+var round_line: Label
+
+
+func _stage(top: float, bottom: float, my_pose: String, foe_pose: String) -> void:
+	var p := s.play
+	var c := _col()
+	var lane_h := 30.0
+	var line_h := 34.0
+	var room := bottom - top
+	var px := clampf(room - lane_h * 2.0 - line_h - 40.0, 0.0, minf(320.0, (size.x - 40.0 - MARGIN * 2.0) / 2.0))
+	var show_art := px >= 90.0
+	var block := (px + 16.0 if show_art else 0.0) + lane_h * 2.0 + 8.0 + line_h
+	var y := top + maxf(0.0, (room - block) / 2.0)
+	meld_sprite.visible = show_art
+	spoiler_sprite.visible = show_art
+	if show_art:
+		var gap := 40.0
+		var x0 := (size.x - px * 2.0 - gap) / 2.0
 		meld_sprite.size = Vector2(px, px)
-		meld_sprite.position = Vector2((size.x - px) / 2.0, y + (room - px) / 2.0)
+		meld_sprite.position = Vector2(x0, y)
+		spoiler_sprite.size = Vector2(px, px)
+		spoiler_sprite.position = Vector2(x0 + px + gap, y)
+		if my_pose != "idle":
+			meld_sprite.react(my_pose, true)
+		if foe_pose != "idle":
+			spoiler_sprite.react(foe_pose)
+		y += px + 16.0
+	lanes.clear()
+	lanes.append(_lane(y, "YOU", p.score, GOLD, c))
+	lanes.append(_lane(y + lane_h + 8.0, "THEM", p.opp_score, RED, c))
+	y += lane_h * 2.0 + 8.0 + 6.0
+	var so_far := s.rd.score + s.gain()
+	round_line = _lab("Round  %d / %d   ·   The Play  +%d so far" % [so_far, s.rd.target, s.gain()], 20,
+		GREEN if so_far >= s.rd.target else INK, Vector2(c.x, y), c.y)
+
+
+## One side's pegs: a row of holes, the pegged ones filled, the count at the end.
+func _lane(y: float, who: String, pegs: int, col: Color, c: Vector2) -> Dictionary:
+	var name_w := 96.0
+	var num_w := 56.0
+	var holes := clampi(maxi(16, maxi(s.play.score, s.play.opp_score) + 2), 16, 31)
+	var w := c.y - name_w - num_w
+	var d := minf(20.0, w / holes - 4.0)
+	var step := w / holes
+	var n := _lab(who, 18, col, Vector2(c.x, y), name_w)
+	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var filled := 0
+	for i in holes:
+		var on := i < pegs
+		var h := Panel.new()
+		var sb := StyleBoxFlat.new()
+		sb.set_corner_radius_all(int(d / 2.0))
+		sb.bg_color = col if on else Color(0.06, 0.05, 0.10, 0.85)
+		sb.border_color = Color(col, 0.5)
+		sb.set_border_width_all(0 if on else 1)
+		h.add_theme_stylebox_override("panel", sb)
+		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		h.position = Vector2(c.x + name_w + i * step + (step - d) / 2.0, y + (30.0 - d) / 2.0)
+		h.size = Vector2(d, d)
+		_page.add_child(h)
+		if on:
+			filled += 1
+	var k := _lab(str(pegs), 20, col, Vector2(c.x + c.y - num_w, y), num_w)
+	k.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	return {"holes": holes, "filled": filled, "pegs": pegs}
 
 
 func _render_hand(bottom: float) -> void:
@@ -238,7 +304,10 @@ func _render_hand(bottom: float) -> void:
 		var v := _card(p.mine[i], sc, Vector2(x0 + i * (cs.x + gap), top))
 		if p.playable(i) and not waiting:
 			v.mouse_filter = Control.MOUSE_FILTER_STOP
+			v.draggable = true
+			v.set_base_position(v.position, false)
 			v.pressed.connect(_on_card.bind(i))
+			v.drag_ended.connect(_on_card_flicked.bind(i))
 		else:
 			v.set_state(CardView.State.DIM)
 		hand_views.append(v)
@@ -280,12 +349,14 @@ func _render_result(y: float, bottom: float) -> void:
 		ry += 34.0
 	continue_button = Button.new()
 	continue_button.text = "CONTINUE"
-	continue_button.add_theme_font_size_override("font_size", TypeScale.px(30))
+	TypeScale.set_size(continue_button, 30)
 	_page.add_child(continue_button)
 	var bw := maxf(300.0, continue_button.get_combined_minimum_size().x + 32.0)
 	continue_button.size = Vector2(bw, 80)
 	continue_button.position = Vector2((size.x - bw) / 2.0, bottom - 80.0)
 	continue_button.pressed.connect(_on_continue)
+	_stage(y + panel.size.y + 12.0, continue_button.position.y - 12.0,
+		"victory" if won else "deflated", "defeated" if won else "gloat")
 
 
 ## pegLay: your card goes down, then the Spoiler answers after a beat.
@@ -301,6 +372,8 @@ func _on_card(_v: CardView, i: int) -> void:
 	var ll = s.play.last_lay
 	if meld_sprite != null and ll != null and ll.who == "you" and not ll.events.is_empty():
 		meld_sprite.react("cheer")
+		if spoiler_sprite != null:
+			spoiler_sprite.react("stung")      # it felt that
 	juice_lay()
 	waiting = true
 	render()
@@ -310,6 +383,22 @@ func _on_card(_v: CardView, i: int) -> void:
 	_beat = create_tween()
 	_beat.tween_interval(BEAT)
 	_beat.tween_callback(_answer)
+
+
+## A drag let go: pushed up toward the pile (where it would coast to, as in the
+## keep hand), it's laid exactly as a tap lays it; anything less springs home at
+## the finger's speed. Presentation only: the lay is _on_card's.
+const FLICK_LAY := -80.0
+var flicks: Array = []          ## "lay"/"none" (tests)
+
+
+func _on_card_flicked(v: CardView, travel: Vector2, velocity: Vector2, i: int) -> void:
+	if travel.y + velocity.y * HandView.COAST <= FLICK_LAY and not waiting and not s.play.over:
+		flicks.append("lay")
+		_on_card(v, i)
+	else:
+		flicks.append("none")
+		v.release_to(v._base_pos, velocity)
 
 
 ## 31 in The Play: a burst from the total, a shake, a buzz on the same frame.
@@ -333,6 +422,8 @@ func _answer() -> void:
 	var fl = s.play.last_lay
 	if spoiler_sprite != null and fl != null and fl.who == "them" and not fl.events.is_empty():
 		spoiler_sprite.on_event("peg")
+		if meld_sprite != null:
+			meld_sprite.react("nervous", true)
 	juice_lay()
 	render()
 	changed.emit()

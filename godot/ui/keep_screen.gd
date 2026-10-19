@@ -125,6 +125,9 @@ func _layout() -> void:
 	var top := band_y + band_h + 16.0
 	cascade.position = Vector2(x0, top)
 	cascade.size = Vector2(col, maxf(0.0, hand.position.y - 16.0 - top))
+	drag_hint.position = Vector2(x0, top)
+	drag_hint.size = Vector2(col, 0)
+	drag_hint.size = Vector2(col, drag_hint.get_minimum_size().y)   # height at this width
 	# your Meldling stands in the open space right of the count, above the hand
 	var ms := clampf(cascade.size.y * 0.42, 110.0, 200.0)
 	meld_sprite.size = Vector2(ms, ms)
@@ -137,7 +140,7 @@ func _label(font_size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", TypeScale.px(font_size))
+	TypeScale.set_size(l, font_size)
 	l.add_theme_color_override("font_color", color)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
@@ -173,12 +176,20 @@ func _build() -> void:
 	charm_bar = CharmBar.new()
 	add_child(charm_bar)
 
+	# first deal ever: one line on dragging, until the first Keep (saved)
+	drag_hint = _label(20, Color(0.96, 0.93, 0.88, 0.7))
+	drag_hint.text = DRAG_HINT
+	drag_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	drag_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	drag_hint.hide()
+	add_child(drag_hint)
+
 	crib_strip = CribStrip.new()
 	add_child(crib_strip)
 
 	recut_button = Button.new()
 	recut_button.text = "Recut"
-	recut_button.add_theme_font_size_override("font_size", TypeScale.px(24))
+	TypeScale.set_size(recut_button, 24)
 	recut_button.pressed.connect(_on_recut)
 	add_child(recut_button)
 
@@ -198,12 +209,12 @@ func _build() -> void:
 	hand.selection_changed.connect(_on_selection)
 
 	keep_button = Button.new()
-	keep_button.add_theme_font_size_override("font_size", TypeScale.px(30))
+	TypeScale.set_size(keep_button, 30)
 	keep_button.pressed.connect(_on_button)
 	add_child(keep_button)
 
 	mulligan_button = Button.new()
-	mulligan_button.add_theme_font_size_override("font_size", TypeScale.px(22))
+	TypeScale.set_size(mulligan_button, 22)
 	mulligan_button.pressed.connect(_on_mulligan)
 	add_child(mulligan_button)
 
@@ -224,6 +235,14 @@ func start_round(run_: CribRun = null) -> void:
 	next_deal()
 
 
+const DRAG_HINT := "Tip: flick a card up to throw it to the Crib, or down to keep it."
+var drag_hint: Label
+
+
+static func drag_hint_seen() -> bool:
+	return JS.truthy(Achv.load_store().get("drag_hint"))
+
+
 func next_deal() -> void:
 	if rd.new_deal() == null:
 		if not rd.over:
@@ -236,6 +255,7 @@ func next_deal() -> void:
 
 ## Draw rd.dealt as a fresh deal (also used to resume a saved one).
 func _show_deal() -> void:
+	drag_hint.visible = not drag_hint_seen()
 	# Foresight cuts before the keep: show the starter face up from the deal.
 	if rd.starter != null:
 		starter_view.setup_card(rd.starter, true)
@@ -354,6 +374,11 @@ func _commit() -> void:
 	var idx := selected_keep()
 	if idx.size() != rd.keep_count():
 		return
+	if drag_hint.visible:
+		drag_hint.hide()
+		var m := Achv.load_store()
+		m["drag_hint"] = 1
+		Achv.save_store(m)
 	var kr := rd.keep_rank(idx)        # rank the DECISION, before the cut is known
 	last_kr = kr
 	var knew_starter: bool = rd.starter != null

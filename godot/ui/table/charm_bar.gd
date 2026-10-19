@@ -53,7 +53,7 @@ func _add_chip(name: String, tint: Color, empty: bool) -> void:
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", TypeScale.px(17))
+	TypeScale.set_size(l, 17)
 	l.add_theme_color_override("font_color", INK)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(l)

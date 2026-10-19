@@ -123,6 +123,7 @@ func _go() -> void:
 	var ses := PegSession.start(prd, prd.dealt.slice(0, 4))
 	var pv := PegView.new()
 	root.add_child(pv)
+	pv.size = Vector2(720, 1560)       # a phone: the stage needs the height
 	pv.open(ses)
 	await process_frame
 	ok(pv.spoiler_sprite != null and pv.spoiler_sprite.visible and pv.spoiler_sprite.art == String(prd.run.boss().art), "The Play shows the Spoiler")

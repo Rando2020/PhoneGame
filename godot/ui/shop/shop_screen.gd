@@ -152,7 +152,7 @@ func _toast(msg: String) -> void:
 func _label(fs: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var l := Label.new()
 	l.horizontal_alignment = align
-	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
@@ -170,7 +170,7 @@ func _box(col: Color, border: Color, radius := 8) -> StyleBoxFlat:
 func _button(text: String, fs := 22) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", TypeScale.px(fs))
+	TypeScale.set_size(b, fs)
 	return b
 
 
@@ -290,7 +290,7 @@ func render() -> void:
 		b.add_theme_stylebox_override("disabled", _box(PANEL, Color(tint, 0.35)))
 		b.disabled = ch.cost > run.essence or full
 		b.pressed.connect(buy_charm.bind(ch))
-		var nm := _label(21, INK)
+		var nm := _label(28, INK)
 		nm.text = ch.name
 		nm.position = Vector2(14, 6)
 		nm.size = Vector2(col * 0.55, 28)
@@ -300,7 +300,7 @@ func render() -> void:
 		rt.position = Vector2(col * 0.55, 10)
 		rt.size = Vector2(col * 0.45 - 90, 24)
 		b.add_child(rt)
-		var tx := _label(15, DIM)
+		var tx := _label(TypeScale.BODY, DIM)
 		tx.text = ch.text
 		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tx.position = Vector2(14, nm.position.y + nm.get_minimum_size().y - 2.0)

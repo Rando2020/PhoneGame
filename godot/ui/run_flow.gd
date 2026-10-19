@@ -286,7 +286,7 @@ func flash(msg: String) -> void:
 		_toast = Label.new()
 		_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_toast.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_toast.add_theme_font_size_override("font_size", TypeScale.px(22))
+		TypeScale.set_size(_toast, 22)
 		_toast.add_theme_color_override("font_color", INK)
 		_toast.add_theme_color_override("font_outline_color", BG)
 		_toast.add_theme_constant_override("outline_size", 8)
@@ -367,7 +367,7 @@ func _act_track(y: float, done_this := false) -> float:
 			k.text = "!"
 			k.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			k.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			k.add_theme_font_size_override("font_size", TypeScale.px(22))
+			TypeScale.set_size(k, 22)
 			k.add_theme_color_override("font_color", PANEL if done else RED)
 			k.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			k.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -447,7 +447,7 @@ func _line(y: float, text: String, fs: int, colr: Color) -> float:
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", colr)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.position = Vector2(c.x, y)
@@ -482,7 +482,7 @@ func _panel(y: float, lines: Array) -> float:
 func _button(key: String, text: String, big: bool, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", TypeScale.px(30 if big else 22))
+	TypeScale.set_size(b, 30 if big else 22)
 	b.pressed.connect(cb)
 	_page.add_child(b)
 	buttons[key] = b

@@ -50,7 +50,7 @@ static func ms(t: float) -> float:
 func _lab(fs: int, col: Color, align := HORIZONTAL_ALIGNMENT_CENTER) -> Label:
 	var l := Label.new()
 	l.horizontal_alignment = align
-	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
@@ -74,7 +74,7 @@ func _ready() -> void:
 	lines_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(lines_box)
 	speed_button = Button.new()
-	speed_button.add_theme_font_size_override("font_size", TypeScale.px(22))
+	TypeScale.set_size(speed_button, 22)
 	speed_button.pressed.connect(func():
 		speed_i = (speed_i + 1) % SPEEDS.size()
 		_speed_text())

@@ -104,6 +104,9 @@ func _go() -> void:
 			var under := v.get_global_transform() * local
 			ok(under.distance_to(grab + d) < 0.01, "not 1:1 at %s: grabbed point at %s, finger at %s" % [d, under, grab + d])
 	ok(v.is_dragging(), "never became a drag")
+	await process_frame
+	await process_frame
+	ok(v.rotation == v.base_rotation, "a held card still sways (%.4f)" % v.rotation)
 	ok(v.z_index > 0, "dragged card not on top")
 	# flick up throws it out of the keep
 	_btn(grab + Vector2(10, -220), false)

@@ -12,10 +12,10 @@ func _go() -> void:
 	var f: RunFlow = load("res://scenes/run_flow.tscn").instantiate()
 	root.add_child(f)
 	for i in 4: await process_frame
-	var shots := [["title", ""], ["deeds", ""], ["record", ""], ["gallery", "meld"], ["gallery", "spoil"], ["gallery", "backs"], ["howto", ""], ["settings", ""]]
+	var shots := [["title", ""], ["deeds", ""], ["record", ""], ["gallery", "meld"], ["gallery", "spoil"], ["gallery", "backs"], ["gallery", "cards"], ["gallery", "split"], ["gallery", "marks"], ["howto", ""], ["howto", "drag"], ["settings", ""]]
 	for s in shots:
-		if s[1] != "": Menus.gal_tab = s[1]
-		Menus.tut_step = 3
+		if s[1] != "" and s[0] == "gallery": Menus.gal_tab = s[1]
+		Menus.tut_step = Menus.WEB_TUT_STEPS if s[1] == "drag" else 3
 		f.front.go(s[0])
 		for i in 20: await process_frame
 		root.get_texture().get_image().save_png("/tmp/menu_%s%s_%sx%s.png" % [s[0], ("_" + s[1]) if s[1] != "" else "", sz[0], sz[1]])

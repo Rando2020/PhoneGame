@@ -286,13 +286,16 @@ func _gui_input(event: InputEvent) -> void:
 			_vel = Vector2.ZERO
 			_last_t = Time.get_ticks_usec()
 			_last_p = event.global_position
-			scale = Vector2.ONE * 0.97         # touch-down feedback, at once
+			_rest_scale = scale
+			scale = _rest_scale * 0.97         # touch-down feedback, at once
 		elif _down:
 			_down = false
-			scale = Vector2.ONE
+			scale = _rest_scale
 			if _dragging:
 				_dragging = false
 				z_index = 0
+				if Time.get_ticks_usec() - _last_t > 50000:
+					_vel = Vector2.ZERO      # the finger stopped before it lifted
 				drag_ended.emit(self, event.global_position - _down_at, _vel)
 			else:
 				pressed.emit(self)
@@ -302,7 +305,10 @@ func _gui_input(event: InputEvent) -> void:
 		if not _dragging and draggable and face_up and p.distance_to(_down_at) >= DRAG_SLOP:
 			_dragging = true
 			z_index = 10
-			scale = Vector2.ONE
+			scale = _rest_scale
+			if _hover_tween and _hover_tween.is_valid():
+				_hover_tween.kill()          # the finger holds it still: no sway under it
+			rotation = base_rotation
 			_spring_on = false
 			if _tween and _tween.is_valid():
 				_tween.kill()
@@ -319,6 +325,7 @@ func _gui_input(event: InputEvent) -> void:
 
 
 var _down := false
+var _rest_scale := Vector2.ONE  ## the scale the owner set (The Play draws cards small)
 var _dragging := false
 var _down_at := Vector2.ZERO
 var _grab := Vector2.ZERO       ## the grabbed point, in card-local coordinates

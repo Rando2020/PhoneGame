@@ -177,7 +177,7 @@ func _label(parent: Control, text: String, fs: int, col: Color, at: Vector2, w: 
 	l.text = text
 	l.horizontal_alignment = align
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.position = at
@@ -213,7 +213,7 @@ func _box(col: Color, border: Color) -> StyleBoxFlat:
 func _button(key: String, text: String, big: bool, cb_: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", TypeScale.px(30 if big else 22))
+	TypeScale.set_size(b, 30 if big else 22)
 	b.pressed.connect(cb_)
 	_page.add_child(b)
 	var w := maxf(300.0 if big else 200.0, b.get_combined_minimum_size().x + 32.0)
@@ -286,7 +286,7 @@ func _title() -> void:
 	for i in icons.size():
 		var ib := Button.new()
 		ib.text = icons[i][1]
-		ib.add_theme_font_size_override("font_size", TypeScale.px(16))
+		TypeScale.set_size(ib, 16)
 		ib.clip_text = true
 		ib.size = Vector2(iw, Press.MIN_H)
 		ib.position = Vector2(c.x + i * (iw + 6.0), top)
@@ -373,7 +373,7 @@ func _street() -> void:
 	# the steppers sit either side of the face, big enough for a thumb
 	var prev := Button.new()
 	prev.text = "<"
-	prev.add_theme_font_size_override("font_size", TypeScale.px(34))
+	TypeScale.set_size(prev, 34)
 	prev.disabled = i == 0
 	prev.size = Vector2(72, 72)
 	prev.position = Vector2(c.x, face_y + 6.0)
@@ -384,7 +384,7 @@ func _street() -> void:
 	buttons["prev"] = prev
 	var next := Button.new()
 	next.text = ">"
-	next.add_theme_font_size_override("font_size", TypeScale.px(34))
+	TypeScale.set_size(next, 34)
 	next.disabled = i >= max_street - 1
 	next.size = Vector2(72, 72)
 	next.position = Vector2(c.x + c.y - 72.0, face_y + 6.0)
@@ -470,7 +470,7 @@ func _meld() -> void:
 	for pair in [["prev", -1, c.x], ["next", 1, c.x + c.y - 72.0]]:
 		var b := Button.new()
 		b.text = "<" if pair[1] < 0 else ">"
-		b.add_theme_font_size_override("font_size", TypeScale.px(34))
+		TypeScale.set_size(b, 34)
 		b.size = Vector2(72, 72)
 		b.position = Vector2(pair[2], face_y)
 		var step: int = pair[1]
@@ -494,7 +494,7 @@ func _meld() -> void:
 	pnl.add_theme_stylebox_override("panel", _box(PANEL, Color(INK, 0.12)))
 	pnl.position = Vector2(c.x, y + 8.0)
 	_page.add_child(pnl)
-	var l := _label(pnl, info, 20, INK if open else DIM, Vector2(16, 12), c.y - 32.0)
+	var l := _label(pnl, info, TypeScale.BODY, INK if open else DIM, Vector2(16, 12), c.y - 32.0)
 	pnl.size = Vector2(c.y, l.size.y + 24.0)
 	pnl.name = "info"
 	y = pnl.position.y + pnl.size.y + 14.0

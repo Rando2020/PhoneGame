@@ -22,7 +22,7 @@ func _ready() -> void:
 
 func _lab(fs: int, col: Color) -> Label:
 	var l := Label.new()
-	l.add_theme_font_size_override("font_size", TypeScale.px(fs))
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l

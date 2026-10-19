@@ -88,6 +88,37 @@ func _enter(f: RunFlow, st: String) -> void:
 			f._render_round_end()
 
 
+## The Play: after the first lays, a full pile (seed 5294), and the payout.
+func _peg(st: String, view: Vector2) -> PegView:
+	Achv.grant_system("the_play")
+	var r := CribRun.new("thump", null, null, 5294 if st == "peg_busy" else 5106)
+	for id in ["keystone2", "ballast"]:
+		r.charms.append(CribData.charm_by_id(id))
+	r.act = 3
+	r.round = 5
+	var rd := CribRound.new(r)
+	rd.new_deal()
+	var idx: Array = rd.best_keep_ev().idx
+	var kept: Array = idx.map(func(i): return rd.dealt[i])
+	rd.commit(idx)
+	var ps := PegSession.start(rd, kept)
+	ps.lay(ps.playable_indices()[0])
+	ps.answer()
+	if st == "peg_busy":
+		while not (ps.play.pile.size() >= 6 and ps.play.mine.size() >= 1):
+			ps.lay(ps.playable_indices()[0])
+			ps.answer()
+	elif st == "peg_payout":
+		while not ps.play.over:
+			ps.lay(ps.playable_indices()[0])
+			ps.answer()
+	var v := PegView.new()
+	root.add_child(v)
+	v.size = view
+	v.open(ps)
+	return v
+
+
 func _go() -> void:
 	Achv.persist = false
 	Achv.save_store({"__v": 3})
@@ -107,5 +138,13 @@ func _go() -> void:
 			ok(g < view.y * LIMIT, "%s %s: empty band %d px, over %d%% of the height" % [tag, st, g, roundi(LIMIT * 100)])
 		f.queue_free()
 		await process_frame
+		for st in ["peg_early", "peg_busy", "peg_payout"]:
+			var v := _peg(st, view)
+			await process_frame
+			var g := gap(v, view)
+			print("%s %s: empty band %d px (%d%%)" % [tag, st, g, roundi(g / view.y * 100.0)])
+			ok(g < view.y * LIMIT, "%s %s: empty band %d px, over %d%% of the height" % [tag, st, g, roundi(LIMIT * 100)])
+			v.queue_free()
+			await process_frame
 	print("dead_space_test: %d checks, %d fails" % [checks, fails])
 	quit(1 if fails > 0 else 0)
