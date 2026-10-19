@@ -46,6 +46,10 @@ func _notification(what: int) -> void:
 		render()
 
 
+var parade: Array = []            ## the title's six Meldlings
+var meld_view: MeldSprite = null  ## the picker's Meldling
+
+
 func render() -> void:
 	match cb.step:
 		"road": _road()
@@ -182,6 +186,18 @@ func _title() -> void:
 	_clear()
 	var y := _line(_top() + size.y * 0.12, "MELDLINGS", 56, GOLD)
 	y = _line(y, "Count it. Cut it. Break it.", 22, DIM)
+	# the parade: all six, bobbing out of step
+	var c0 := _col()
+	var per := c0.y / 3.0
+	parade.clear()
+	for k in MeldReact.SIGNATURE.size():
+		var id: String = MeldReact.SIGNATURE.keys()[k]
+		var sp := MeldSprite.new(id)
+		sp.size = Vector2(per, per)
+		sp.position = Vector2(c0.x + (k % 3) * per, y + 24.0 + floorf(k / 3.0) * per * 0.92)
+		sp.step(k * 0.43)                 # out of step, so they don't bob as one
+		_page.add_child(sp)
+		parade.append(sp)
 	var m := Achv.load_store()
 	var first_time := not JS.truthy(m.get("guided")) and not JS.truthy(m.get("runs"))
 	_button("play", "PLAY  \u00b7  first round" if first_time else "PLAY", true, func():
@@ -341,7 +357,18 @@ func _meld() -> void:
 	var open := Achv.meldling_unlocked(id)
 	var c := _col()
 	var face_y := y
-	y = _line(y + 10.0, d.name if open else "???", 40, GOLD if open else DIM)
+	# the Meldling itself; a locked one is a silhouette
+	var px := minf(c.y - 160.0, 300.0)
+	meld_view = MeldSprite.new(id)
+	meld_view.size = Vector2(px, px)
+	meld_view.position = Vector2((size.x - px) / 2.0, y)
+	_page.add_child(meld_view)
+	meld_view.set_meld(id, not open)
+	if open:
+		meld_view.react("eager")
+	face_y = y + px / 2.0 - 36.0
+	y += px
+	y = _line(y + 4.0, d.name if open else "???", 40, GOLD if open else DIM)
 	for pair in [["prev", -1, c.x], ["next", 1, c.x + c.y - 72.0]]:
 		var b := Button.new()
 		b.text = "<" if pair[1] < 0 else ">"

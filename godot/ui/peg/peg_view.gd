@@ -36,6 +36,7 @@ var head_label: Label
 var _beat: Tween
 var _anim := ""                ## who laid the newest pile card: "you" / "foe"
 var _page: Control
+var meld_sprite: MeldSprite     ## your Meldling, across the table from the Spoiler
 
 
 func open(session: PegSession) -> void:
@@ -180,10 +181,21 @@ func render() -> void:
 	_anim = ""
 	# --- bottom: the hand, or the payout
 	var bottom: float = size.y - ins.bottom - MARGIN
+	if meld_sprite == null:
+		meld_sprite = MeldSprite.new(s.rd.run.meldling)
+		add_child(meld_sprite)
+	move_child(meld_sprite, get_child_count() - 1)
 	if p.over:
+		meld_sprite.hide()
 		_render_result(y, bottom)
 	else:
 		_render_hand(bottom)
+		# your Meldling fills the gap between the pile and your hand
+		var room: float = hand_views[0].position.y - 12.0 - y if not hand_views.is_empty() else 0.0
+		var px := clampf(room, 0.0, 220.0)
+		meld_sprite.visible = px >= 90.0
+		meld_sprite.size = Vector2(px, px)
+		meld_sprite.position = Vector2((size.x - px) / 2.0, y + (room - px) / 2.0)
 
 
 func _render_hand(bottom: float) -> void:
@@ -263,6 +275,9 @@ func _on_card(_v: CardView, i: int) -> void:
 		return
 	s.lay(i)
 	_anim = "you"
+	var ll = s.play.last_lay
+	if meld_sprite != null and ll != null and ll.who == "you" and not ll.events.is_empty():
+		meld_sprite.react("cheer")
 	waiting = true
 	render()
 	changed.emit()

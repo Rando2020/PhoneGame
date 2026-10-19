@@ -231,6 +231,19 @@ func _col() -> Vector2:
 
 
 ## Stacks centred lines top-down; returns the y below what it placed.
+## Your Meldling on the page, centred at y; plays `pose` as it appears.
+var meld_view: MeldSprite = null
+
+
+func _meld_at(y: float, px: float, pose: String) -> float:
+	meld_view = MeldSprite.new(run.meldling)
+	meld_view.size = Vector2(px, px)
+	meld_view.position = Vector2((size.x - px) / 2.0, y)
+	_page.add_child(meld_view)
+	meld_view.react(pose)
+	return y + px
+
+
 func _line(y: float, text: String, fs: int, colr: Color) -> float:
 	var c := _col()
 	var l := Label.new()
@@ -322,6 +335,7 @@ func show_intro() -> void:
 		y = _panel(y + 6.0, [["THE SPOILER DECREES", 18, SEV[boss.sev]], [boss.text, 20, INK]])
 	else:
 		y = _line(y, "TARGET %d" % run.target(), 52, INK)
+		y = _meld_at(y, 220.0, "eager")
 	y = _line(y + 4.0, "Score %d in %d deals" % [run.target(), CribData.DEALS + m.dealBonus], 22, GOLD)
 	y = _line(y, "%s  ·  deck %d  ·  charms %d/%d" % [run.street.name, run.deck_size(), run.charms.size(), run.slots()], 17, DIM)
 	# the Spoilers on the road: past dimmed, this act's marked
@@ -425,6 +439,7 @@ func _render_round_end() -> void:
 		head = "%d SHORT" % -rd.margin
 		colr = RED
 	y = _line(y, head, 44, colr)
+	y = _meld_at(y, 200.0, "victory" if rd.won else "deflated")
 	var m = rd.mvp()
 	if m != null:
 		var lines := [["THIS WON YOU THE ROUND" if m.decisive else "BIGGEST CONTRIBUTOR", 16, DIM],

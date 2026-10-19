@@ -46,7 +46,8 @@ var peg_pending := false
 var peg_kept: Array = []
 var peg_view: PegView
 var peg_session: PegSession
-var last_kr := {}          ## the last keep's rank (the cascade's coaching line needs it)
+var last_kr := {}
+var meld_sprite: MeldSprite   ## your Meldling, reacting to the round          ## the last keep's rank (the cascade's coaching line needs it)
 
 const BG := Color(0.102, 0.094, 0.149)
 ## Widest the content column grows: six cards side by side with no overlap.
@@ -118,6 +119,10 @@ func _layout() -> void:
 	var top := band_y + band_h + 16.0
 	cascade.position = Vector2(x0, top)
 	cascade.size = Vector2(col, maxf(0.0, hand.position.y - 16.0 - top))
+	# your Meldling stands in the open space right of the count, above the hand
+	var ms := clampf(cascade.size.y * 0.42, 110.0, 200.0)
+	meld_sprite.size = Vector2(ms, ms)
+	meld_sprite.position = Vector2(x0 + col - ms, hand.position.y - ms - 4.0)
 
 
 func _label(font_size: int, color: Color) -> Label:
@@ -139,6 +144,9 @@ func _build() -> void:
 
 	status_label = _label(28, INK)
 	add_child(status_label)
+
+	meld_sprite = MeldSprite.new("pip")
+	add_child(meld_sprite)
 
 	cut_view = CutView.new()
 	cut_view.hide()
@@ -229,6 +237,9 @@ func _show_deal() -> void:
 	crib_strip.refresh(rd)
 	crib_strip.show()
 	hand.max_select = rd.keep_count()
+	if run != null and meld_sprite.meld != MeldReact.art_id(run.meldling):
+		meld_sprite.set_meld(run.meldling)
+	meld_sprite.on_event("deal", rd)
 	_update_status()
 	keep_button.disabled = true
 	keep_button.text = "Keep 0/%d" % rd.keep_count()
@@ -388,6 +399,9 @@ func _after_flip(res: Dictionary, kr: Dictionary) -> void:
 
 func _on_cascade_finished() -> void:
 	cascading = false
+	# the reaction lands with the total
+	if last_result != null:
+		meld_sprite.on_event("count", rd, last_result)
 	_update_status()
 	if peg_pending:
 		keep_button.text = "The Play"
@@ -488,6 +502,7 @@ func _light(cards) -> void:
 ## Round-end facts go to the status bar and the button, not under the count:
 ## the cascade footer stays about the hand that was just counted.
 func _show_round_end() -> void:
+	meld_sprite.on_event("round_won" if rd.won else "run_lost", rd)
 	_update_status()
 	keep_button.text = "Continue" if in_run else "New round"
 	keep_button.disabled = false

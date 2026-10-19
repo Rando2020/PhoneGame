@@ -409,6 +409,37 @@ answer skipped, rng state off by one, identity lost, "counted" resumed as a
 fresh deal screen (that one used to hang the check; it now fails with a
 message).
 
+## Meldlings 2.0 in Godot (2026-10-18)
+
+Art: `tools/make_meldlings2.py` (the source; 42 sprites in 2.4 s) writes
+`art/meldlings2/`, copied to `godot/art/meldlings2/`. Six poses each (idle,
+eager, nervous, cheer, victory, deflated) plus a signature: pip fifteen, thump
+slam, clover lucky, facet sparkle, nib snip, muggins steal.
+
+- `ui/meld/meld_react.gd` MeldReact: event to pose, pure. deal: eager, or
+  nervous on the last deal while short; count: the signature on its own rule
+  (Pip a fifteen, Thump a pair, Clover a cut worth 4+, Facet a flush, Nib an
+  auto re-cut, Muggins any count on a Spoiler round), else cheer at a third of
+  the target (min 20), else nothing; round won: victory; run lost: deflated.
+- `ui/meld/meld_sprite.gd` MeldSprite: holds a reaction (MeldReact.HOLD), then
+  idle; victory and deflated hold. Idle bob and a per-axis spring on scale
+  (damping 1.0, response 0.35 s; 0.6 on cheer and victory), squash from the
+  feet. Fixed 1/240 s substeps: a long frame flattened the intro sprite before
+  that (caught in the renders, now tested). `reduce_motion`: no bob, no squash,
+  a 0.18 s cross-fade. Not yet wired to the iOS setting (unverified).
+- `ui/meld/haptics.gd` Haptics.pulse(ms) on the same call as the reaction:
+  25 ms on cheer and signatures, 35 on slam, 70 on victory. Phone only.
+- Placed: title parade (six, out of step), picker (locked = silhouette), round
+  intro, keep screen (right of the count, above the hand; reacts on the deal
+  and when the count's total lands), round end (victory / deflated), The Play
+  (between the pile and your hand; cheers when you peg).
+- `tests/meld_test.gd` (141 checks): every event for all six, signatures only on
+  their own rule and beating a plain cheer, art exists, hold and return to
+  idle, haptics, locked, Reduce Motion, long frames, no rng drawn, the real
+  screens. Mutations caught: nervous on any last deal, cheer beating the
+  signature (missed at first; the check was added), never returning to idle,
+  no haptic, the old spring.
+
 ## Found, not fixed: Ziah's call
 
 | what | where | detail |
