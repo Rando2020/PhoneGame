@@ -277,7 +277,7 @@
     "LAST TEN",
     "Pip",
     "First Street",
-    "Fell 2-3",
+    "Fell 3-2",
     "Thump",
     "Second Street",
     "CLEARED",
@@ -286,7 +286,7 @@
     "Fell 1-1",
     "Clover",
     "Third Street",
-    "Fell 3-4"
+    "Fell 5-2"
    ],
    "gallery": {
     "marks": [
@@ -554,31 +554,31 @@
     "Fell 1-1",
     "Thump",
     "Second Street",
-    "Fell 2-3",
+    "Fell 3-2",
     "Clover",
     "Third Street",
-    "Fell 3-5",
+    "Fell 5-3",
     "Facet",
     "First Street",
-    "Fell 5-2",
+    "Fell 8-1",
     "Nib",
     "Second Street",
     "Fell 1-3",
     "Pip",
     "Third Street",
-    "Fell 2-5",
+    "Fell 4-1",
     "Thump",
     "First Street",
-    "Fell 4-2",
+    "Fell 6-2",
     "Clover",
     "Second Street",
-    "Fell 5-4",
+    "Fell 8-3",
     "Facet",
     "Third Street",
-    "Fell 1-5",
+    "Fell 2-2",
     "Nib",
     "First Street",
-    "Fell 3-2"
+    "Fell 4-3"
    ],
    "gallery": {
     "marks": [
@@ -885,7 +885,7 @@
   ],
   [
    "Spoilers",
-   "Every fifth round is a Spoiler with a rule that breaks something. You can see all five at the start of a run. Build for them."
+   "Every third round is a Spoiler with a rule that breaks something. You can see all five at the start of a run. Build for them."
   ]
  ]
 }

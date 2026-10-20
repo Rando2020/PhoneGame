@@ -91,7 +91,20 @@ func _enter(f: RunFlow, st: String) -> void:
 ## The Play: after the first lays, a full pile (seed 5294), and the payout.
 func _peg(st: String, view: Vector2) -> PegView:
 	Achv.grant_system("the_play")
-	var r := CribRun.new("thump", null, null, 5294 if st == "peg_busy" else 5106)
+	# the first seed from 5294 (busy) / 5106 that reaches the wanted pile
+	for sd in range(5294 if st == "peg_busy" else 5106, 5600):
+		var ps = _peg_session(st, sd)
+		if ps != null:
+			var v := PegView.new()
+			root.add_child(v)
+			v.size = view
+			v.open(ps)
+			return v
+	return null
+
+
+func _peg_session(st: String, sd: int):
+	var r := CribRun.new("thump", null, null, sd)
 	for id in ["keystone2", "ballast"]:
 		r.charms.append(CribData.charm_by_id(id))
 	r.act = 3
@@ -102,21 +115,23 @@ func _peg(st: String, view: Vector2) -> PegView:
 	var kept: Array = idx.map(func(i): return rd.dealt[i])
 	rd.commit(idx)
 	var ps := PegSession.start(rd, kept)
+	if ps.playable_indices().is_empty():
+		return null
 	ps.lay(ps.playable_indices()[0])
 	ps.answer()
 	if st == "peg_busy":
 		while not (ps.play.pile.size() >= 6 and ps.play.mine.size() >= 1):
+			if ps.play.over or ps.playable_indices().is_empty():
+				return null
 			ps.lay(ps.playable_indices()[0])
 			ps.answer()
 	elif st == "peg_payout":
 		while not ps.play.over:
+			if ps.playable_indices().is_empty():
+				return null
 			ps.lay(ps.playable_indices()[0])
 			ps.answer()
-	var v := PegView.new()
-	root.add_child(v)
-	v.size = view
-	v.open(ps)
-	return v
+	return ps
 
 
 func _go() -> void:

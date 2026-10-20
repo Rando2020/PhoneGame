@@ -90,6 +90,25 @@ func _go() -> void:
 		ok(cuts.size() == 1 and absf(cuts[0][2] - Sound.semi(step)) < 0.0001, "cut sound at step %d: %s" % [step, cuts])
 	view.queue_free()
 
+	# ---- the won round end's "Next" line: the real next target
+	for st in [Meta.STREETS[0], Meta.STREETS[1]]:
+		for rr in range(1, CribData.ROUNDS + 1):
+			var nr := CribRun.new("pip", st, null, 40 + rr)
+			nr.act = 2
+			nr.round = rr
+			var later := CribRun.new("pip", st, null, 40 + rr)
+			later.act = 2 + (1 if rr == CribData.ROUNDS else 0)
+			later.round = 1 if rr == CribData.ROUNDS else rr + 1
+			ok(nr.next_target() == later.target(), "next target %d-%d: %d vs %d" % [nr.act, rr, nr.next_target(), later.target()])
+			var nd := CribRound.new(nr)
+			nd.won = true
+			f.run = nr
+			f.rd = nd
+			f._paid = true
+			f._render_round_end()
+			var want := "Next: %s, target %d" % ["Act 3" if rr == CribData.ROUNDS else ("the Spoiler" if rr + 1 == CribData.ROUNDS else "Round %d" % (rr + 1)), later.target()]
+			var hit := f.find_children("*", "Label", true, false).filter(func(l): return l.text == want)
+			ok(hit.size() == 1, "round end %d-%d: no '%s'" % [nr.act, rr, want])
 	# ---- first-time celebrations
 	Achv.save_store({"__v": 3, "guided": 1})
 	var r0 := JS.unseeded.next() if JS.unseeded != null else 0.0

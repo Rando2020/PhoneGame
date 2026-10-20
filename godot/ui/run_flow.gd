@@ -446,7 +446,7 @@ func _fill(first: int, top: float, bottom: float) -> void:
 	if free == 0.0:
 		return
 	if not art.is_empty():
-		var grow := minf(free * 0.5, 140.0)
+		var grow := minf(free * 0.5, 180.0)
 		var art_bottom: float = art[0].position.y + art[0].size.y
 		for i in range(first, _page.get_child_count()):
 			var n := _page.get_child(i) as Control
@@ -757,6 +757,10 @@ func _render_round_end() -> void:
 	y = _panel(y + 4.0, box)
 	if rd.won:
 		y = _act_track(y + 6.0, true)
+		if not run.endless and not (run.act == CribData.ACTS and run.round == CribData.ROUNDS):
+			var nxt := "Act %d" % (run.act + 1) if run.round == CribData.ROUNDS else (
+				"the Spoiler" if run.round + 1 == CribData.ROUNDS else "Round %d" % (run.round + 1))
+			y = _line(y + 4.0, "Next: %s, target %d" % [nxt, run.next_target()], 22, INK)
 	if rd.won and Entitlement.capped(run, true):
 		# free to try: the first Spoiler is beaten; what's next is the end card
 		_button("free_next", "WHAT'S NEXT", true, show_free_end)

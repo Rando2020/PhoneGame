@@ -81,7 +81,7 @@ func _go() -> void:
 	RunRecord.record(CribRun.new("pip", Meta.STREETS[0]), 0, 7)
 	ok(RunRecord.line().contains("Best: no round cleared") and not RunRecord.line().contains("1-0"), "line: " + RunRecord.line())
 	RunRecord.record(CribRun.new("pip", Meta.STREETS[0]), 6, 7)
-	ok(RunRecord.line().contains("Best Act 2-1"), "line after 6 cleared: " + RunRecord.line())
+	ok(RunRecord.line().contains("Best Act %d-%d" % [(6 - 1) / CribData.ROUNDS + 1, (6 - 1) % CribData.ROUNDS + 1]), "line after 6 cleared: " + RunRecord.line())
 	print("record checks: %d, failures: %d" % [checks, fails])
 	var good := fails == 0 and checks >= 24
 	print("RECORD OK" if good else "RECORD FAILED")

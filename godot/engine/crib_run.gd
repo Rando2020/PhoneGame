@@ -127,6 +127,13 @@ func round_index() -> int:
 	return (act - 1) * CribData.ROUNDS + round
 
 
+## The next round's target, read only (the round end's "Next" line).
+func next_target() -> int:
+	var mul: float = JS.or_(street.get("mods", {}), "targetMul", 1)
+	mul *= JS.or_(trial.mods, "targetMul", 1) if trial != null else 1
+	return JS.round_(CribData.LADDER_BASE * pow(CribData.LADDER_GROWTH, round_index()) * mul)
+
+
 func target() -> int:
 	var mul: float = JS.or_(street.get("mods", {}), "targetMul", 1)
 	mul *= JS.or_(trial.mods, "targetMul", 1) if trial != null else 1

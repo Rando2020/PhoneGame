@@ -150,7 +150,7 @@ func _go() -> void:
 		_check_buttons(fd2, "how to play %d" % i)
 		_no_dash(fd2, "how to play %d" % i)
 		fd2.buttons["next"].emit_signal("pressed")
-	ok(Menus.TUT_STEPS.size() == Menus.WEB_TUT_STEPS + 1 and fx.tutorial.size() == Menus.WEB_TUT_STEPS, "the web's six and one drag step")
+	ok(Menus.TUT_STEPS.size() == Menus.WEB_TUT_STEPS + 2 and fx.tutorial.size() == Menus.WEB_TUT_STEPS and Menus.TUT_STEPS[6].anchor == "drag" and Menus.TUT_STEPS[7].anchor == "play", "the web's six, then drag and The Play")
 	await process_frame
 	ok(fd2.cb.step == "road" and JS.truthy(Achv.load_store().get("tutorial")), "PLAY at the end goes to the roads and marks it done", "howto")
 	ok(_felt(f) and Sound.music_ctx == "menu", "menus on felt, menu music", "howto")
