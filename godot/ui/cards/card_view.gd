@@ -40,6 +40,7 @@ var _base_pos: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
+	set_process(false)          # only while a spring carries the card (release_to)
 	custom_minimum_size = Vector2(CardArt.BASE_W, CardArt.BASE_H) * PIXEL_SCALE
 	size = custom_minimum_size
 	pivot_offset = size * 0.5
@@ -350,6 +351,7 @@ func release_to(target: Vector2, velocity: Vector2) -> void:
 	_spring_to = target
 	_spring_v = velocity
 	_spring_on = true
+	set_process(true)
 	if MeldSprite.reduce_motion:
 		position = target
 		_spring_on = false
@@ -361,6 +363,7 @@ func spring_velocity() -> Vector2:
 
 func _process(delta: float) -> void:
 	if not _spring_on:
+		set_process(false)
 		return
 	var w := TAU / SPRING_RESPONSE
 	var left := minf(delta, 0.25)
@@ -372,6 +375,7 @@ func _process(delta: float) -> void:
 	if position.distance_to(_spring_to) < 0.5 and _spring_v.length() < 20.0:
 		position = _spring_to
 		_spring_on = false
+		set_process(false)
 
 
 # ------------------------------------------------------------------ flourishes

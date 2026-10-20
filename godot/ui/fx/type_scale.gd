@@ -45,6 +45,13 @@ static func relayout(root: Node) -> void:
 			c.notification(Control.NOTIFICATION_RESIZED)
 
 
+## What a screen was last drawn for: its size and the text scale. A resize
+## notice redraws only when this changed (opening a screen sends one for the
+## size it was already drawn at; a Text size change changes the scale).
+static func layout_key(c: Control) -> Vector3:
+	return Vector3(c.size.x, c.size.y, scale)
+
+
 ## The size an unstyled Label falls back to (Godot's default is 16 px).
 static func apply_fallback() -> void:
 	ThemeDB.fallback_font_size = px(20)

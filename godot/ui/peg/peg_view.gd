@@ -51,8 +51,11 @@ func open(session: PegSession) -> void:
 	render()
 
 
+var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
+
+
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and s != null:
+	if what == NOTIFICATION_RESIZED and s != null and TypeScale.layout_key(self) != _drawn_for:
 		render()
 
 
@@ -108,6 +111,7 @@ static func card_size(sc: float) -> Vector2:
 
 ## Rebuild the page from the session. Cheap: a dozen nodes.
 func render() -> void:
+	_drawn_for = TypeScale.layout_key(self)
 	if _page != null:
 		remove_child(_page)
 		_page.queue_free()

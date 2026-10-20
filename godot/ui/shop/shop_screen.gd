@@ -65,8 +65,11 @@ func open(run_) -> void:
 		render()
 
 
+var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
+
+
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and _content != null and run != null:
+	if what == NOTIFICATION_RESIZED and _content != null and run != null and TypeScale.layout_key(self) != _drawn_for:
 		render()
 
 
@@ -187,6 +190,7 @@ func _insets() -> Dictionary:
 
 
 func render() -> void:
+	_drawn_for = TypeScale.layout_key(self)
 	for c in _content.get_children():
 		_content.remove_child(c)
 		c.queue_free()

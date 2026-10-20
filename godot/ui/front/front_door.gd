@@ -41,8 +41,11 @@ func open(state: Dictionary = {}) -> void:
 	render()
 
 
+var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
+
+
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and _page != null:
+	if what == NOTIFICATION_RESIZED and _page != null and TypeScale.layout_key(self) != _drawn_for:
 		render()
 
 
@@ -51,6 +54,7 @@ var meld_view: MeldSprite = null  ## the picker's Meldling
 
 
 func render() -> void:
+	_drawn_for = TypeScale.layout_key(self)
 	match cb.step:
 		"road": _road()
 		"street": _street()
@@ -281,15 +285,28 @@ func _title() -> void:
 	var c := _col()
 	# the web's icon bar: Deeds, Gallery, Record, How to play, and Settings
 	var icons := [["deeds", "Deeds"], ["gallery", "Gallery"], ["record", "Record"], ["howto", "How to play"], ["settings", "Settings"]]
-	var iw := (c.y - 4.0 * 6.0) / icons.size()
-	top -= Press.MIN_H + 4.0
+	# one row of five when every word fits; else icon_rows of three (Larger text)
+	var icon_per := icons.size()
+	var probe_b := Button.new()
+	TypeScale.set_size(probe_b, 16)
+	var pf := probe_b.get_theme_font("font")
+	var pfs := probe_b.get_theme_font_size("font_size")
+	probe_b.free()
+	var icon_room := (c.y - 6.0 * (icon_per - 1)) / icon_per - 16.0
+	for ic in icons:
+		for word in String(ic[1]).split(" "):
+			if pf.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, pfs).x > icon_room:
+				icon_per = 3
+	var icon_rows := ceili(float(icons.size()) / icon_per)
+	var iw := (c.y - 6.0 * (icon_per - 1)) / icon_per
+	top -= (Press.MIN_H + 6.0) * icon_rows - 2.0
 	for i in icons.size():
 		var ib := Button.new()
 		ib.text = icons[i][1]
 		TypeScale.set_size(ib, 16)
-		ib.clip_text = true
+		ib.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		ib.size = Vector2(iw, Press.MIN_H)
-		ib.position = Vector2(c.x + i * (iw + 6.0), top)
+		ib.position = Vector2(c.x + (i % icon_per) * (iw + 6.0), top + (i / icon_per) * (Press.MIN_H + 6.0))
 		var step: String = icons[i][0]
 		ib.pressed.connect(func():
 			if step == "howto":

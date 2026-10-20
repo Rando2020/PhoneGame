@@ -37,6 +37,7 @@ var _paid := false   ## round-end Glim already added (the web adds it once, on r
 
 
 func _ready() -> void:
+	Warm.run(self)             # first-use costs now (launch screen), not on the first deal
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	Menus.apply()             # saved settings: Reduce Motion, count speed
 	deed_toast = DeedToast.new()
@@ -153,7 +154,7 @@ func resume() -> void:
 		"round":
 			_clear()
 			_set_screen("round")
-			keep = load("res://scenes/keep_screen.tscn").instantiate()
+			keep = Warm.keep.instantiate()
 			keep.in_run = true
 			_page.add_child(keep)
 			keep.round_finished.connect(_on_round_finished, CONNECT_ONE_SHOT)
@@ -174,8 +175,11 @@ func start_run(run_: CribRun = null) -> void:
 	show_intro()
 
 
+var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
+
+
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and _page != null and screen in ["intro", "round_end", "run_won"]:
+	if what == NOTIFICATION_RESIZED and _page != null and screen in ["intro", "round_end", "run_won"] and TypeScale.layout_key(self) != _drawn_for:
 		_rerender()
 
 
@@ -518,6 +522,7 @@ static func music_for(r: CribRun) -> String:
 
 
 func show_intro() -> void:
+	_drawn_for = TypeScale.layout_key(self)
 	_clear()
 	_set_screen("intro")
 	var boss = run.boss()
@@ -572,7 +577,7 @@ func show_intro() -> void:
 func _on_deal() -> void:
 	_clear()
 	_set_screen("round")
-	keep = load("res://scenes/keep_screen.tscn").instantiate()
+	keep = Warm.keep.instantiate()
 	keep.in_run = true
 	keep.seed = seed
 	keep.meldling = meldling
@@ -639,6 +644,7 @@ func _round_end_effects() -> void:
 
 
 func _render_round_end() -> void:
+	_drawn_for = TypeScale.layout_key(self)
 	_clear()
 	_set_screen("round_end")
 	if not _no_slide:          # a resize redraw doesn't play it again
@@ -722,7 +728,7 @@ func show_shop() -> void:
 	_clear()
 	_set_screen("shop")
 	Sound.music("shop")
-	shop = load("res://scenes/shop_screen.tscn").instantiate()
+	shop = Warm.shop.instantiate()
 	shop.juice = juice
 	_page.add_child(shop)
 	_page.move_child(juice, -1)
@@ -768,6 +774,7 @@ func _run_won_effects() -> void:
 
 
 func show_run_won() -> void:
+	_drawn_for = TypeScale.layout_key(self)
 	_clear()
 	_set_screen("run_won")
 	var ins := SafeArea.insets(self)

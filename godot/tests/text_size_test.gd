@@ -110,6 +110,21 @@ static func probe(n: Node, view: Vector2, body_set := {}) -> Dictionary:
 		var g := ctl.get_global_rect()
 		if g.position.x < -1.0 or g.end.x > view.x + 1.0:
 			r.off.append("%s [%d..%d]" % [text.left(18), g.position.x, g.end.x])
+		if ctl is Button:
+			# a button's text must fit: whole (no wrap), or word by word (wrapping)
+			var bb := ctl as Button
+			var sb := bb.get_theme_stylebox("normal")
+			var room := bb.size.x - (sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT) if sb != null else 0.0)
+			var bf := bb.get_theme_font("font")
+			var pieces: Array = [text] if bb.autowrap_mode == TextServer.AUTOWRAP_OFF else Array(text.split(" "))
+			for piece in pieces:
+				var bw := bf.get_string_size(piece, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+				if bw > room + 1.0:
+					r.off.append("button '%s' trimmed %d > %d" % [String(piece).left(18), bw, room])
+			if bb.autowrap_mode != TextServer.AUTOWRAP_OFF:
+				var need := bf.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, room, fs).y
+				if need > bb.size.y + 1.0:
+					r.off.append("button '%s' too tall %d > %d" % [text.left(18), need, bb.size.y])
 		if ctl is Label and ((ctl as Label).clip_text or (ctl as Label).text_overrun_behavior != TextServer.OVERRUN_NO_TRIMMING):
 			var lw := (ctl as Label).get_theme_font("font").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 			if lw > ctl.size.x + 1.0:

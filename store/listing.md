@@ -1,0 +1,123 @@
+# Meldlings: App Store listing
+
+Every field below goes into App Store Connect as written. The limits are
+Apple's, and `python3 tools/check_listing.py` checks every one (plus no em
+dashes and no emoji). Numbers come from the game data (pass 11): 53 charms,
+6 Meldlings (+4 ascended forms), 17 Spoilers, 6 marks, 17 deeds, 8 streets,
+8 trials, 5 acts of 5 rounds.
+
+**Needs Ziah:** the two URLs, the copyright line, and a final yes on the age
+rating answers (especially simulated gambling, see below).
+
+## Name (30)
+
+```text
+Meldlings: Cribbage Roguelite
+```
+
+## Subtitle (30)
+
+```text
+Keep four. Count big. Go deep.
+```
+
+## Promotional text (170)
+
+```text
+Cribbage hands meet roguelite runs. Keep 4 of 6, watch the count land, then peg to 31 against a Spoiler. 53 charms, 17 Spoilers, no ads, no account.
+```
+
+## Description (4000)
+
+```text
+Meldlings is cribbage turned into a roguelite run.
+
+Each deal gives you six cards. Keep four, throw two to your Crib, then the cut decides. Fifteens, pairs, runs and flushes tick up one by one, then your multiplier slams down. Beat the round's target in four deals and you move on.
+
+HOW A RUN WORKS
+- 5 acts of 5 rounds. Every fifth round is a Spoiler: a boss with a rule that breaks something, like "pairs score half" or "you keep one card fewer".
+- Between rounds, spend Glim at the Peg House on charms, marked cards and Reckonings that level up a scoring type.
+- The Play: after the count, peg to 31 against the Spoiler. What you peg rides your multiplier into your score.
+
+WHAT'S IN IT
+- 53 charms across 5 rarities. Five slots, so you choose.
+- 6 Meldlings to play as, each with its own face and its own trick, and 4 ascended forms to unlock.
+- 17 Spoilers, five drawn per run, so no two runs meet the same set.
+- 6 card marks: Sunlit, Brittle, Mimic, Offering, Minted and Fickle.
+- 8 streets, 8 trials and 17 deeds to earn.
+- A Gallery of every card, mark, back, Meldling and Spoiler.
+
+MADE FOR A PHONE
+- Drag or tap. Flick a card up to throw it to your Crib, down to keep it.
+- Haptics on the big moments, and sound you can turn off.
+- Text size and Reduce Motion settings.
+- Plays offline. No ads, no account, no data collected.
+
+New to cribbage? The 7-step How to play covers it in a minute.
+```
+
+## Keywords (100)
+
+```text
+card game,roguelike,deckbuilder,solitaire,pegging,fifteen,crib,cards,strategy,offline,boss,puzzle
+```
+
+## What's new (4000)
+
+```text
+First release.
+```
+
+## Support URL
+
+```text
+NEEDS ZIAH: a page with a way to reach you (a GitHub Pages page or a simple site works)
+```
+
+## Privacy policy URL
+
+```text
+NEEDS ZIAH: Apple requires one for every app. It can say: Meldlings collects no data; everything stays on your device.
+```
+
+## Copyright
+
+```text
+NEEDS ZIAH: e.g. 2026 Josiah Parve
+```
+
+## Category
+
+```text
+Primary: Games > Card. Secondary: Games > Strategy.
+```
+
+## Age rating answers
+
+All "None", except where noted. Expected result: 4+ (unverified; Apple
+computes it from the answers).
+
+- Cartoon or fantasy violence: None (Spoilers are characters; nothing is hurt)
+- Realistic violence: None
+- Sexual content or nudity: None
+- Profanity or crude humor: None
+- Alcohol, tobacco or drug use: None
+- Mature or suggestive themes: None
+- Horror or fear themes: None
+- Medical or treatment information: None
+- **Simulated gambling: None (Ziah to confirm).** Cribbage is a card game and
+  nothing can be bought, but some rounds are called a "Wager" (score exactly
+  the target to keep a reward). If Apple reads that as simulated gambling,
+  "Infrequent" raises the rating (unverified by how much).
+- Contests: None
+- Unrestricted web access: No
+- User-generated content: No
+- In-app purchases: No
+
+## App privacy ("nutrition label")
+
+Answer: **Data not collected.** Matches `godot/ios/PrivacyInfo.xcprivacy`
+(no tracking, no tracking domains, no collected data types). The manifest's
+four "required reason" API entries (file timestamps C617.1, system boot time
+35F9.1, disk space E174.1, user defaults CA92.1) are the engine reading its
+own save and clock; none of them is data collection.
