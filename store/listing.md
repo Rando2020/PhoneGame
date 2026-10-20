@@ -4,7 +4,7 @@ Every field below goes into App Store Connect as written. The limits are
 Apple's, and `python3 tools/check_listing.py` checks every one (plus no em
 dashes and no emoji). Numbers come from the game data (pass 11): 53 charms,
 6 Meldlings (+4 ascended forms), 17 Spoilers, 6 marks, 17 deeds, 8 streets,
-8 trials, 5 acts of 5 rounds.
+8 trials, 5 acts of 3 rounds.
 
 **Needs Ziah:** the two URLs, the copyright line, a final yes on the age
 rating answers (especially simulated gambling, see below), and the unlock's
@@ -42,7 +42,7 @@ Meldlings is cribbage turned into a roguelite run.
 Each deal gives you six cards. Keep four, throw two to your Crib, then the cut decides. Fifteens, pairs, runs and flushes tick up one by one, then your multiplier slams down. Beat the round's target in four deals and you move on.
 
 HOW A RUN WORKS
-- 5 acts of 5 rounds. Every fifth round is a Spoiler: a boss with a rule that breaks something, like "pairs score half" or "you keep one card fewer".
+- 5 acts of 3 rounds. Every third round is a Spoiler: a boss with a rule that breaks something, like "pairs score half" or "you keep one card fewer".
 - Between rounds, spend Glim at the Peg House on charms, marked cards and Reckonings that level up a scoring type.
 - The Play: after the count, peg to 31 against the Spoiler. What you peg rides your multiplier into your score.
 
@@ -65,7 +65,7 @@ FREE TO TRY
 - One purchase unlocks the full game for good: 4 more acts, then 7 more streets, 8 trials and the Long Count to earn.
 - No ads, no subscriptions, nothing random for sale.
 
-New to cribbage? The 7-step How to play covers it in a minute.
+New to cribbage? The 8-step How to play covers it in a minute.
 ```
 
 ## Keywords (100)

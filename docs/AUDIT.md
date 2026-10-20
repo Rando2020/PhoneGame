@@ -275,3 +275,26 @@ about 36 to 23 minutes; waits for Ziah.
 Still open: the store plugin and the in-app purchase (Mac, MAC_HANDOFF.md
 3b); a coaching beat and How to play step for The Play, now that first runs
 have it.
+
+# Re-check, 2026-10-20 (after pass 14)
+
+**Run length changed:** 3 rounds an act, target growth x1.29, in both engines
+(web `cribrogue.js`, port `crib_data.gd`). This also fixed a bug: the extra
+Spoiler pick checked `round == 3` (left over from 5 rounds), which on the new
+length swapped out the real Spoiler. Endless now starts at round 16. Third
+Street reads "Spoilers hold rounds 2 and 3". How to play and the guide now say
+"every third round". Parity fixtures regenerated; parity OK. The numbers are
+in LOOP_AUDIT "Pass 14".
+
+**Taught:** The Play's first opening shows one coach line in gold ("Hit 15 or
+31 exactly for points. Drag a card up or tap it to lay."), saved after the
+first lay. How to play has an 8th step, "The Play". `guide_test` now plays
+a first run with The Play on (4 deals, 4 Plays, coach line on the first only).
+
+**Presentation, no outcome changes:** count speed 2x from the second run;
+"Needs N more" on a short count; a pitch step on the cut's sound; three
+once-ever celebrations. Test: `pass14_test` (619 checks), which also checks
+that JS.unseeded is untouched. Mutation-tested: 12 mutants.
+
+Still open: the store plugin and the in-app purchase (Mac). Plain-round
+twists and synergy callouts (LOOP_AUDIT 5 and 7).

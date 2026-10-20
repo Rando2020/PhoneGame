@@ -3,8 +3,8 @@
    deal  = draw 6 -> keep 4 -> cut starter -> COUNT (cascade x mult)
    round end = the Crib pays out as a banked bonus */
 
-const CRIB_ACTS = 5, CRIB_ROUNDS = 5;
-const CRIB_LADDER = { baseTarget: 36, growth: 1.19 };
+const CRIB_ACTS = 5, CRIB_ROUNDS = 3;   // 3 rounds an act (2026-10-20, Ziah; tools/sim/run_length.sh)
+const CRIB_LADDER = { baseTarget: 36, growth: 1.29 };   // was 1.19 at 5 rounds an act; 1.29 matches its clear rate (tools/sim/run_length.sh)
 const CRIB_DEALS = 4, CRIB_DEALT = 6, CRIB_KEEP = 4;
 /* The single most important balance constraint: a hard cap on charms.
    Without it the AI hoarded 18 charms and cleared 90% of runs. With 5 slots you
@@ -543,7 +543,7 @@ class CribRun {
   isBoss() {
     if (this.endless) return ((this.endlessRound || 0) % 3) === 2;
     if (this.round === CRIB_ROUNDS) return true;
-    return !!(this.street && this.street.mods.extraSpoiler) && this.round === 3;
+    return !!(this.street && this.street.mods.extraSpoiler) && this.round === CRIB_ROUNDS - 1;   // the round before the act's Spoiler
   }
   slots() {
     const bonus = (typeof Achv !== "undefined" && Achv.hasSystem("sixth_slot")) ? 1 : 0;
@@ -555,7 +555,7 @@ class CribRun {
       const ruin = BOSS_POOL.filter((b) => b.sev === 3);
       return ruin[(this.act * 3 + this.round) % ruin.length];
     }
-    if (this.round === 3) return BOSS_POOL[(this.act * 7 + 3) % BOSS_POOL.length];
+    if (this.round === CRIB_ROUNDS - 1) return BOSS_POOL[(this.act * 7 + 3) % BOSS_POOL.length];   // the extra Spoiler
     return this.bossPlan[this.act - 1];
   }
 

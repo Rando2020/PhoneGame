@@ -30,6 +30,20 @@ func announce(ids: Array) -> void:
 	pump()
 
 
+## A first-time celebration (Firsts): same card, its own header and chord.
+func celebrate(id: String) -> void:
+	var a: Dictionary = Firsts.ALL[id].duplicate()
+	a["head"] = "A FIRST"
+	a["first"] = id
+	celebrated.append(id)
+	queue.append(a)
+	pump()
+
+
+var celebrated: Array = []    ## first ids queued, in order (tests)
+signal burst_wanted(at: Vector2)
+
+
 func pump() -> void:
 	if busy or queue.is_empty():
 		return
@@ -48,7 +62,7 @@ func pump() -> void:
 	add_child(_card)
 	var star := _lab("★", 40, Color(0.91, 0.71, 0.30), Vector2(18, 16), 50)
 	_card.add_child(star)
-	var k := _lab("DEED UNLOCKED", 16, Color(0.91, 0.71, 0.30), Vector2(78, 12), w - 96.0)
+	var k := _lab(String(a.get("head", "DEED UNLOCKED")), 16, Color(0.91, 0.71, 0.30), Vector2(78, 12), w - 96.0)
 	_card.add_child(k)
 	var n := _lab(String(a.name), 24, Color(0.96, 0.93, 0.88), Vector2(78, 34), w - 96.0)
 	_card.add_child(n)
@@ -59,8 +73,13 @@ func pump() -> void:
 	var rest := Vector2((size.x - w) / 2.0, size.y * 0.70)
 	_card.position = rest + (Vector2.ZERO if MeldSprite.reduce_motion else Vector2(0, 40))
 	_card.modulate.a = 0.0
-	Sound.play("deed")
-	Haptics.pulse(20)
+	if a.has("first"):
+		Sound.play("chord_t-max")
+		Haptics.pulse(30)
+		burst_wanted.emit(rest + Vector2(w / 2.0, 0))
+	else:
+		Sound.play("deed")
+		Haptics.pulse(20)
 	var tw := create_tween()
 	tw.tween_property(_card, "modulate:a", 1.0, 0.2)
 	tw.parallel().tween_property(_card, "position", rest, 0.35).set_trans(Tween.TRANS_SPRING).set_ease(Tween.EASE_OUT)

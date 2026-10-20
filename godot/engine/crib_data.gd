@@ -4,9 +4,9 @@ extends RefCounted
 ## Meldlings (decks), Spoilers (bosses) and the shop rollers.
 
 const ACTS := 5
-const ROUNDS := 5
+const ROUNDS := 3   ## 3 rounds an act (2026-10-20, Ziah; tools/sim/run_length.sh)
 const LADDER_BASE := 36
-const LADDER_GROWTH := 1.19
+const LADDER_GROWTH := 1.29   ## was 1.19 at 5 rounds an act; 1.29 matches its clear rate
 const DEALS := 4
 const DEALT := 6
 const KEEP := 4

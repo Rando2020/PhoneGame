@@ -146,14 +146,40 @@ of these; keep them as rules:
 | 1 | Pegs on every run end | meta | done (pass 13) | |
 | 2 | The Play from the start | meta and round | done (pass 13) | |
 | 3 | "Next unlock" line on the run end | meta | done (pass 13) | |
-| 4 | Count speed 2x by default from run 2 | run | 1 default | nothing |
+| 4 | Count speed 2x by default from run 2 | run | done (pass 14) | |
 | 5 | Plain-round twists | round | new content, sim | design and sim |
-| 6 | 3 rounds an act, growth x1.29 to x1.31 (simulated above) | run | 2 constants + fixtures | Ziah's call |
+| 6 | 3 rounds an act, growth x1.29 (simulated above) | run | done (pass 14) | |
 | 7 | Synergy callouts on the round end | round | UI | nothing |
-| 8 | "Needs N more" on the count | micro | UI | nothing |
-| 9 | Cut-tier sound step | micro | audio | nothing |
-| 10 | First-time celebrations | meta | UI | nothing |
+| 8 | "Needs N more" on the count | micro | done (pass 14) | |
+| 9 | Cut-tier sound step | micro | done (pass 14) | |
+| 10 | First-time celebrations | meta | done (pass 14) | |
 
 1 and 2 make the free part (act 1, ending at the first Spoiler) much
 stronger: a new player would earn Pegs, play The Play, and see a real goal
 before the paywall card.
+
+## Pass 14: what changed
+
+- **Run length: 3 rounds an act, target growth x1.29** (Ziah chose "same
+  difficulty"). The x1.30 figure in section 3 came from a sim bug: on round 3,
+  `boss()` swapped in a random Spoiler (it checked `round == 3`, a leftover
+  from 5 rounds). On the fixed engine, strong-player clears are x1.28 22.3%,
+  x1.29 16.1%, x1.30 13.6%; the old game is 17.5 to 19.4%. So x1.29 is the
+  match (n=800, an estimate). A strong run takes about 23 min (was 35), a
+  beginner run about 10 min (was 17), and the first Spoiler comes at about
+  4 to 5 min (was 7 to 9). Run times are estimates: deals x 40 s + shops x 25 s.
+- cribsim gates at x1.29: clears 9 to 15% by deck, best play reaches round
+  11.5 and naive play round 2.6, and growth from x1.25 to x1.33 runs from 69%
+  down to 4% clears.
+- Wagers now fall on round 2 of each act (5 slots, 1 or 2 used). The free
+  part ends at act 1, round 3.
+- Count speed is 2x from the second run. A saved choice wins, from Settings
+  or from the in-count button (which now saves too).
+- A short count now shows "Needs N more". The cut's sound rises 0, 2, 4 or 7
+  semitones as the cut adds less than 4, less than 8, less than 12, or 12 or
+  more points.
+- First-time celebrations happen once each: first act cleared (which claims
+  the first Spoiler too, since they land together), a first Spoiler beaten on
+  its own (an extra Spoiler from Third Street), and a first Peddler buy.
+- The Play has a coach line on its first opening, and How to play has an
+  8th step, "The Play".

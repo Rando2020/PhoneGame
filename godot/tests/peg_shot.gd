@@ -15,7 +15,7 @@ func _go() -> void:
 	for id in ["keystone2", "ballast"]:
 		run.charms.append(CribData.charm_by_id(id))
 	run.act = 3
-	run.round = 5
+	run.round = CribData.ROUNDS
 	var rd := CribRound.new(run)
 	rd.new_deal()
 	var idx: Array = rd.best_keep_ev().idx
@@ -43,7 +43,7 @@ func _go() -> void:
 	for id in ["keystone2", "ballast"]:
 		br.charms.append(CribData.charm_by_id(id))
 	br.act = 3
-	br.round = 5
+	br.round = CribData.ROUNDS
 	var bd := CribRound.new(br)
 	bd.new_deal()
 	var bidx: Array = bd.best_keep_ev().idx

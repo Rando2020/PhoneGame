@@ -73,7 +73,7 @@ Run it (Product > Run) on these three simulators:
 - iPhone 16 (Dynamic Island, standard size)
 
 On each, go through: title, the road, a street, the Meldling picker, Peddler,
-Deeds, Record, every Gallery tab, How to play (all 7 steps), Settings, a deal,
+Deeds, Record, every Gallery tab, How to play (all 8 steps), Settings, a deal,
 the count, The Play, the shop, a round end.
 
 - **Safe areas (audit #18):** nothing under the Dynamic Island, the status

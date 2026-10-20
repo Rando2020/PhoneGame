@@ -95,7 +95,7 @@ func _peg(st: String, view: Vector2) -> PegView:
 	for id in ["keystone2", "ballast"]:
 		r.charms.append(CribData.charm_by_id(id))
 	r.act = 3
-	r.round = 5
+	r.round = CribData.ROUNDS
 	var rd := CribRound.new(r)
 	rd.new_deal()
 	var idx: Array = rd.best_keep_ev().idx

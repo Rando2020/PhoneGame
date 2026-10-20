@@ -157,7 +157,7 @@ func is_boss() -> bool:
 		return (endless_round % 3) == 2
 	if round == CribData.ROUNDS:
 		return true
-	return JS.truthy(street.get("mods", {}).get("extraSpoiler")) and round == 3
+	return JS.truthy(street.get("mods", {}).get("extraSpoiler")) and round == CribData.ROUNDS - 1   # the round before the act's Spoiler
 
 
 func slots() -> int:
@@ -171,7 +171,7 @@ func boss():
 	if JS.truthy(extra_mods().get("allRuinous")):
 		var ruin := CribData.BOSS_POOL.filter(func(b): return b.sev == 3)
 		return ruin[(act * 3 + round) % ruin.size()]
-	if round == 3:
+	if round == CribData.ROUNDS - 1:   # the extra Spoiler
 		return CribData.BOSS_POOL[(act * 7 + 3) % CribData.BOSS_POOL.size()]
 	return boss_plan[act - 1]
 

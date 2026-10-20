@@ -85,6 +85,19 @@ func start(fx) -> RunFlow:
 	return f
 
 
+## A first run, guided coaching already skipped (so plain rounds), seeded.
+func start_plain() -> RunFlow:
+	Achv.save_store({"__v": 3, "guided": 1})
+	var f: RunFlow = load("res://scenes/run_flow.tscn").instantiate()
+	root.add_child(f)
+	await process_frame
+	f.start_run(CribRun.new("thump", Meta.STREETS[0], null, 4141))
+	await process_frame
+	f._on_deal()
+	await process_frame
+	return f
+
+
 func pick_four(f: RunFlow) -> void:
 	await _wait(func(): return not f.keep.dealing)
 	for k in 4:
@@ -92,7 +105,8 @@ func pick_four(f: RunFlow) -> void:
 
 
 func _go() -> void:
-	Achv.starters = []        # this test drives the keep screen without The Play
+	var real_starters = Achv.starters
+	Achv.starters = []        # parts 1 to 3 drive the keep screen without The Play
 	var fh := FileAccess.open("res://tests/fixtures/parity.json", FileAccess.READ)
 	var fx = load("res://tests/parity_test.gd").norm(JSON.parse_string(fh.get_as_text()))
 	Achv.persist = false
@@ -170,6 +184,60 @@ func _go() -> void:
 	await _wait(func(): return f.screen == "round_end")
 	ok(not is_instance_valid(c), "the coach outlived its round")
 	ok(f.screen == "round_end" and deals >= 1, "the skipped round didn't play to its end (%s after %d deals)" % [f.screen, deals])
+	f.queue_free()
+	await process_frame
+	# ---- 4. a first run with The Play on (pass 14): its coach line shows on
+	# the first Play only, by tap, saved once; the round still plays to its end
+	Achv.starters = real_starters
+	f = await start_plain()
+	ok(Achv.has_system("the_play"), "The Play isn't on in a first run")
+	var plays := 0
+	var hints := []
+	deals = 0
+	while f.screen == "round" and f.keep != null and deals < 12:
+		await _wait(func(): return f.keep.peg_view != null or (f.keep.rd.over and not f.keep.peg_pending) or (f.keep.rd.phase == "keep" and not f.keep.dealing))
+		if f.keep.peg_view != null:
+			var pv: PegView = f.keep.peg_view
+			hints.append(pv.hint_label.text if pv.hint_label != null else "")
+			while not pv.s.play.over:
+				await _wait(func(): return pv.s.play.over or (not pv.waiting and pv.s.play.turn == "you" and pv.s.play.can_play(pv.s.play.mine)), 600)
+				if pv.s.play.over:
+					break
+				var i := -1
+				for k in pv.s.play.mine.size():
+					if pv.s.play.playable(k):
+						i = k
+						break
+				if i < 0:
+					break
+				await _press(pv.hand_views[i])
+				await _wait(func(): return pv.waiting or pv.s.play.over, 60)
+			plays += 1
+			await _wait(func(): return pv.continue_button != null, 600)
+			await _press(pv.continue_button)
+			await _wait(func(): return f.keep == null or f.keep.peg_view == null, 300)
+			continue
+		if f.keep.rd.over:
+			break
+		await pick_four(f)
+		await _press(f.keep.keep_button)
+		for t in 3:
+			if f.keep.cutting or f.keep.cascading:
+				await _click(Vector2(SIZE.x / 2.0, SIZE.y * 0.55))
+		await _wait(func(): return not f.keep.cutting and not f.keep.cascading)
+		await _wait(func(): return false, 30)
+		deals += 1
+		if f.keep.peg_pending or not f.keep.rd.over:
+			await _press(f.keep.keep_button)      # opens The Play when owed, else the next deal
+	ok(plays >= 1, "no Play in a first run with it on (%d deals)" % deals)
+	ok(hints.size() >= 1 and hints[0] == PegView.PLAY_HINT, "first Play's hint: %s" % [hints.slice(0, 1)])
+	ok(hints.size() < 2 or hints[1] != PegView.PLAY_HINT, "the coach line came back: %s" % [hints])
+	ok(PegView.play_hint_seen(), "the Play's coach line wasn't saved")
+	if f.screen == "round" and f.keep != null and f.keep.rd.over:
+		await _press(f.keep.keep_button)
+	print("first run with The Play: %d deals, %d Plays, hints %s" % [deals, plays, hints])
+	await _wait(func(): return f.screen == "round_end", 600)
+	ok(f.screen == "round_end", "the first run's round didn't reach its end (%s, %d deals, %d plays)" % [f.screen, deals, plays])
 	f.queue_free()
 	await process_frame
 	# ---- 3. a beat behind the last one shown is skipped (web: i < Guide.beat)
