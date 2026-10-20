@@ -22,6 +22,9 @@ var save_kinds := {}
 var strong := false              ## SOAK_STRONG=1: best keeps, greedy lays, sensible buys
 var depth := {}                  ## furthest "act-round" reached -> runs
 var bosses := 0                  ## Spoiler rounds played
+var free_mode := false           ## SOAK_FREE=1: the game is free-only (Entitlement.force)
+var free_cards := 0              ## end cards reached
+var max_act := 0                 ## the furthest act any round started in
 
 
 func ok(c: bool, m: String) -> void:
@@ -209,7 +212,17 @@ func _run(f: RunFlow, i: int) -> bool:
 		await process_frame
 		f.settle()
 		match f.screen:
+			"free_end":
+				free_cards += 1
+				if rng.randf() < 0.3:
+					_check_save(f, "free_end")
+				if rng.randf() < 0.3:
+					f.buttons["unlock"].emit_signal("pressed")   # no store here: it says so
+					await process_frame
+				f.buttons["not_now"].emit_signal("pressed")
+				return true
 			"intro":
+				max_act = maxi(max_act, f.run.act)
 				var at := "%d-%d" % [f.run.act, f.run.round]
 				if not seen_intro.has(at):
 					seen_intro[at] = true
@@ -271,7 +284,9 @@ func _run(f: RunFlow, i: int) -> bool:
 				stats.rounds += 1
 				if rng.randf() < 0.3:
 					_check_save(f, "round_end")
-				if f.buttons.has("shop"):
+				if f.buttons.has("free_next"):
+					f.buttons["free_next"].emit_signal("pressed")   # free mode: the end card
+				elif f.buttons.has("shop"):
 					f.buttons["shop"].emit_signal("pressed")
 				else:
 					return true                     # the run is over
@@ -297,6 +312,9 @@ func _paths(file: String) -> void:
 func _go() -> void:
 	var n := int(OS.get_environment("SOAK_RUNS")) if OS.get_environment("SOAK_RUNS") != "" else 200
 	strong = OS.get_environment("SOAK_STRONG") == "1"
+	free_mode = OS.get_environment("SOAK_FREE") == "1"
+	if free_mode:
+		Entitlement.force = false
 	rng.seed = 20261020
 	Achv.persist = false
 	Achv.save_store({"__v": 3, "drag_hint": 1, "tutorial": 1})
@@ -344,7 +362,12 @@ func _go() -> void:
 	ok(stats.saves_checked >= n, "only %d saves round-tripped" % stats.saves_checked)
 	for kind in ["intro", "keep", "counted", "peg_mid", "peg_over", "round_end", "shop"]:
 		ok(save_kinds.get(kind, 0) > 0, "no save checked at %s" % kind)
-	if strong:
+	if free_mode:
+		ok(max_act <= Entitlement.FREE_LAST_ACT, "free mode: a round started in act %d" % max_act)
+		ok(free_cards > 0, "free mode: no run reached the end card")
+		print("soak free mode: %d end cards, furthest act %d" % [free_cards, max_act])
+		Entitlement.force = null
+	if strong and not free_mode:
 		var deep := 0
 		for k in depth:
 			if int(String(k).get_slice(" ", 1)) >= 3:

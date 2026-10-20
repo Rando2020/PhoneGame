@@ -243,3 +243,35 @@ Not Collected" as the manifest does. Need Ziah: an email, and GitHub Pages on.
 
 Found and fixed: spoiler_test had been reading the intro mid-slide; it passed
 before only because an extra redraw cut the slide short (now gone).
+
+
+# Re-check, 2026-10-20 (after pass 13)
+
+New: `docs/LOOP_AUDIT.md` (the four loops, with simulated run lengths),
+`docs/MONETIZATION.md`, `engine/entitlement.gd`, `engine/next_unlock.gd`,
+the end card (`RunFlow.show_free_end`), the MeldStore plugin source
+(`ios_plugin/meld_store/`, unverified), `tools/sim/run_length.sh`;
+tests `entitlement_test`, `loop_fixes_test`, the soak's free mode
+(`SOAK_FREE=1`), the end card in `text_size_test` and `reach_test`. Every new
+check was mutation-tested (12 mutants, all caught).
+
+**Loop fixes.** A lost run paid 0 Pegs (web and port: Pegs came only from a
+full clear, which the strong sim player manages in 19% of runs). Now every
+lost run pays 5 + 2 a round cleared (9 for a loss in round 3), once. The Play
+is a starter system (it was a prize from a rare exact-score Wager; a beginner
+saw a Wager in about 19% of runs). Every run end names the nearest real goal.
+
+**Free to try.** Free runs stop after act 1's Spoiler: the round end offers
+WHAT'S NEXT, then the end card (real counts, Unlock with the store's price,
+Restore Purchases, Not now). Unlocking continues the same run into the shop.
+Not now records the run and pays its Pegs. No route starts a round past act 1
+in free mode (the round end, the intro, resuming any save): 10 strong free
+soak runs, 10 end cards, furthest act 1.
+
+**Run length** (simulated, not changed): 3 rounds an act with the target
+growing x1.29 to x1.31 keeps today's difficulty and cuts a strong run from
+about 36 to 23 minutes; waits for Ziah.
+
+Still open: the store plugin and the in-app purchase (Mac, MAC_HANDOFF.md
+3b); a coaching beat and How to play step for The Play, now that first runs
+have it.

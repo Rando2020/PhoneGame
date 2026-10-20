@@ -193,8 +193,13 @@ static func daily_streak() -> int:
 	return streak_from(load_store().get("daily", {}))
 
 
+## The systems every player starts with (Meta.STARTER_SYSTEMS); tests of the
+## flow without one set this to [].
+static var starters: Array = Meta.STARTER_SYSTEMS.duplicate()
+
+
 static func has_system(id: String) -> bool:
-	return JS.truthy(load_store().get("systems", {}).get(id))
+	return starters.has(id) or JS.truthy(load_store().get("systems", {}).get(id))
 
 
 static func grant_system(id: String) -> bool:

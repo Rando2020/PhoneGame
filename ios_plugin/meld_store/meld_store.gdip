@@ -1,0 +1,15 @@
+[config]
+name="MeldStore"
+binary="meld_store.xcframework"
+initialization="init_meld_store"
+deinitialization="deinit_meld_store"
+
+[dependencies]
+linked=[]
+embedded=[]
+system=["StoreKit.framework"]
+capabilities=[]
+files=[]
+linker_flags=[]
+
+[plist]

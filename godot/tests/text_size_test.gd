@@ -205,6 +205,8 @@ func _go() -> void:
 			await _visit(f, "keep " + tag, view, strict)
 			f.show_shop()
 			await _visit(f, "shop " + tag, view, strict)
+			f.show_free_end()
+			await _visit(f, "free_end " + tag, view, strict)
 			f.queue_free()
 			await process_frame
 	TypeScale.scale = 1.0

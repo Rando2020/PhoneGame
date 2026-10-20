@@ -6,8 +6,15 @@ dashes and no emoji). Numbers come from the game data (pass 11): 53 charms,
 6 Meldlings (+4 ascended forms), 17 Spoilers, 6 marks, 17 deeds, 8 streets,
 8 trials, 5 acts of 5 rounds.
 
-**Needs Ziah:** the two URLs, the copyright line, and a final yes on the age
-rating answers (especially simulated gambling, see below).
+**Needs Ziah:** the two URLs, the copyright line, a final yes on the age
+rating answers (especially simulated gambling, see below), and the unlock's
+price (set in App Store Connect; $2.99 suggested, $0.99 launch week).
+
+## In-app purchase (App Store Connect)
+
+```text
+Type: Non-Consumable. Product ID: com.meldlings.full. Reference name: Full game. Display name: Full game. Description: Unlock acts 2 to 5, every street, the trials and the Long Count.
+```
 
 ## Name (30)
 
@@ -24,7 +31,7 @@ Keep four. Count big. Go deep.
 ## Promotional text (170)
 
 ```text
-Cribbage hands meet roguelite runs. Keep 4 of 6, watch the count land, then peg to 31 against a Spoiler. 53 charms, 17 Spoilers, no ads, no account.
+Cribbage hands meet roguelite runs. Free to try: play act 1 and its Spoiler. One purchase unlocks the full game. No ads, no account.
 ```
 
 ## Description (4000)
@@ -53,6 +60,11 @@ MADE FOR A PHONE
 - Text size and Reduce Motion settings.
 - Plays offline. No ads, no account, no data collected.
 
+FREE TO TRY
+- Every run plays act 1 in full, through its Spoiler, with all four starting Meldlings, The Play, the Peddler and the Gallery.
+- One purchase unlocks the full game for good: 4 more acts, then 7 more streets, 8 trials and the Long Count to earn.
+- No ads, no subscriptions, nothing random for sale.
+
 New to cribbage? The 7-step How to play covers it in a minute.
 ```
 
@@ -65,7 +77,7 @@ card game,roguelike,deckbuilder,solitaire,pegging,fifteen,crib,cards,strategy,of
 ## What's new (4000)
 
 ```text
-First release.
+First release. Free to try; one purchase unlocks the full game.
 ```
 
 ## Support URL
@@ -122,7 +134,7 @@ computes it from the answers).
 - Contests: None
 - Unrestricted web access: No
 - User-generated content: No
-- In-app purchases: No
+- In-app purchases: Yes (one non-consumable, "Full game"; no random items)
 
 ## App privacy ("nutrition label")
 

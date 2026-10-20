@@ -50,6 +50,7 @@ func _fail(msg: String) -> void:
 
 
 func _initialize() -> void:
+	Achv.starters = []        # this test drives the keep screen without The Play
 	_run.call_deferred()
 
 

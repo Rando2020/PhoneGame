@@ -125,6 +125,9 @@ func _go() -> void:
 		f.show_shop()
 		f.settle()
 		await _check("shop " + tag, f, view)
+		f.show_free_end()
+		f.settle()
+		await _check("free_end " + tag, f, view)
 		f.queue_free()
 		await process_frame
 	SafeArea.simulate = {}

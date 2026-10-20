@@ -165,6 +165,8 @@ func resume() -> void:
 			rd = parts[1]
 			_paid = true          # its Glim was paid before the save
 			_render_round_end()
+		"free_end":
+			show_free_end()
 		_:
 			show_intro()
 
@@ -179,14 +181,14 @@ var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and _page != null and screen in ["intro", "round_end", "run_won"]:
+	if what == NOTIFICATION_RESIZED and _page != null and screen in ["intro", "round_end", "run_won", "free_end"]:
 		_redraw_if_moved.call_deferred()
 
 
 ## Deferred: a resize can land in the middle of a draw (the first layout pass
 ## sizing the flow), and the key is only compared once the draw is done.
 func _redraw_if_moved() -> void:
-	if _page != null and screen in ["intro", "round_end", "run_won"] and TypeScale.layout_key(self) != _drawn_for:
+	if _page != null and screen in ["intro", "round_end", "run_won", "free_end"] and TypeScale.layout_key(self) != _drawn_for:
 		_rerender()
 
 
@@ -196,6 +198,7 @@ func _rerender() -> void:
 		"intro": show_intro()
 		"round_end": _render_round_end()
 		"run_won": show_run_won()
+		"free_end": show_free_end()
 	_no_slide = false
 
 
@@ -550,6 +553,9 @@ static func music_for(r: CribRun) -> String:
 
 
 func show_intro() -> void:
+	if Entitlement.capped(run):
+		show_free_end()            # free mode never starts a round past act 1
+		return
 	_drawn_for = TypeScale.layout_key(self)
 	_clear()
 	_set_screen("intro")
@@ -660,6 +666,7 @@ func _round_end_effects() -> void:
 		run.essence += rd.essence_earned
 		_paid = true
 	if not rd.won:
+		Achv.add_pegs(Meta.pegs_for_loss(run.round_index() - 1))   # every run pays
 		RunRecord.record(run, run.round_index() - 1, rd.score)
 		# lost runs go in the Record too, not only wins
 		Achv.log_run({"deck": run.meldling, "reached": run.round_index() - 1, "street": run.street.id,
@@ -727,14 +734,19 @@ func _render_round_end() -> void:
 	y = _panel(y + 4.0, box)
 	if rd.won:
 		y = _act_track(y + 6.0, true)
-	if rd.won:
+	if rd.won and Entitlement.capped(run, true):
+		# free to try: the first Spoiler is beaten; what's next is the end card
+		_button("free_next", "WHAT'S NEXT", true, show_free_end)
+		_place_buttons(["free_next"])
+	elif rd.won:
 		_button("shop", "SHOP", true, func():
 			run.open_shop()
 			show_shop())
 		_place_buttons(["shop"])
 	else:
-		y = _line(y, "Reached Act %d, Round %d." % [run.act, run.round], 20, DIM)
+		y = _line(y, "Reached Act %d, Round %d.  +%d Pegs" % [run.act, run.round, Meta.pegs_for_loss(run.round_index() - 1)], 20, DIM)
 		y = _line(y, RunRecord.line(), 18, GOLD)
+		y = _line(y, NextUnlock.line(), 20, INK)
 		_button("new_run", "NEW RUN", true, _new_run)
 		_button("title", "Title", false, func(): show_front_door("title"))
 		_place_buttons(["new_run", "title"])
@@ -743,6 +755,135 @@ func _render_round_end() -> void:
 	if rd.won:
 		_page.move_child(juice, -1)
 		juice.burst(Vector2(size.x / 2.0, size.y * 0.22), 40, ["gold", "white", "green"])
+
+
+# ------------------------------------------------------------------ free to try
+## The free part ends here (docs/MONETIZATION.md): the first Spoiler is beaten.
+## What the full game adds (counted from the data), the unlock, Restore, and
+## Not now. Once a run, after a win, never after a loss; no other nagging.
+## Unlocking continues this same run into the shop.
+var free_status: Label = null
+var _store_hooked: Object = null
+
+
+func show_free_end() -> void:
+	_drawn_for = TypeScale.layout_key(self)
+	_clear()
+	_set_screen("free_end")
+	var ins := SafeArea.insets(self)
+	var y: float = ins.top + MARGIN * 2.0
+	var first := _page.get_child_count()
+	y = _line(y, "YOU BEAT THE FIRST SPOILER", 40, GOLD)
+	y = _meld_at(y, 200.0, "victory", true)
+	y = _panel(y + 4.0, [["THE FREE PART ENDS HERE", 16, DIM], [Entitlement.pitch(run), TypeScale.BODY, INK]])
+	free_status = Label.new()
+	free_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	free_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	TypeScale.set_size(free_status, 20)
+	free_status.add_theme_color_override("font_color", DIM)
+	free_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var c := _col()
+	free_status.position = Vector2(c.x, y)
+	free_status.size = Vector2(c.y, 0)
+	_page.add_child(free_status)
+	free_status.size = Vector2(c.y, free_status.get_combined_minimum_size().y)
+	y += free_status.size.y
+	var price := Entitlement.price()
+	_button("unlock", ("UNLOCK  ·  %s" % price) if price != "" else "UNLOCK THE FULL GAME", true, _free_unlock)
+	_button("restore", "Restore Purchases", false, _free_restore)
+	_button("not_now", "Not now", false, _free_not_now)
+	_place_buttons(["unlock", "restore", "not_now"])
+	_fill(first, ins.top, y)
+	_hook_store()
+	save_now()
+
+
+func _free_say(msg: String, col := DIM) -> void:
+	if free_status != null and is_instance_valid(free_status):
+		free_status.text = msg
+		free_status.add_theme_color_override("font_color", col)
+		free_status.size.y = free_status.get_combined_minimum_size().y
+
+
+func _hook_store() -> void:
+	var st := Entitlement.store()
+	if st == null or st == _store_hooked:
+		return
+	_store_hooked = st
+	if st.has_signal("purchased"):
+		st.connect("purchased", _on_store_purchased)
+	if st.has_signal("restored"):
+		st.connect("restored", _on_store_restored)
+	if st.has_signal("failed"):
+		st.connect("failed", _on_store_failed)
+
+
+func _free_unlock() -> void:
+	var st := Entitlement.store()
+	if st == null:
+		_free_say("The App Store isn't available right now. Try again in a moment.", RED)
+		return
+	_free_say("Waiting for the App Store...")
+	st.call("purchase", Entitlement.FULL_ID)
+
+
+func _free_restore() -> void:
+	var st := Entitlement.store()
+	if st == null:
+		_free_say("The App Store isn't available right now. Try again in a moment.", RED)
+		return
+	_free_say("Checking your purchases...")
+	st.call("restore")
+
+
+func _on_store_purchased(id: String) -> void:
+	if id != Entitlement.FULL_ID:
+		return
+	Entitlement.grant()
+	_free_continue("Unlocked. Thank you!")
+
+
+func _on_store_restored(ids: Array) -> void:
+	if ids.has(Entitlement.FULL_ID):
+		Entitlement.grant()
+		_free_continue("Restored. Welcome back!")
+	elif screen == "free_end":
+		_free_say("Nothing to restore on this Apple ID.", DIM)
+
+
+func _on_store_failed(id: String, reason: String) -> void:
+	if id != Entitlement.FULL_ID or screen != "free_end":
+		return
+	if reason == "cancelled":
+		_free_say("Purchase cancelled. Nothing changed.", DIM)
+	else:
+		_free_say("The purchase didn't go through (%s). Try again, or Restore if you bought it before." % reason, RED)
+
+
+## Unlocked on the card: the same run goes on, into the shop for act 2.
+func _free_continue(msg: String) -> void:
+	if screen != "free_end" or run == null:
+		return
+	Sound.play("buy")
+	flash(msg)
+	run.open_shop()
+	show_shop()
+
+
+## Not now: the run ends here as a free finish (recorded, Pegs paid once).
+func _free_not_now() -> void:
+	var cleared := run.round_index() if rd == null or rd.won else run.round_index() - 1
+	cleared = mini(cleared, CribData.ROUNDS * Entitlement.FREE_LAST_ACT)
+	Achv.add_pegs(Meta.pegs_for_loss(cleared))
+	RunRecord.record(run, cleared, rd.score if rd != null else 0)
+	Achv.log_run({"deck": run.meldling, "reached": cleared, "street": run.street.id,
+		"score": rd.score if rd != null else 0, "cleared": false, "free": true,
+		"when": int(Time.get_unix_time_from_system() * 1000.0)})
+	if run.daily != null:
+		Achv.record_daily(run.daily, {"reached": cleared, "score": rd.score if rd != null else 0})
+	clear_save()
+	run = null
+	show_front_door("title")
 
 
 ## Web "New Run": back to the select steps, where the player left them.
@@ -811,6 +952,7 @@ func show_run_won() -> void:
 	var y: float = ins.top + MARGIN * 3.0
 	y = _line(y, "TWENTY-NINE", 52, GOLD)
 	y = _line(y, "+%d Pegs" % _won_pegs, 22, GOLD)
+	y = _line(y, NextUnlock.line(), 20, INK)
 	var rm = run.run_mvp()
 	if rm != null:
 		y = _line(y, "Carried by %s: %d points." % [rm.name, rm.points], 20, GOLD)

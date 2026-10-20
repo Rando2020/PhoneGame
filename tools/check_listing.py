@@ -64,6 +64,10 @@ if counts and "Description" in fields:
     check(m is not None and int(m.group(1)) == counts["ascended"], "description: ascended count")
     m = re.search(r"(\d+)-step How to play", d)
     check(m is not None and int(m.group(1)) == counts["howto_steps"], "description: How to play steps")
+    m = re.search(r"(\d+) more acts", d)
+    check(m is not None and int(m.group(1)) == counts["acts"] - 1, "description: 'N more acts' should be acts - 1")
+    check("Free to try" in fields.get("Promotional text", (0, ""))[1] or "FREE TO TRY" in d, "the listing doesn't say it's free to try")
+    check("com.meldlings.full" in text, "the in-app purchase's product id is missing")
     for mk in counts.get("mark_names", []):
         check(mk in d, f"description: mark {mk} missing")
 

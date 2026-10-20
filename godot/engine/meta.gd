@@ -120,6 +120,23 @@ const LENSES := [
 ]
 
 
+## Pegs for a run that ended in a loss (port only: the web pays nothing for a
+## loss, which kept the Peddler shut until a full clear; LOOP_AUDIT.md). A floor
+## plus a little per round cleared, so every run moves the meta forward.
+const LOSS_PEGS_FLOOR := 5
+const LOSS_PEGS_PER_ROUND := 2
+
+
+static func pegs_for_loss(cleared_rounds: int) -> int:
+	return LOSS_PEGS_FLOOR + LOSS_PEGS_PER_ROUND * maxi(0, cleared_rounds)
+
+
+## Systems every player has from the first run (port only): The Play is the
+## game's best second loop, too good to hide behind a rare exact-score Wager.
+## Wagers still win the other five.
+const STARTER_SYSTEMS := ["the_play"]
+
+
 static func pegs_for_run(reached: int, cleared: bool, street: int, deeds: int) -> int:
 	var p := reached / 2
 	if cleared:

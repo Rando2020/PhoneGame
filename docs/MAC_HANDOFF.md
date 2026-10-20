@@ -33,6 +33,26 @@ phone's settings. Steps: `ios_plugin/meld_access/README.md`. The source has
 never been compiled, so expect small fixes. If it fights you, skip it and
 ship without it.
 
+## 3b. The in-app purchase (2 to 4 h, guess)
+
+The game is free to try; one non-consumable unlocks it (`docs/MONETIZATION.md`).
+
+1. App Store Connect > your app > Monetization > In-App Purchases > +:
+   Non-Consumable, Product ID **com.meldlings.full** (must match
+   `Entitlement.FULL_ID`), reference name and display name "Full game",
+   description from `store/listing.md`, a price (suggested $2.99), and a
+   review screenshot (the end card: `godot/tests/free_end_shot.gd` renders it).
+2. Agreements, Tax, and Banking: the Paid Apps agreement must be active, or
+   no purchase works (not even in TestFlight).
+3. Build the MeldStore plugin: `ios_plugin/meld_store/README.md` (StoreKit 2;
+   raise the preset's minimum iOS to 15.0). **Without it the shipped game is
+   free-only and can't sell.**
+4. Test in Xcode with a StoreKit Configuration file first (the README says
+   how): buy, cancel, Restore, Ask to Buy.
+5. Then in TestFlight with a Sandbox account (Settings > App Store > Sandbox
+   Account on the iPhone): buy, delete the app, reinstall, Restore.
+6. Submit the in-app purchase together with the build for review.
+
 ## 4. Export and open in Xcode (15 min, guess)
 
 ```

@@ -92,6 +92,7 @@ func pick_four(f: RunFlow) -> void:
 
 
 func _go() -> void:
+	Achv.starters = []        # this test drives the keep screen without The Play
 	var fh := FileAccess.open("res://tests/fixtures/parity.json", FileAccess.READ)
 	var fx = load("res://tests/parity_test.gd").norm(JSON.parse_string(fh.get_as_text()))
 	Achv.persist = false

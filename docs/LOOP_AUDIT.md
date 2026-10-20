@@ -8,9 +8,10 @@ slowest, each checked against the code and the soak data. Numbers marked
 ## The verdict in one line
 
 The second-to-second loop (keep, cut, count) is already strong. The pull
-breaks down in the slower loops: a run is too long for a phone, the big beats
-are 15 minutes apart, and the meta rewards arrive many runs too late, so a
-new player has little reason to start run three.
+breaks down in the slower loops: a run is long for a phone (a strong run is
+about 36 minutes, simulated), and the meta paid nothing for a lost run, so a
+new player had little reason to start run three. Pass 13 fixes the meta;
+run length is simulated and waits for a decision.
 
 ## 1. The micro loop: keep, cut, count (seconds) — strong
 
@@ -56,34 +57,37 @@ Fixes, in order of pull per hour of work:
 3. **One shop item that tempts a sell**: a charm that is better than one you
    own, marked "upgrade" against it, so a full bar still has a choice.
 
-## 3. The run loop: 5 acts of 5 rounds (25 to 30 minutes) — too long for a phone
+## 3. The run loop: 5 acts of 5 rounds — long for a phone
 
-The numbers: a deal takes about 35 to 50 s with a real player *(estimate:
-10 to 20 s keep, 3 to 6 s cut and count at 1x, about 20 s of The Play)*. A
-round is 4 deals plus the shop: about 3 to 4 minutes. Ziah's playtest: a
-full run is 25 to 30 minutes. The first Spoiler, the run's biggest beat,
-comes at round 5: about **15 minutes in**. The strong soak player reached
-act 3 or later in 27 of 50 runs; a beginner (the random soak player)
-averaged about 3 rounds, so most beginner runs end before the first Spoiler.
+Simulated with the real JS engine (`tools/sim/run_length.sh`, 480 runs per
+row; minutes are deals x 40 s + shops x 25 s, an estimate). A round ends when
+the target falls, so it often takes 2 or 3 deals, not 4.
 
-Why it matters: phone sessions are short. A run that can't reach its first
-big beat in one sitting doesn't build "one more". Save and resume works
-(soaked: 2,445 resumes identical), which helps, but resume doesn't produce
-the itch to start the next run.
+| variant | strong player clears | strong run | beginner run | first Spoiler at |
+|---|---|---|---|---|
+| **today**: 5 rounds an act, growth x1.19 | 19% | 36 min | 17 min | 7 to 9 min (49% of beginners get there) |
+| 3 rounds an act, x1.19 (same curve) | 94% | 23 min | 12 min | 4 to 5 min |
+| 3 rounds an act, x1.25 | 54% | 25 min | 11 min | 4 to 5 min |
+| **3 rounds an act, x1.29** | **23%** | **24 min** | **10 min** | **4 to 5 min** |
+| 3 rounds an act, x1.31 | 13% | 23 min | 10 min | 4 to 5 min |
+| 3 rounds an act, x1.347 (same last target) | 3.5% | 21 min | 9 min | 4 to 5 min |
+| today, but 3 deals in act 1 | 14% | 26 min | 8 min | 23% of beginners get there |
 
-Options (the first two are balance changes: decide, then simulate, per the
-design principle "simulation before intuition"):
-- **3 rounds an act instead of 5** (Spoiler every third round). The first
-  Spoiler at about 9 minutes, a full run about 15 to 18 minutes. Keeps 5 acts
-  and 17 Spoilers; the target ladder needs re-tuning (sim it with the
-  existing tools before shipping).
-- **3 deals a round in act 1** (4 after): a faster first round, the first
-  Spoiler at about 11 minutes, no change to the end game.
-- **Count speed 2x by default after the first run** (the setting exists;
-  the default is 1x). Cheap, and returning players skip watching familiar
-  counts.
-- Already right: CONTINUE on the title, a run record, and an end-of-run card
-  with Pegs earned.
+"Strong" keeps the best hand every deal (the sim's `best`); "beginner" keeps
+the highest cards (`naive`). Ziah's own playtest: 25 to 30 minutes a run.
+
+Reading it: **3 rounds an act with the target growing x1.29 to x1.31 keeps
+today's difficulty** (strong clears 13 to 23% against 19%) while cutting a
+strong run from 36 to about 23 minutes and a beginner run from 17 to about
+10, and the first Spoiler arrives in about 4 minutes instead of 7 to 9. Still
+5 acts and 5 Spoilers. Shortening act 1's deals instead hurts beginners
+(only 23% reach the first Spoiler): rejected.
+
+Not changed yet: Ziah decides. If yes, the change is two constants (rounds
+an act, growth) in both engines, then the parity fixtures, the deeds that
+count rounds, and the free part (it would end at act 1 round 3).
+
+Already right: CONTINUE on the title, a run record, and Pegs on every run end.
 
 ## 4. The meta loop: unlocks across runs (days) — rewards come too late
 
@@ -91,12 +95,13 @@ What's there: Pegs (Peddler: card backs 25 to 80, lenses 30 to 45), deeds
 (17), Meldlings earned by deeds (2), systems won from Wagers (6), 8 streets,
 8 trials, 4 ascended forms, a daily with a streak, the Gallery.
 
-The math, from `Meta.pegs_for_run`: Pegs = rounds reached / 2, + 20 + 10 x
-street for clearing a run, + 5 per deed earned that run.
-- A beginner run that ends in act 1 round 3 pays **1 Peg** (plus 5 if a
-  first-time deed lands). The cheapest back costs **25**. Without deeds that
-  is about 15 to 25 runs to the first purchase *(estimate)*.
-- A strong run that ends in act 4 pays about 9.
+The math: Pegs were paid **only for clearing a whole run** (web and port:
+`pegs_for_run` is called from the run-won screen only), 20 + 10 x street +
+5 per deed and up. A lost run paid **nothing**. With the strong sim player
+clearing 19% of runs and a beginner about 3%, most players would see the
+Peddler's prices (25 to 80) and never be able to buy. **Fixed in pass 13:**
+every lost run pays 5 + 2 per round cleared (a beginner who falls in round 3
+earns 9; the first back in about 3 runs).
 
 Systems are worse. They come only from Wagers, placed 1 or 2 per run at
 random in act 1 round 2 to act 5 round 4, and won only by an exact score.
@@ -106,17 +111,13 @@ game's best second loop (the preview's centrepiece), is one of those
 systems, so most new players don't have it for many runs.
 
 Fixes:
-1. **Pegs every run, sized for the first week**: a floor of 5 Pegs a run,
-   plus 2 per round reached, plus the existing bonuses. The first back after
-   about 3 to 5 runs *(estimate)*. Losing still pays, which keeps the "next
-   run" mood instead of the "I got nothing" mood.
-2. **Give The Play from the start** (or win it at the first Spoiler). It's
-   the most fun system, and gating it hides it. Keep Wagers for the other
-   five systems.
-3. **A "next unlock" line on every run end**: the nearest goal with its
-   distance ("12 Pegs to Crimson", "Deed: score 29 in one hand, best so far
-   24", "Wager: next run, maybe"). One concrete near goal is the strongest
-   "one more" there is, and it's honest: it's a real goal, shown plainly.
+1. **Pegs every run** (done, pass 13): 5 + 2 per round cleared on a loss;
+   the win payout as before.
+2. **The Play from the start** (done, pass 13): a starter system; Wagers win
+   the other five.
+3. **A "next unlock" line on every run end** (done, pass 13): the nearest
+   real goal with its distance ("Next: Crimson, 16 more Pegs (9 / 25)", or
+   "You can afford Crimson at the Peddler").
 4. **First-time celebrations**: a first Spoiler beaten, first act cleared,
    first unlock get their own full beat (the deed toast exists; these deserve
    a screen moment). Once each, never again.
@@ -142,12 +143,12 @@ of these; keep them as rules:
 
 | # | change | loop | kind | needs |
 |---|---|---|---|---|
-| 1 | Pegs floor and per-round pay (first back in about 3 to 5 runs) | meta | tuning, 1 function | Ziah's yes |
-| 2 | The Play from the start (or at the first Spoiler) | meta and round | 1 rule | Ziah's yes |
-| 3 | "Next unlock" line on the run end | meta | UI | nothing |
+| 1 | Pegs on every run end | meta | done (pass 13) | |
+| 2 | The Play from the start | meta and round | done (pass 13) | |
+| 3 | "Next unlock" line on the run end | meta | done (pass 13) | |
 | 4 | Count speed 2x by default from run 2 | run | 1 default | nothing |
 | 5 | Plain-round twists | round | new content, sim | design and sim |
-| 6 | Shorter acts (3 rounds) or a shorter act 1 | run | balance, sim | Ziah's call and sim |
+| 6 | 3 rounds an act, growth x1.29 to x1.31 (simulated above) | run | 2 constants + fixtures | Ziah's call |
 | 7 | Synergy callouts on the round end | round | UI | nothing |
 | 8 | "Needs N more" on the count | micro | UI | nothing |
 | 9 | Cut-tier sound step | micro | audio | nothing |
