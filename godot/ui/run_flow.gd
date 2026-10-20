@@ -179,7 +179,14 @@ var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and _page != null and screen in ["intro", "round_end", "run_won"] and TypeScale.layout_key(self) != _drawn_for:
+	if what == NOTIFICATION_RESIZED and _page != null and screen in ["intro", "round_end", "run_won"]:
+		_redraw_if_moved.call_deferred()
+
+
+## Deferred: a resize can land in the middle of a draw (the first layout pass
+## sizing the flow), and the key is only compared once the draw is done.
+func _redraw_if_moved() -> void:
+	if _page != null and screen in ["intro", "round_end", "run_won"] and TypeScale.layout_key(self) != _drawn_for:
 		_rerender()
 
 
@@ -393,19 +400,38 @@ func _charm_row(y: float) -> float:
 
 
 ## Use the room left above the buttons: the Meldling (or the pair) grows into up
-## to half of it, then the block is centred, so no band sits empty. `first` is
+## to half of it, then the block is centred, so no band sits empty. Short of
+## room (Larger text on a short phone), the art shrinks instead, to 90 px. `first` is
 ## the page child where the content starts; `bottom` is where it ends.
 func _fill(first: int, top: float, bottom: float) -> void:
 	var btn_top := size.y
 	for k in buttons:
 		btn_top = minf(btn_top, (buttons[k] as Control).position.y)
 	var free := btn_top - 20.0 - bottom
-	if free <= 0.0:
-		return
 	var art: Array = []
 	for v in [meld_view, spoiler_view]:
 		if v != null and is_instance_valid(v) and v.get_parent() == _page:
 			art.append(v)
+	if free < 0.0:
+		# too tall (Larger text on a short phone): the art gives up the room,
+		# down to 90 px, and everything below it moves up
+		if art.is_empty():
+			return
+		var cut: float = minf(-free, art[0].size.y - 90.0)
+		if cut <= 0.0:
+			return
+		var art_bottom: float = art[0].position.y + art[0].size.y
+		for i in range(first, _page.get_child_count()):
+			var n := _page.get_child(i) as Control
+			if n != null and not art.has(n) and not buttons.values().has(n) and n.position.y >= art_bottom - 1.0:
+				n.position.y -= cut
+		for v in art:
+			var cx: float = v.position.x + v.size.x / 2.0
+			v.size -= Vector2(cut, cut)
+			v.position.x = cx - v.size.x / 2.0
+		return
+	if free == 0.0:
+		return
 	if not art.is_empty():
 		var grow := minf(free * 0.5, 140.0)
 		var art_bottom: float = art[0].position.y + art[0].size.y

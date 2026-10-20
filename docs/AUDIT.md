@@ -138,3 +138,69 @@ Bugs found by the new checks, fixed:
 - The Play printed the Spoiler's name again over its score; it's "THEM" (the character is the name).
 
 Still open: #18 safe areas (device), the plugin build (Mac).
+
+
+# Re-check, 2026-10-20 (after pass 11)
+
+New: `store/listing.md` + `tools/check_listing.py`; the app preview
+(`tests/preview_run.gd`, `tools/make_preview.sh`, `tools/check_preview.py`);
+`frame_time_test`, `soak_test` (+ `tools/soak.sh`), `reach_test`;
+`docs/MAC_HANDOFF.md`. Every new check was mutation-tested.
+
+**Listing.** Every field within Apple's limits (name 29/30, subtitle 30/30,
+promotional 148/170, description 1400/4000, keywords 97/100). Every count in
+the description is read from the game data (53 charms, 6 + 4 Meldlings, 17
+Spoilers, 6 marks, 17 deeds, 8 streets, 8 trials, 5 acts of 5 rounds, 7 How
+to play steps). Needs Ziah: support URL, privacy policy URL, copyright, and the
+"simulated gambling" age-rating answer (the Wager rounds).
+
+**App preview.** 21.0 s of a real run (deal, keep by flicks and taps, the
+count, The Play laid by flicks, the shop and a purchase), 886x1920, H.264 High
+4.0, 30 fps, 10 Mbps, 26.8 MB, the game's own sound as 256 kbps stereo AAC.
+Checked against Apple's App Preview specifications page (read 2026-10-19):
+15 to 30 s, at most 500 MB, up to 30 fps, 886x1920 for 6.9" and 6.5".
+
+**Frame time** (headless, this shared machine; median worst frame of 3 passes,
+wall time; an idle frame costs a 6.9 ms floor here):
+
+| screen | before | after |
+|---|---|---|
+| first deal | 38 to 42 ms | 13 to 23 ms (warm-up builds the screens and card art at launch) |
+| commit and count | 15 to 21 ms | 14 to 16 ms |
+| The Play | not measured | 14 to 18 ms |
+| shop, opening frame | 45 to 52 ms (drawn twice) | 26 to 36 ms (drawn once) |
+| Gallery cards, opening frame | 27 ms | 22 to 24 ms |
+| every other frame, all screens | | 7 to 9 ms |
+| cards running _process at rest | 52 (Gallery) | 0 |
+
+Still over 16.7 ms: the shop's and the Gallery's opening frame (text shaping,
+about 0.4 to 0.8 ms a label here) and, on some passes, the first deal. Device
+speed is unverified; the fix if it shows is building those screens over
+several frames. Timing is reported, not gated (the same run varied 2x to
+10x here); the gates are no card processing at rest and the warm-up done.
+
+**Soak.** 200 full runs, 0 fails, 0 script or engine errors (19 min): 2,114
+deals kept by 4,279 flicks and 4,389 taps, 8,373 lays in The Play, 444 buys,
+110 rerolls, 48 sells; 2,445 saves resumed and saved again, identical, at every
+kind of moment (keep, counted, mid-Play, after the Play, round end, shop,
+intro); no node or orphan growth from run 1 to run 200. Limit: runs average
+about 3 rounds (no run won), so acts 2 to 5 are covered by the other suites,
+not the soak. Found and fixed: a save made in the keep
+phase carried the last deal's Play cards (stale `peg_kept`; on resume a -1
+index read as the deal's last card); a button freed in the frame it was added
+logged an engine error (Press's deferred hookup now holds a weak reference).
+Also found by the suites this pass: a resize landing mid-draw left the intro
+laid out for the pre-layout width (the Spoiler 7 px off the edge); RunFlow now
+checks for a redraw after the draw, deferred.
+
+**Larger text on long screens (with an iPhone 16 Pro Max's safe area
+simulated: 109 px top, 63 px bottom).** 210 buttons on 21 screens at 720x1280
+and 720x1560 are reachable: on screen inside the safe area, or (52) scrolled
+fully inside both the scroll view and the safe area. Found and fixed: at
+Larger text on the short phone the intro's Spoiler list ran under the home
+bar (the art now shrinks, to 90 px, when short of room); the title's "How to
+play" button was clipped (the icon row wraps, and goes to rows of three when a
+word won't fit; the probe now checks button text too).
+
+#18 safe areas: checked in software against simulated insets; still needs a
+simulator or device to confirm (MAC_HANDOFF.md, step 5).

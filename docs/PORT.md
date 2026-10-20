@@ -735,3 +735,12 @@ Then tick it under Plugins in the iOS export preset. Unverified until built.
   node so `TypeScale.relayout()` can restyle a live screen.
 - The MeldAccess plugin source is in `ios_plugin/meld_access/` (README has the
   build steps). Unverified until built on a Mac.
+
+## Pass 11 notes
+
+- Listing: `store/listing.md`; check with `godot --headless --path godot --script res://tests/listing_counts.gd && python3 tools/check_listing.py --counts /tmp/listing_counts.json`.
+- App preview: `tools/make_preview.sh` (needs xvfb and ffmpeg), checked by `tools/check_preview.py`.
+- Soak: `tools/soak.sh 200` (about 20 min here).
+- Startup warm-up: `Warm.run()` in `RunFlow._ready` (assets and one hidden build of the keep screen and shop; no state).
+- Screens redraw on a resize only when their size or the text scale changed (`TypeScale.layout_key`).
+- Mac steps: `docs/MAC_HANDOFF.md`.

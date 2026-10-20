@@ -36,7 +36,13 @@ static func watch(n: Node) -> void:
 	tree.set_meta("press_watch", true)
 	tree.node_added.connect(func(node: Node):
 		if node is BaseButton:
-			(func(): if is_instance_valid(node): wire(node)).call_deferred())
+			# a weak ref: a button freed before the deferred call (a screen built
+			# and dropped in one frame, the warm-up) is skipped without an error
+			var w: WeakRef = weakref(node)
+			(func():
+				var b: Object = w.get_ref()
+				if b != null:
+					wire(b as BaseButton)).call_deferred())
 	wire_all(tree.root)
 
 

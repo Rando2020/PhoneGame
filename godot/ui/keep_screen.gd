@@ -255,6 +255,7 @@ func next_deal() -> void:
 
 ## Draw rd.dealt as a fresh deal (also used to resume a saved one).
 func _show_deal() -> void:
+	peg_kept = []                # a new deal: the last deal's Play is done with
 	drag_hint.visible = not drag_hint_seen()
 	# Foresight cuts before the keep: show the starter face up from the deal.
 	if rd.starter != null:
@@ -510,7 +511,7 @@ func resume_round(run_: CribRun, rd_: CribRound, ui: Dictionary, peg = null) -> 
 	last_result = rd.last_count
 	last_kr = ui.get("kr", {})
 	peg_pending = ui.get("peg_pending", false)
-	peg_kept = ui.get("peg_kept", []).map(func(i): return rd.dealt[i])
+	peg_kept = ui.get("peg_kept", []).filter(func(i): return i >= 0 and i < rd.dealt.size()).map(func(i): return rd.dealt[i])
 	if rd.phase == "keep":
 		_show_deal()
 		return
