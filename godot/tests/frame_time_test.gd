@@ -167,7 +167,11 @@ func _pass() -> void:
 	_note("shop", await _frames(120, f.show_shop), 40.0)
 	f.show_front_door("title")
 	f.settle()
+	# every Gallery tab, opened by its tab button (the screen is already up)
 	Menus.gal_tab = "cards"
 	_note("Gallery cards", await _frames(120, f.front.go.bind("gallery")), 40.0)
+	for tab in ["split", "marks", "backs", "meld", "spoil"]:
+		var tb: Button = f.front.buttons["tab_" + tab]
+		_note("Gallery " + tab, await _frames(90, func(): tb.emit_signal("pressed")))
 	f.queue_free()
 	await process_frame

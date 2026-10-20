@@ -71,14 +71,24 @@ First release.
 ## Support URL
 
 ```text
-NEEDS ZIAH: a page with a way to reach you (a GitHub Pages page or a simple site works)
+https://rando2020.github.io/PhoneGame/support.html
 ```
+
+Ready in `docs/support.html`. **Needs Ziah:** turn on GitHub Pages (repo
+Settings > Pages > deploy from a branch, folder `/docs`) on the branch that
+holds it, and put your email in the page (marked NEEDS ZIAH). The URL works
+only after that (unverified until Pages is on). Pages on a private repo needs
+a paid GitHub plan (unverified for your account); everything in `docs/`
+becomes public.
 
 ## Privacy policy URL
 
 ```text
-NEEDS ZIAH: Apple requires one for every app. It can say: Meldlings collects no data; everything stays on your device.
+https://rando2020.github.io/PhoneGame/privacy.html
 ```
+
+Ready in `docs/privacy.html` ("Data Not Collected", matching
+`godot/ios/PrivacyInfo.xcprivacy`). Same Pages step as above; add your email.
 
 ## Copyright
 

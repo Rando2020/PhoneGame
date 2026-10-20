@@ -54,9 +54,16 @@ func open(session: PegSession) -> void:
 var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and s != null and TypeScale.layout_key(self) != _drawn_for:
+## Deferred, like RunFlow's: a resize can land mid-draw, so the size is
+## compared once the draw is done.
+func _redraw_if_moved() -> void:
+	if s != null and TypeScale.layout_key(self) != _drawn_for:
 		render()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and s != null:
+		_redraw_if_moved.call_deferred()
 
 
 func _ins() -> Dictionary:

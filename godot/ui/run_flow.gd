@@ -259,6 +259,8 @@ func _clear() -> void:
 func settle() -> void:
 	if front != null and is_instance_valid(front):
 		front.settle()
+	if shop != null and is_instance_valid(shop):
+		shop.finish()
 	if _page != null:
 		_page.position.x = 0.0
 	_slide_v = 0.0
@@ -758,7 +760,9 @@ func show_shop() -> void:
 	shop.juice = juice
 	_page.add_child(shop)
 	_page.move_child(juice, -1)
-	shop.open(run)
+	# while the page slides in, the shop arrives over a few frames (the slide
+	# hides it); at rest (no slide) it's built at once
+	shop.open(run, absf(_page.position.x) > 1.0)
 	shop.next_round.connect(_on_next_round, CONNECT_ONE_SHOT)
 	shop.acted.connect(func(_k): save_now())
 	save_now()

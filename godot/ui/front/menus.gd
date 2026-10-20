@@ -173,20 +173,43 @@ static func gallery(fd: FrontDoor) -> void:
 		var id: String = tab[0]
 		b.pressed.connect(func():
 			gal_tab = id
-			fd.render())
+			_gal_switch(fd))
 		fd._page.add_child(b)
 		fd.buttons["tab_" + id] = b
 	y += 2.0 * (Press.MIN_H + 8.0) + 6.0
 	var inner := _scroll(fd, y)
-	var yy := 0.0
+	_gal_fill(fd, inner)
+
+
+## A tab tap: only the list changes (the title, tabs and Back stay), so the tap
+## frame does no more than clear the old list; its rows arrive from the next.
+static func _gal_switch(fd: FrontDoor) -> void:
+	var inner: Control = fd._page.find_child("inner", true, false)
+	if inner == null:
+		fd.render()
+		return
+	for k in fd.buttons:
+		if String(k).begins_with("tab_"):
+			(fd.buttons[k] as Button).set_pressed_no_signal(String(k) == "tab_" + gal_tab)
+	for ch in inner.get_children():
+		inner.remove_child(ch)
+		ch.queue_free()
+	var sc := inner.get_parent() as ScrollContainer
+	if sc != null:
+		sc.scroll_vertical = 0
+	_gal_fill(fd, inner)
+
+
+static func _gal_fill(fd: FrontDoor, inner: Control) -> void:
+	var tab: Array
 	match gal_tab:
-		"cards": yy = _gal_cards(fd, inner)
-		"split": yy = _gal_split(fd, inner)
-		"marks": yy = _gal_marks(fd, inner)
-		"backs": yy = _gal_backs(fd, inner)
-		"meld": yy = _gal_meld(fd, inner)
-		_: yy = _gal_spoil(fd, inner)
-	_done(inner, fd, yy)
+		"cards": tab = _gal_cards(fd, inner)
+		"split": tab = _gal_split(fd, inner)
+		"marks": tab = _gal_marks(fd, inner)
+		"backs": tab = _gal_backs(fd, inner)
+		"meld": tab = _gal_meld(fd, inner)
+		_: tab = _gal_spoil(fd, inner)
+	fd.queue_rows(tab[1], tab[0], func(yy: float): _done(inner, fd, yy))
 
 
 static func _note(fd: FrontDoor, parent: Control, y: float, txt: String) -> float:
@@ -205,23 +228,28 @@ static func _card_at(parent: Control, card: Dictionary, sc: float, at: Vector2) 
 	return v
 
 
-static func _gal_cards(fd: FrontDoor, box: Control) -> float:
+## Each tab: [y after the note, rows]. A row is func(y) -> y below it; the
+## FrontDoor builds rows over frames on a time budget (FrontDoor.queue_rows),
+## so a long tab never stops a frame. Same rows, same layout as building at once.
+static func _gal_cards(fd: FrontDoor, box: Control) -> Array:
 	var y := _note(fd, box, 0.0, "All 52 faces. Every card in the game is generated, not drawn by hand.")
 	var c := fd._col()
 	var cw := CardArt.BASE_W * CardView.PIXEL_SCALE
 	var ch := CardArt.BASE_H * CardView.PIXEL_SCALE
 	var per := 7
 	var sc := minf(0.62, (c.y / per - 6.0) / cw)
+	var rows := []
 	for suit in ["S", "H", "C", "D"]:
-		y = _lab(fd, box, "%s  %s" % [Cribbage.SUIT_SYM[suit], {"S": "Spades", "H": "Hearts", "C": "Clubs", "D": "Diamonds"}[suit]], 18, fd.GOLD, c.x, y, c.y).size.y + y + 6.0
-		for r in range(1, 14):
-			var k := r - 1
-			_card_at(box, {"rank": r, "suit": suit}, sc, Vector2(c.x + (k % per) * (cw * sc + 6.0), y + floorf(k / float(per)) * (ch * sc + 6.0)))
-		y += 2.0 * (ch * sc + 6.0) + 8.0
-	return y
+		rows.append(func(yy: float) -> float:
+			yy = _lab(fd, box, "%s  %s" % [Cribbage.SUIT_SYM[suit], {"S": "Spades", "H": "Hearts", "C": "Clubs", "D": "Diamonds"}[suit]], 18, fd.GOLD, c.x, yy, c.y).size.y + yy + 6.0
+			for r in range(1, 14):
+				var k := r - 1
+				_card_at(box, {"rank": r, "suit": suit}, sc, Vector2(c.x + (k % per) * (cw * sc + 6.0), yy + floorf(k / float(per)) * (ch * sc + 6.0)))
+			return yy + 2.0 * (ch * sc + 6.0) + 8.0)
+	return [y, rows]
 
 
-static func _gal_split(fd: FrontDoor, box: Control) -> float:
+static func _gal_split(fd: FrontDoor, box: Control) -> Array:
 	var y := _note(fd, box, 0.0, "Split cards count as either rank. Four shared images compose all 2,704 combinations. Nothing here is a pre-rendered asset.")
 	var c := fd._col()
 	var samples := [[2, 3, "H", "H"], [1, 13, "S", "D"], [10, 11, "C", "C"], [5, 9, "D", "S"],
@@ -229,131 +257,156 @@ static func _gal_split(fd: FrontDoor, box: Control) -> float:
 	var cw := CardArt.BASE_W * CardView.PIXEL_SCALE
 	var ch := CardArt.BASE_H * CardView.PIXEL_SCALE
 	var sc := minf(0.72, (c.y / 4.0 - 10.0) / cw)
-	for i in samples.size():
-		var s: Array = samples[i]
-		var at := Vector2(c.x + (i % 4) * (c.y / 4.0), y + floorf(i / 4.0) * (ch * sc + 40.0))
-		_card_at(box, {"rank": s[0], "rank2": s[1], "suit": s[2], "suit2": s[3]}, sc, at)
-		_lab(fd, box, "%s/%s" % [Cribbage.RANK_LABEL[s[0]], Cribbage.RANK_LABEL[s[1]]], 15, fd.DIM, at.x, at.y + ch * sc + 4.0, cw * sc, HORIZONTAL_ALIGNMENT_CENTER)
-	y += 2.0 * (ch * sc + 40.0)
-	y = _lab(fd, box, "How it scores", 18, fd.GOLD, c.x, y, c.y).size.y + y + 6.0
-	y = _note(fd, box, y, "A hand of [2/3] 4 5 10 with a 6 cut scores 8: the split takes the 3 to complete a run of four. Held as a 2 it would score 7.")
-	return y
+	var rows := []
+	for half in 2:
+		rows.append(func(yy: float) -> float:
+			for j in 4:
+				var i := half * 4 + j
+				var s: Array = samples[i]
+				var at := Vector2(c.x + j * (c.y / 4.0), yy)
+				_card_at(box, {"rank": s[0], "rank2": s[1], "suit": s[2], "suit2": s[3]}, sc, at)
+				_lab(fd, box, "%s/%s" % [Cribbage.RANK_LABEL[s[0]], Cribbage.RANK_LABEL[s[1]]], 15, fd.DIM, at.x, at.y + ch * sc + 4.0, cw * sc, HORIZONTAL_ALIGNMENT_CENTER)
+			return yy + ch * sc + 40.0)
+	rows.append(func(yy: float) -> float:
+		yy = _lab(fd, box, "How it scores", 18, fd.GOLD, c.x, yy, c.y).size.y + yy + 6.0
+		return _note(fd, box, yy, "A hand of [2/3] 4 5 10 with a 6 cut scores 8: the split takes the 3 to complete a run of four. Held as a 2 it would score 7."))
+	return [y, rows]
 
 
-static func _gal_marks(fd: FrontDoor, box: Control) -> float:
+static func _gal_marks(fd: FrontDoor, box: Control) -> Array:
 	var y := _note(fd, box, 0.0, "Marks sit on individual cards and change what they do.")
 	var c := fd._col()
 	var ch := CardArt.BASE_H * CardView.PIXEL_SCALE * 0.6
+	var rows := []
 	for k in CribData.ENHANCEMENTS:
 		var m: Dictionary = CribData.ENHANCEMENTS[k]
-		_card_at(box, {"rank": 5, "suit": "H", "enh": k}, 0.6, Vector2(c.x, y))
-		var n := _lab(fd, box, m.name, TypeScale.BODY, fd.GOLD, c.x + 110.0, y + 6.0, c.y - 110.0)
-		var mt := _lab(fd, box, m.text, TypeScale.BODY, fd.DIM, c.x + 110.0, y + 10.0 + n.size.y, c.y - 110.0)
-		y = maxf(y + maxf(ch, 70.0) + 12.0, mt.position.y + mt.size.y + 12.0)
-	return y
+		rows.append(func(yy: float) -> float:
+			_card_at(box, {"rank": 5, "suit": "H", "enh": k}, 0.6, Vector2(c.x, yy))
+			var n := _lab(fd, box, m.name, TypeScale.BODY, fd.GOLD, c.x + 110.0, yy + 6.0, c.y - 110.0)
+			var mt := _lab(fd, box, m.text, TypeScale.BODY, fd.DIM, c.x + 110.0, yy + 10.0 + n.size.y, c.y - 110.0)
+			return maxf(yy + maxf(ch, 70.0) + 12.0, mt.position.y + mt.size.y + 12.0))
+	return [y, rows]
 
 
-static func _gal_backs(fd: FrontDoor, box: Control) -> float:
+static func _gal_backs(fd: FrontDoor, box: Control) -> Array:
 	var y := _note(fd, box, 0.0, "Card backs, bought from the Peddler with Pegs. Tap an owned back to equip it.")
 	var c := fd._col()
 	var per := 3
 	var w := c.y / per
-	for i in Meta.CARD_BACKS.size():
-		var b: Dictionary = Meta.CARD_BACKS[i]
-		var owned := Achv.owns_back(b.id)
-		var at := Vector2(c.x + (i % per) * w, y + floorf(i / float(per)) * 190.0)
-		var cell := Control.new()
-		cell.position = at
-		cell.size = Vector2(w - 8.0, 180.0)
-		cell.name = "back_" + String(b.id)
-		box.add_child(cell)
-		var img := TextureRect.new()
-		var bp := CardArt.DIR + "back_%s.png" % b.id
-		img.texture = load(bp) if ResourceLoader.exists(bp) else null
-		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.size = Vector2(w - 8.0, 140.0)
-		img.modulate = Color.WHITE if owned else Color(0.3, 0.3, 0.35, 0.8)
-		img.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		cell.add_child(img)
-		var on := Achv.active_back() == String(b.id)
-		_lab(fd, cell, String(b.name) if owned else "%d Pegs" % b.cost, 16, fd.GOLD if owned else fd.DIM, 0, 146, w - 8.0, HORIZONTAL_ALIGNMENT_CENTER)
-		if on:
-			var ring := ReferenceRect.new()
-			ring.border_color = fd.GOLD
-			ring.border_width = 3.0
-			ring.editor_only = false
-			ring.size = img.size
-			ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			cell.add_child(ring)
-		if owned:
-			var id := String(b.id)
-			cell.gui_input.connect(func(e: InputEvent):
-				if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-					Achv.set_back(id)
-					Sound.play("select")
-					fd.render())
-	return y + ceilf(Meta.CARD_BACKS.size() / float(per)) * 190.0
+	var rows := []
+	var n_rows := ceili(Meta.CARD_BACKS.size() / float(per))
+	for r in n_rows:
+		rows.append(func(yy: float) -> float:
+			for j in per:
+				var i := r * per + j
+				if i >= Meta.CARD_BACKS.size():
+					break
+				_back_cell(fd, box, Meta.CARD_BACKS[i], Vector2(c.x + j * w, yy), w)
+			return yy + 190.0)
+	return [y, rows]
 
 
-static func _gal_meld(fd: FrontDoor, box: Control) -> float:
+static func _back_cell(fd: FrontDoor, box: Control, b: Dictionary, at: Vector2, w: float) -> void:
+	var owned := Achv.owns_back(b.id)
+	var cell := Control.new()
+	cell.position = at
+	cell.size = Vector2(w - 8.0, 180.0)
+	cell.name = "back_" + String(b.id)
+	box.add_child(cell)
+	var img := TextureRect.new()
+	var bp := CardArt.DIR + "back_%s.png" % b.id
+	img.texture = load(bp) if ResourceLoader.exists(bp) else null
+	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	img.size = Vector2(w - 8.0, 140.0)
+	img.modulate = Color.WHITE if owned else Color(0.3, 0.3, 0.35, 0.8)
+	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cell.add_child(img)
+	var on := Achv.active_back() == String(b.id)
+	_lab(fd, cell, String(b.name) if owned else "%d Pegs" % b.cost, 16, fd.GOLD if owned else fd.DIM, 0, 146, w - 8.0, HORIZONTAL_ALIGNMENT_CENTER)
+	if on:
+		var ring := ReferenceRect.new()
+		ring.border_color = fd.GOLD
+		ring.border_width = 3.0
+		ring.editor_only = false
+		ring.size = img.size
+		ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cell.add_child(ring)
+	if owned:
+		var id := String(b.id)
+		cell.gui_input.connect(func(e: InputEvent):
+			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+				Achv.set_back(id)
+				Sound.play("select")
+				fd.render())
+
+
+static func _gal_meld(fd: FrontDoor, box: Control) -> Array:
 	var y := _note(fd, box, 0.0, "Six Meldlings. Two are earned.")
 	var c := fd._col()
+	var rows := []
 	for id in CribData.DECKS:
-		var d: Dictionary = CribData.DECKS[id]
-		var open := Achv.meldling_unlocked(id)
-		var sp := MeldSprite.new(id)
-		sp.size = Vector2(96, 96)
-		sp.position = Vector2(c.x, y)
-		box.add_child(sp)
-		sp.set_meld(id, not open)
-		var n := _lab(fd, box, ("%s %s" % [d.name, Cribbage.SUIT_SYM.get(d.suit, "")]) if open else "???", TypeScale.BODY, fd.GOLD if open else fd.DIM, c.x + 108.0, y + 4.0, c.y - 108.0)
-		var t := _lab(fd, box, d.text if open else "Locked.", TypeScale.BODY, fd.DIM, c.x + 108.0, y + 8.0 + n.size.y, c.y - 108.0)
-		y = maxf(y + 100.0, t.position.y + t.size.y + 8.0)
-		# every pose, in a strip (a silhouette while locked)
-		var art := MeldReact.art_id(id)
-		var poses: Array = MeldReact.POSES + [MeldReact.SIGNATURE[art]]
-		var pw := minf(72.0, c.y / poses.size())
-		for k in poses.size():
-			var ps := MeldSprite.new(id)
-			ps.size = Vector2(pw, pw)
-			ps.position = Vector2(c.x + k * pw, y)
-			box.add_child(ps)
-			ps.set_meld(id, not open)
-			if open:
-				ps.pose = poses[k]
-				ps._show()
-		y += pw + 14.0
-	return y
+		rows.append(func(yy: float) -> float:
+			var d: Dictionary = CribData.DECKS[id]
+			var open := Achv.meldling_unlocked(id)
+			var sp := MeldSprite.new(id)
+			sp.size = Vector2(96, 96)
+			sp.position = Vector2(c.x, yy)
+			box.add_child(sp)
+			sp.set_meld(id, not open)
+			var n := _lab(fd, box, ("%s %s" % [d.name, Cribbage.SUIT_SYM.get(d.suit, "")]) if open else "???", TypeScale.BODY, fd.GOLD if open else fd.DIM, c.x + 108.0, yy + 4.0, c.y - 108.0)
+			var t := _lab(fd, box, d.text if open else "Locked.", TypeScale.BODY, fd.DIM, c.x + 108.0, yy + 8.0 + n.size.y, c.y - 108.0)
+			return maxf(yy + 100.0, t.position.y + t.size.y + 8.0))
+		rows.append(func(yy: float) -> float:
+			var open := Achv.meldling_unlocked(id)
+			# every pose, in a strip (a silhouette while locked)
+			var art := MeldReact.art_id(id)
+			var poses: Array = MeldReact.POSES + [MeldReact.SIGNATURE[art]]
+			var pw := minf(72.0, c.y / poses.size())
+			for k in poses.size():
+				var ps := MeldSprite.new(id)
+				ps.size = Vector2(pw, pw)
+				ps.position = Vector2(c.x + k * pw, yy)
+				box.add_child(ps)
+				ps.set_meld(id, not open)
+				if open:
+					ps.pose = poses[k]
+					ps._show()
+			return yy + pw + 14.0)
+	return [y, rows]
 
 
-static func _gal_spoil(fd: FrontDoor, box: Control) -> float:
+static func _gal_spoil(fd: FrontDoor, box: Control) -> Array:
 	var y := _note(fd, box, 0.0, "All %d Spoilers. Five are drawn per run, so no two runs meet the same set." % CribData.BOSS_POOL.size())
 	var c := fd._col()
+	var rows := []
 	for sev in [1, 2, 3]:
-		y = _lab(fd, box, ["", "THREAT", "SEVERE", "RUINOUS"][sev], 18, [fd.GOLD, Color(0.96, 0.6, 0.35), Color(0.91, 0.42, 0.42)][sev - 1], c.x, y, c.y).size.y + y + 6.0
+		rows.append(func(yy: float) -> float:
+			return _lab(fd, box, ["", "THREAT", "SEVERE", "RUINOUS"][sev], 18, [fd.GOLD, Color(0.96, 0.6, 0.35), Color(0.91, 0.42, 0.42)][sev - 1], c.x, yy, c.y).size.y + yy + 6.0)
 		for b in CribData.BOSS_POOL:
 			if int(b.sev) != sev:
 				continue
-			var sp := SpoilerSprite.new(b)
-			sp.size = Vector2(88, 88)
-			sp.position = Vector2(c.x, y)
-			box.add_child(sp)
-			var align: String = Cribbage.SUIT_SYM.get(b.get("align", ""), "") if b.get("align") != null else ""
-			var n := _lab(fd, box, String(b.name) + ("  " + align if align != "" else ""), TypeScale.BODY, fd.GOLD, c.x + 100.0, y + 4.0, c.y - 100.0)
-			var t := _lab(fd, box, b.text, TypeScale.BODY, fd.DIM, c.x + 100.0, y + 8.0 + n.size.y, c.y - 100.0)
-			y = maxf(y + 92.0, t.position.y + t.size.y + 8.0)
-			# its five poses
-			var pw := minf(64.0, (c.y - 100.0) / SpoilerSprite.POSES.size())
-			for k in SpoilerSprite.POSES.size():
-				var ps := SpoilerSprite.new(b)
-				ps.size = Vector2(pw, pw)
-				ps.position = Vector2(c.x + 100.0 + k * pw, y)
-				box.add_child(ps)
-				ps.pose = SpoilerSprite.POSES[k]
-				ps._show()
-			y += pw + 12.0
-	return y
+			rows.append(func(yy: float) -> float:
+				var sp := SpoilerSprite.new(b)
+				sp.size = Vector2(88, 88)
+				sp.position = Vector2(c.x, yy)
+				box.add_child(sp)
+				var align: String = Cribbage.SUIT_SYM.get(b.get("align", ""), "") if b.get("align") != null else ""
+				var n := _lab(fd, box, String(b.name) + ("  " + align if align != "" else ""), TypeScale.BODY, fd.GOLD, c.x + 100.0, yy + 4.0, c.y - 100.0)
+				var t := _lab(fd, box, b.text, TypeScale.BODY, fd.DIM, c.x + 100.0, yy + 8.0 + n.size.y, c.y - 100.0)
+				return maxf(yy + 92.0, t.position.y + t.size.y + 8.0))
+			rows.append(func(yy: float) -> float:
+				# its five poses
+				var pw := minf(64.0, (c.y - 100.0) / SpoilerSprite.POSES.size())
+				for k in SpoilerSprite.POSES.size():
+					var ps := SpoilerSprite.new(b)
+					ps.size = Vector2(pw, pw)
+					ps.position = Vector2(c.x + 100.0 + k * pw, yy)
+					box.add_child(ps)
+					ps.pose = SpoilerSprite.POSES[k]
+					ps._show()
+				return yy + pw + 12.0)
+	return [y, rows]
 
 
 # ------------------------------------------------------------------ how to play

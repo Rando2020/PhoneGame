@@ -19,6 +19,9 @@ var rng := RandomNumberGenerator.new()      ## the player's choices only
 var stats := {"runs": 0, "won": 0, "deals": 0, "flicks": 0, "taps": 0, "lays": 0,
 	"buys": 0, "rerolls": 0, "sells": 0, "saves_checked": 0, "rounds": 0}
 var save_kinds := {}
+var strong := false              ## SOAK_STRONG=1: best keeps, greedy lays, sensible buys
+var depth := {}                  ## furthest "act-round" reached -> runs
+var bosses := 0                  ## Spoiler rounds played
 
 
 func ok(c: bool, m: String) -> void:
@@ -75,7 +78,7 @@ func _keep_by_hand(k: KeepScreen) -> void:
 		order[i] = order[j]
 		order[j] = t
 	var pick: Array = order.slice(0, n)
-	if rng.randf() < 0.7:
+	if strong or rng.randf() < 0.7:
 		pick = k.rd.best_keep_ev().idx     # a good player, mostly: runs go deeper
 	for i in pick:
 		var v: CardView = k.hand._views[i]
@@ -98,8 +101,68 @@ func _keep_by_hand(k: KeepScreen) -> void:
 					break
 
 
+## The Play, greedily: make 15 or 31, then a pair with the top card, else the
+## lowest card (keeps the count low for the Spoiler).
+func _greedy_lay(pv: PegView, can: Array) -> int:
+	var p := pv.s.play
+	var best: int = can[0]
+	var best_v := -1
+	for j in can:
+		var c: Dictionary = p.mine[j]
+		var t: int = p.total + Cribbage.cval(c)
+		var v := 0
+		if t == 15 or t == 31:
+			v = 3
+		elif not p.pile.is_empty() and int(p.pile.back().rank) == int(c.rank):
+			v = 2
+		elif t != 5 and t != 21:
+			v = 1
+		if v > best_v or v == best_v and Cribbage.cval(c) < Cribbage.cval(p.mine[best]):
+			best_v = v
+			best = j
+	return best
+
+
+## Sensible buys: the best affordable charm while a slot is free, then
+## Reckonings with what's left. Rarer is better; ties by cost.
+func _strong_shop(sh: ShopScreen) -> void:
+	var order := ["mythic", "legendary", "rare", "uncommon", "common"]
+	var picked := true
+	while picked:
+		picked = false
+		var best_id = null
+		var best_r := 99
+		for id in sh.offer_buttons:
+			var b: Button = sh.offer_buttons[id]
+			if b.disabled:
+				continue
+			var ch: Charm = CribData.charm_by_id(id)
+			var r := order.find(String(ch.rarity))
+			if r < best_r:
+				best_r = r
+				best_id = id
+		if best_id != null:
+			sh.offer_buttons[best_id].emit_signal("pressed")
+			stats.buys += 1
+			picked = true
+	for i in 4:
+		for cat in ["run", "fifteen", "pair", "flush"]:
+			var lb: Button = sh.level_buttons.get(cat)
+			if lb != null and not lb.disabled:
+				lb.emit_signal("pressed")
+				stats.buys += 1
+
+
 func _shop(f: RunFlow) -> void:
 	var sh: ShopScreen = f.shop
+	sh.finish()
+	if strong:
+		_strong_shop(sh)
+		await process_frame
+		if rng.randf() < 0.3:
+			_check_save(f, "shop")
+		sh.next_button.emit_signal("pressed")
+		return
 	for i in rng.randi_range(0, 3):
 		var r := rng.randf()
 		if r < 0.45 and not sh.offer_buttons.is_empty():
@@ -129,21 +192,33 @@ func _shop(f: RunFlow) -> void:
 
 
 ## One run, to its end. Returns false if it stalled.
+var reach := 0
+var seen_intro := {}
+
+
 func _run(f: RunFlow, i: int) -> bool:
 	JS.unseeded = JsRng.new(9000 + i)
 	var melds := ["pip", "thump", "clover", "nib", "muggins", "facet"]
 	var run := CribRun.new(melds[i % melds.size()], Meta.STREETS[i % Meta.STREETS.size()], null, 5000 + i)
 	f.start_run(run)
 	var steps := 0
+	reach = 0
+	seen_intro = {}
 	while steps < 6000:
 		steps += 1
 		await process_frame
 		f.settle()
 		match f.screen:
 			"intro":
+				var at := "%d-%d" % [f.run.act, f.run.round]
+				if not seen_intro.has(at):
+					seen_intro[at] = true
+					if f.run.boss() != null:
+						bosses += 1
+				reach = maxi(reach, f.run.act * 10 + f.run.round)
 				if rng.randf() < 0.2:
 					_check_save(f, "intro")
-				if f.buttons.has("walk") and rng.randf() < 0.3:
+				if f.buttons.has("walk") and not strong and rng.randf() < 0.3:
 					f.buttons["walk"].emit_signal("pressed")
 				else:
 					f.buttons["deal"].emit_signal("pressed")
@@ -167,7 +242,7 @@ func _run(f: RunFlow, i: int) -> bool:
 						if can.is_empty():
 							pv._answer()
 						else:
-							var j: int = can[rng.randi_range(0, can.size() - 1)]
+							var j: int = _greedy_lay(pv, can) if strong else can[rng.randi_range(0, can.size() - 1)]
 							if rng.randf() < 0.5:
 								pv._on_card_flicked(pv.hand_views[j], Vector2(0, -150), Vector2(0, -900), j)
 							else:
@@ -221,6 +296,7 @@ func _paths(file: String) -> void:
 
 func _go() -> void:
 	var n := int(OS.get_environment("SOAK_RUNS")) if OS.get_environment("SOAK_RUNS") != "" else 200
+	strong = OS.get_environment("SOAK_STRONG") == "1"
 	rng.seed = 20261020
 	Achv.persist = false
 	Achv.save_store({"__v": 3, "drag_hint": 1, "tutorial": 1})
@@ -238,6 +314,8 @@ func _go() -> void:
 	for i in n:
 		if await _run(f, i):
 			stats.runs += 1
+		var key := "act %d" % (reach / 10)
+		depth[key] = int(depth.get(key, 0)) + 1
 		if i == 0:
 			# the baseline after one run, with the flow freed: first-use
 			# singletons (Sound's players) exist by then; growth after it is a leak
@@ -266,7 +344,14 @@ func _go() -> void:
 	ok(stats.saves_checked >= n, "only %d saves round-tripped" % stats.saves_checked)
 	for kind in ["intro", "keep", "counted", "peg_mid", "peg_over", "round_end", "shop"]:
 		ok(save_kinds.get(kind, 0) > 0, "no save checked at %s" % kind)
+	if strong:
+		var deep := 0
+		for k in depth:
+			if int(String(k).get_slice(" ", 1)) >= 3:
+				deep += depth[k]
+		ok(deep * 2 >= n and bosses > 0, "strong player: only %d of %d runs reached act 3 (%d Spoiler rounds)" % [deep, n, bosses])
 	print("soak: %s" % [stats])
 	print("soak saves by moment: %s" % [save_kinds])
+	print("soak depth (furthest act reached, runs): %s; Spoiler rounds played: %d; runs won: %d" % [depth, bosses, stats.won])
 	print("soak_test: %d checks, %d fails" % [checks, fails])
 	quit(1 if fails > 0 else 0)

@@ -92,9 +92,12 @@ func _go() -> void:
 	var boss: Dictionary = br.boss()
 	f.start_run(br)
 	await process_frame
+	f.settle()                 # the intro slides in; measure it at rest
+	await process_frame
 	ok(f.spoiler_view != null and f.spoiler_view.art == String(boss.art) and f.spoiler_view.pose == "smug", "boss intro shows %s, smug" % boss.name)
 	var r := f.spoiler_view.get_global_rect()
 	ok(r.size.x >= 150 and Rect2(Vector2.ZERO, Vector2(root.size)).encloses(r), "intro Spoiler on screen: %s" % r)
+	ok(absf(r.get_center().x - f.size.x / 2.0) <= 1.0, "intro Spoiler not centred: %s in %s" % [r, f.size])
 	f.queue_free()
 	await process_frame
 	# keep screen: shown on a Spoiler round, hidden otherwise

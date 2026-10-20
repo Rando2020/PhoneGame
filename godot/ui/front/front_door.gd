@@ -44,9 +44,16 @@ func open(state: Dictionary = {}) -> void:
 var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and _page != null and TypeScale.layout_key(self) != _drawn_for:
+## Deferred, like RunFlow's: a resize can land mid-draw, so the size is
+## compared once the draw is done.
+func _redraw_if_moved() -> void:
+	if _page != null and TypeScale.layout_key(self) != _drawn_for:
 		render()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and _page != null:
+		_redraw_if_moved.call_deferred()
 
 
 var parade: Array = []            ## the title's six Meldlings
@@ -88,8 +95,45 @@ func go(step: String) -> void:
 	_slide_dir = 0.0
 
 
+## Long lists build row by row: up to ROW_BUDGET_MS of rows a frame, the rest
+## on the next frames, top to bottom. settle() (and a new screen) finishes or
+## drops them. The final layout is the same as building them all at once.
+const ROW_BUDGET_MS := 4.0
+var _rows: Array = []
+var _row_y := 0.0
+var _rows_done := Callable()
+
+
+func queue_rows(rows: Array, y0: float, done: Callable) -> void:
+	_rows = rows.duplicate()
+	_row_y = y0
+	_rows_done = done          # rows start next frame: this one builds the page
+
+
+func rows_pending() -> bool:
+	return not _rows.is_empty()
+
+
+func _pump_rows(budget_ms := ROW_BUDGET_MS) -> void:
+	var t := Time.get_ticks_usec()
+	while not _rows.is_empty():
+		var r: Callable = _rows.pop_front()
+		_row_y = r.call(_row_y)
+		if (Time.get_ticks_usec() - t) / 1000.0 >= budget_ms:
+			break
+	if _rows.is_empty() and _rows_done.is_valid():
+		var d := _rows_done
+		_rows_done = Callable()
+		d.call(_row_y)
+
+
+func _flush_rows() -> void:
+	_pump_rows(INF)
+
+
 ## Snap a transition to rest (tests that measure layout).
 func settle() -> void:
+	_flush_rows()
 	if _page != null:
 		_page.position.x = 0.0
 		_page.modulate.a = 1.0
@@ -103,6 +147,8 @@ func settle() -> void:
 
 
 func _process(delta: float) -> void:
+	if not _rows.is_empty():
+		_pump_rows()
 	if _page == null or (_outgoing == null and absf(_page.position.x) < 0.01):
 		return
 	if _fade != null:
@@ -127,6 +173,8 @@ func _process(delta: float) -> void:
 # ------------------------------------------------------------------ helpers
 func _clear() -> void:
 	buttons.clear()
+	_rows = []                        # a new screen: the old one's rows are dropped
+	_rows_done = Callable()
 	if _outgoing != null:
 		_outgoing.queue_free()
 		_outgoing = null

@@ -204,3 +204,42 @@ word won't fit; the probe now checks button text too).
 
 #18 safe areas: checked in software against simulated insets; still needs a
 simulator or device to confirm (MAC_HANDOFF.md, step 5).
+
+
+# Re-check, 2026-10-20 (after pass 12)
+
+New: `staged_build_test`, `resize_guard_test`, the strong-player soak
+(`SOAK_STRONG=1 tools/soak.sh 50`), `docs/support.html`, `docs/privacy.html`,
+`docs/RELEASE_CHECKLIST.md`. Every new check was mutation-tested.
+
+**Opening frames.** The shop builds in 4 stages (one per frame while its page
+slides in); every Gallery tab builds its rows on a 4 ms-a-frame budget, and a
+tab tap swaps only the list. Same machine, back to back, median worst frame
+of 3 passes:
+
+| frame | before | after |
+|---|---|---|
+| shop, opening | 45 ms | 26 ms |
+| Gallery, opening | 50 ms | 18 ms |
+| Gallery, Meldlings tab tap | 92 ms | 11 ms |
+| Gallery, Spoilers tab tap | 219 ms | 15 ms |
+| Gallery, other tabs | 14 to 20 ms | 8 to 13 ms |
+
+Built over frames, each screen ends identical to building it at once (class,
+text, rect and state of every node; `staged_build_test`). Still over 16.7 ms
+on this machine: the shop's and Gallery's opening frame (the page itself),
+and, on slow runs, the deal, the count and The Play (13 to 15 ms on a quiet
+run, 21 to 28 ms on this one; not touched this pass). Device speed unverified.
+
+**Resize guard.** FrontDoor, the shop and The Play check for a redraw after the
+draw, as RunFlow does. A resize landing mid-draw ends drawn for the new size,
+with nothing past the new width; a notice at the same size doesn't redraw.
+
+**Deep soak.** 50 strong runs: 0 fails, 0 errors; 27 reached act 3 or later
+(4 reached act 5), 1 won; 194 Spoiler rounds; 1,887 saves round-tripped.
+
+**Pages.** Support and privacy, in the game's colours; privacy states "Data
+Not Collected" as the manifest does. Need Ziah: an email, and GitHub Pages on.
+
+Found and fixed: spoiler_test had been reading the intro mid-slide; it passed
+before only because an extra redraw cut the slide short (now gone).

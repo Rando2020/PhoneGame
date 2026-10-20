@@ -97,6 +97,7 @@ func _go() -> void:
 		for tab in ["marks", "backs", "meld", "spoil"]:
 			Menus.gal_tab = tab
 			fd.go("gallery")
+			fd.settle()          # long tabs build over frames; measure at rest
 			await process_frame
 			d = _diff(S.gallery[tab], texts(fd._page))
 			ok(d == "", "%s gallery %s: %s" % [S.name, tab, d], "gallery")
@@ -111,6 +112,7 @@ func _go() -> void:
 	var fd2: FrontDoor = f.front
 	Menus.gal_tab = "meld"
 	fd2.go("gallery")
+	fd2.settle()
 	await process_frame
 	var melds := fd2._page.find_children("*", "MeldSprite", true, false).filter(func(x): return not x is SpoilerSprite)
 	ok(melds.size() == CribData.DECKS.size() * 8, "Meldlings tab: %d sprites (want %d: a portrait and 7 poses each)" % [melds.size(), CribData.DECKS.size() * 8], "gallery")
@@ -120,11 +122,13 @@ func _go() -> void:
 	ok(poses.size() >= 7, "every pose shown: %s" % [poses.keys()], "gallery")
 	Achv.save_store(fx.stores[0].store)
 	fd2.go("gallery")
+	fd2.settle()
 	await process_frame
 	var locked := fd2._page.find_children("*", "MeldSprite", true, false).filter(func(x): return (x as MeldSprite).locked)
 	ok(locked.size() > 0, "a fresh save shows locked Meldlings as silhouettes", "gallery")
 	Menus.gal_tab = "spoil"
 	fd2.go("gallery")
+	fd2.settle()
 	await process_frame
 	ok(fd2._page.find_children("*", "SpoilerSprite", true, false).size() == CribData.BOSS_POOL.size() * 6, "Spoilers tab: a portrait and 5 poses each", "gallery")
 	# ---- how to play, step by step, against the web

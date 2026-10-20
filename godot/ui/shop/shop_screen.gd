@@ -57,20 +57,30 @@ func _ready() -> void:
 		render()
 
 
-func open(run_) -> void:
+func open(run_, staged := false) -> void:
 	run = run_
 	if run.shop_state == null:
 		run.open_shop()
 	if is_node_ready():
-		render()
+		if staged:
+			render_staged()
+		else:
+			render()
 
 
 var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and _content != null and run != null and TypeScale.layout_key(self) != _drawn_for:
+## Deferred, like RunFlow's: a resize can land mid-draw, so the size is
+## compared once the draw is done.
+func _redraw_if_moved() -> void:
+	if _content != null and run != null and TypeScale.layout_key(self) != _drawn_for:
 		render()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and _content != null and run != null:
+		_redraw_if_moved.call_deferred()
 
 
 # ------------------------------------------------------------------ actions
@@ -189,8 +199,54 @@ func _insets() -> Dictionary:
 	return SafeArea.insets(self)
 
 
+## The draw, in stages that share `c` (x0, col, ins, y). render() runs them
+## all now; open_staged() runs the first now and one per frame after (the
+## page's slide hides the rest arriving), so no frame builds the whole shop.
+func _stages() -> Array:
+	return [_stage_top, _stage_offers, _stage_stall, _stage_bottom]
+
+
 func render() -> void:
+	var c := _begin()
+	for st in _stages():
+		st.call(c)
+
+
+## Staged: the first stage now, the rest one per frame (finish() runs them all).
+func render_staged() -> void:
+	var c := _begin()
+	var st := _stages()
+	st[0].call(c)
+	_pending = st.slice(1)
+	_pending_ctx = c
+	set_process(true)
+
+
+func finish() -> void:
+	while not _pending.is_empty():
+		_pending.pop_front().call(_pending_ctx)
+	set_process(false)
+
+
+func is_building() -> bool:
+	return not _pending.is_empty()
+
+
+func _process(_delta: float) -> void:
+	if _pending.is_empty():
+		set_process(false)
+		return
+	_pending.pop_front().call(_pending_ctx)
+
+
+var _pending: Array = []
+var _pending_ctx := {}
+
+
+func _begin() -> Dictionary:
 	_drawn_for = TypeScale.layout_key(self)
+	_pending = []
+	set_process(false)
 	for c in _content.get_children():
 		_content.remove_child(c)
 		c.queue_free()
@@ -202,7 +258,14 @@ func render() -> void:
 	var col := minf(size.x - MARGIN * 2.0, MAX_COLUMN)
 	var x0 := (size.x - col) / 2.0
 	var y: float = ins.top + MARGIN
+	return {"x0": x0, "col": col, "ins": ins, "y": y}
 
+
+func _stage_top(ctx: Dictionary) -> void:
+	var x0: float = ctx.x0
+	var col: float = ctx.col
+	var ins: Dictionary = ctx.ins
+	var y: float = ctx.y
 	# ---- header
 	var head := _place(Panel.new(), Vector2(x0, y), Vector2(col, 76))
 	head.add_theme_stylebox_override("panel", _box(PANEL, Color(INK, 0.12)))
@@ -268,7 +331,14 @@ func render() -> void:
 			p.add_child(x)
 			sell_buttons[ch.id] = x
 	y += ceili(float(n) / per) * (ch_h + 6) + 10
+	ctx.y = y
 
+
+func _stage_offers(ctx: Dictionary) -> void:
+	var x0: float = ctx.x0
+	var col: float = ctx.col
+	var ins: Dictionary = ctx.ins
+	var y: float = ctx.y
 	# ---- charm offers + reroll
 	var oh := _label(19, INK)
 	oh.text = "CHARMS ON OFFER"
@@ -329,7 +399,14 @@ func render() -> void:
 		_place(fl, Vector2(x0, y), Vector2(col, 24))
 		y += 26
 	y += 10
+	ctx.y = y
 
+
+func _stage_stall(ctx: Dictionary) -> void:
+	var x0: float = ctx.x0
+	var col: float = ctx.col
+	var ins: Dictionary = ctx.ins
+	var y: float = ctx.y
 	# ---- the stall
 	var sh := _label(19, INK)
 	sh.text = "THE STALL  ·  take a card into your deck"
@@ -370,7 +447,14 @@ func render() -> void:
 			card_buttons[i] = b
 		y += card_sz.y + 26 + 40
 	y += 16
+	ctx.y = y
 
+
+func _stage_bottom(ctx: Dictionary) -> void:
+	var x0: float = ctx.x0
+	var col: float = ctx.col
+	var ins: Dictionary = ctx.ins
+	var y: float = ctx.y
 	# ---- Reckonings
 	var rh := _label(19, INK)
 	rh.text = "RECKONINGS  ·  +%d base per scoring event, each level" % CribData.LEVEL_GAIN
@@ -411,6 +495,7 @@ func render() -> void:
 	_content.size = _content.custom_minimum_size
 	toast.position = Vector2(x0, nb_y - 44)
 	toast.size = Vector2(col, 36)
+	ctx.y = y
 
 
 ## Height the content needs, to check it fits without scrolling.
