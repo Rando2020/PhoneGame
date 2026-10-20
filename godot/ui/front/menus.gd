@@ -33,12 +33,15 @@ const TUT_STEPS := [
 		"body": "Charms multiply your count. Marks sit on individual cards. Buy both at the Peg House between rounds. You have five charm slots, so choose.",
 		"art": "clover", "anchor": "shop"},
 	{"title": "Spoilers",
-		"body": "Every fifth round is a Spoiler with a rule that breaks something. You can see all five at the start of a run. Build for them.",
+		"body": "Every third round is a Spoiler with a rule that breaks something. You can see all five at the start of a run. Build for them.",
 		"art": "kingpin", "anchor": "boss"},
 	# native only (the web has no drag): after the web's six, so those match it
 	{"title": "Drag or tap",
 		"body": "Tap a card, or drag it. Flick a card up toward the Crib to throw it, or down to keep it. In The Play, flick a card up onto the pile to lay it.",
 		"art": "nib", "anchor": "drag"},
+	{"title": "The Play",
+		"body": "After each count, you and the Spoiler lay cards in turn, the total climbing toward 31. Make it exactly 15 or 31 for 2. Pairs and runs on the pile score too, and what you peg rides your multiplier.",
+		"art": "pip", "anchor": "play"},
 ]
 const WEB_TUT_STEPS := 6       ## the first six are the web's, word for word
 
@@ -516,6 +519,11 @@ static func _tut_visual(fd: FrontDoor, anchor: String, y: float) -> void:
 			var below := _row_bottom(y, sc) + 8.0
 			_lab(fd, fd._page, "Flick up: to your Crib", 22, fd.GOLD, c.x, below, c.y, HORIZONTAL_ALIGNMENT_CENTER)
 			_lab(fd, fd._page, "Flick down: keep it", 22, Color(0.43, 0.79, 0.54), c.x, below + 34.0, c.y, HORIZONTAL_ALIGNMENT_CENTER)
+		"play":
+			row.call([C.call(7, "S"), C.call(8, "H"), C.call(10, "C"), C.call(6, "D")])
+			var below := _row_bottom(y, sc) + 8.0
+			_lab(fd, fd._page, "7 + 8 = 15: +2", 22, fd.GOLD, c.x, below, c.y, HORIZONTAL_ALIGNMENT_CENTER)
+			_lab(fd, fd._page, "+ 10 + 6 = 31: +2", 22, Color(0.43, 0.79, 0.54), c.x, below + 34.0, c.y, HORIZONTAL_ALIGNMENT_CENTER)
 		"boss":
 			var px := minf(150.0, c.y / 3.0)
 			var arts := ["deadwood", "jokester", "fog"]
@@ -557,11 +565,19 @@ static func text_step_for(category: String) -> int:
 static var _os_hooked := false
 
 
+## Count speed: the saved setting once chosen; else 1x on the first run (to
+## learn the count) and 2x from the second (pass 14; LOOP_AUDIT item 7).
+static func speed_default(m: Dictionary) -> int:
+	if m.has("cascade_speed"):
+		return clampi(int(m.cascade_speed), 0, CascadeView.SPEEDS.size() - 1)
+	return 1 if not (m.get("history", []) as Array).is_empty() else 0
+
+
 ## Apply saved settings at start (RunFlow._ready).
 static func apply() -> void:
 	MeldSprite.reduce_motion = reduce_motion_saved()
 	var m := Achv.load_store()
-	CascadeView.speed_i = clampi(int(m.get("cascade_speed", 0)), 0, CascadeView.SPEEDS.size() - 1)
+	CascadeView.speed_i = speed_default(m)
 	var ti := int(m.get("text_scale", -1))
 	var os := os_access()
 	if ti < 0:

@@ -294,12 +294,21 @@ func _lane(y: float, who: String, pegs: int, col: Color, c: Vector2) -> Dictiona
 	return {"holes": holes, "filled": filled, "pegs": pegs}
 
 
+## The first Play's coach beat (pass 14): one line, then never again.
+const PLAY_HINT := "Hit 15 or 31 exactly for points. Drag a card up or tap it to lay."
+
+
+static func play_hint_seen() -> bool:
+	return JS.truthy(Achv.load_store().get("play_hint"))
+
+
 func _render_hand(bottom: float) -> void:
 	var p := s.play
 	var c := _col()
 	var can_any := p.can_play(p.mine)
-	hint_label = _lab("Lay a card. You cannot pass 31." if can_any else "Nothing fits. The Spoiler must play on.",
-		18, DIM if can_any else GOLD, Vector2(c.x, 0), c.y)
+	var coach := can_any and not play_hint_seen()
+	hint_label = _lab(PLAY_HINT if coach else ("Lay a card. You cannot pass 31." if can_any else "Nothing fits. The Spoiler must play on."),
+		18, GOLD if coach or not can_any else DIM, Vector2(c.x, 0), c.y)
 	hint_label.position.y = bottom - hint_label.size.y
 	var sc := 0.82
 	var cs := card_size(sc)
@@ -375,6 +384,10 @@ func _on_card(_v: CardView, i: int) -> void:
 	if waiting or s.play.over or i >= s.play.mine.size() or not s.play.playable(i):
 		return
 	var gained := s.lay(i)
+	if not play_hint_seen():
+		var m := Achv.load_store()
+		m["play_hint"] = 1        # the coach line is shown until the first lay, once ever
+		Achv.save_store(m)
 	if gained > 0:
 		Sound.tick("pair", mini(6, gained))
 	else:

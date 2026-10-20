@@ -13,6 +13,7 @@ signal begin(run: CribRun)
 signal guided
 ## CONTINUE on the title: pick the saved run back up.
 signal resume_run
+signal first(id: String)    ## a first-time celebration (Firsts) for RunFlow's toast
 var can_resume := false     ## set by the owner before open(): a saved run exists
 
 const BG := Color(0.102, 0.094, 0.149)
@@ -651,6 +652,8 @@ func _tap_back(id: String) -> void:
 	elif Achv.buy_back(id):
 		Achv.set_back(id)
 		last_tap = "buy"
+		if Firsts.claim("peddler"):
+			first.emit("peddler")
 	else:
 		last_tap = "short"
 	_flash_pending = last_tap == "short"

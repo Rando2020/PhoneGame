@@ -42,6 +42,9 @@ func _ready() -> void:
 	Menus.apply()             # saved settings: Reduce Motion, count speed
 	deed_toast = DeedToast.new()
 	add_child(deed_toast)
+	deed_toast.burst_wanted.connect(func(at: Vector2):
+		if juice != null and is_instance_valid(juice):
+			juice.burst(at, 36, ["gold", "white", "green"]))
 	show_front_door("title")
 
 
@@ -77,6 +80,10 @@ func show_front_door(step := "") -> void:
 	front.begin.connect(start_run, CONNECT_ONE_SHOT)
 	front.guided.connect(start_guided, CONNECT_ONE_SHOT)
 	front.resume_run.connect(resume, CONNECT_ONE_SHOT)
+	front.first.connect(func(id: String):
+		if deed_toast != null:
+			move_child(deed_toast, -1)
+			deed_toast.celebrate(id))
 
 
 var coach: GuideCoach
@@ -101,7 +108,7 @@ func start_guided() -> void:
 ## iOS kills backgrounded apps, so the run is saved at every step (each screen,
 ## each shop purchase, every deal, count and lay) and resumed exactly. The save
 ## is written after a step's effects land, so a resume never applies one twice.
-## A finished run (lost, or all 25 rounds cleared) clears it.
+## A finished run (lost, or every round cleared) clears it.
 const SAVE_PATH := "user://run_save.txt"
 var last_save := ""        ## the latest save text (on disk too when Achv.persist)
 var saves := 0
@@ -174,6 +181,7 @@ func resume() -> void:
 ## A fresh run. Tests may pass a prepared run.
 func start_run(run_: CribRun = null) -> void:
 	run = run_ if run_ != null else CribRun.new(meldling, Meta.STREETS[street_id - 1], null, seed)
+	CascadeView.speed_i = Menus.speed_default(Achv.load_store())
 	show_intro()
 
 
@@ -646,6 +654,20 @@ func _on_round_finished() -> void:
 
 
 ## Port of cribRoundEnd's state changes, in its order. Runs once per round.
+## First-time celebrations (Firsts). A Spoiler closes every act, so the two
+## usually land together: then the act's card shows and the Spoiler's is
+## claimed quietly. Presentation only.
+func _celebrate_round() -> void:
+	if rd == null or not rd.won or deed_toast == null:
+		return
+	var act_done: bool = run.round == CribData.ROUNDS
+	if act_done and Firsts.claim("act"):
+		Firsts.claim("spoiler")
+		deed_toast.celebrate("act")
+	elif run.is_boss() and Firsts.claim("spoiler"):
+		deed_toast.celebrate("spoiler")
+
+
 func _round_end_effects() -> void:
 	rd.settle()   # settles the Crib once if needed (web cribend.patch)
 	if rd.wager != null and rd.wager_won:
@@ -655,6 +677,7 @@ func _round_end_effects() -> void:
 	var max_lv := 0
 	for k in run.levels:
 		max_lv = maxi(max_lv, run.levels[k])
+	_celebrate_round()
 	announce_deeds(Achv.check("round", {"won": rd.won, "act": run.act, "round": run.round, "score": rd.score,
 		"target": rd.target, "deckSize": run.deck_size(),
 		"cribTotal": rd.crib_result.total if rd.crib_result != null else 0,

@@ -77,6 +77,7 @@ func _ready() -> void:
 	TypeScale.set_size(speed_button, 22)
 	speed_button.pressed.connect(func():
 		speed_i = (speed_i + 1) % SPEEDS.size()
+		Menus._save("cascade_speed", speed_i)   # a choice here is the setting too
 		_speed_text())
 	add_child(speed_button)
 	_speed_text()
@@ -269,7 +270,7 @@ func _begin_beat(b: Dictionary) -> void:
 		Sound.tick(b.kind, _tick_i)
 		_tick_i += 1
 	elif LINE_SOUND.has(b.kind):
-		Sound.play(LINE_SOUND[b.kind])
+		Sound.play(LINE_SOUND[b.kind], Sound.semi(int(b.get("step", 0))))
 	if b.kind == "charm" and charm_light.is_valid():
 		charm_light.call([b.label])
 	if not b.cards.is_empty() and light.is_valid():
