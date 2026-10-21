@@ -594,7 +594,14 @@ func show_intro() -> void:
 	else:
 		y = _line(y, "TARGET %d" % run.target(), 52, INK)
 		y = _meld_at(y, 220.0, "eager")
-	y = _line(y + 4.0, "Score %d in %d deals" % [run.target(), CribData.DEALS + m.dealBonus], 22, GOLD)
+	var tw = run.twist() if boss == null and not run.is_wager() else null
+	if tw != null:
+		# the plain round's twist (LOOP_AUDIT 5), its price, and the deals, in
+		# the place of "Score N in D deals" (the target is just above)
+		y = _line(y + 4.0, "%s: %s  Target +%d%%, %d deals." % [String(tw.name).to_upper(), tw.text,
+			roundi((CribData.TWIST_TARGET - 1.0) * 100.0), CribData.DEALS + m.dealBonus], 22, GOLD)
+	else:
+		y = _line(y + 4.0, "Score %d in %d deals" % [run.target(), CribData.DEALS + m.dealBonus], 22, GOLD)
 	y = _line(y, "%s  ·  deck %d  ·  charms %d/%d" % [run.street.name, run.deck_size(), run.charms.size(), run.slots()], 17, DIM)
 	# the Spoilers on the road: past dimmed, this act's marked
 	var plan := []
@@ -739,6 +746,10 @@ func _render_round_end() -> void:
 		if m.decisive:
 			lines.append(["Without it you'd have finished on %d. You needed %d." % [JS.round_(m.without), rd.target], 17, RED])
 		y = _panel(y + 4.0, lines)
+	var syn = rd.best_synergy()
+	if syn != null:
+		# two charms that fed each other (LOOP_AUDIT 7): the build, named
+		y = _line(y + 4.0, "%s fed each other  +%d" % [syn.pair, syn.points], 20, GOLD)
 	var box := []
 	if not rd.shattered_all.is_empty():
 		box.append(["Shattered: " + ", ".join(rd.shattered_all.map(func(c): return Cribbage.card_str(c))), 17, Color(0.45, 0.88, 0.82)])
@@ -760,7 +771,8 @@ func _render_round_end() -> void:
 		if not run.endless and not (run.act == CribData.ACTS and run.round == CribData.ROUNDS):
 			var nxt := "Act %d" % (run.act + 1) if run.round == CribData.ROUNDS else (
 				"the Spoiler" if run.round + 1 == CribData.ROUNDS else "Round %d" % (run.round + 1))
-			y = _line(y + 4.0, "Next: %s, target %d" % [nxt, run.next_target()], 22, INK)
+			var nt = run.next_twist()
+			y = _line(y + 4.0, "Next: %s, target %d%s" % [nxt, run.next_target(), "  ·  " + String(nt.name) if nt != null else ""], 22, INK)
 	if rd.won and Entitlement.capped(run, true):
 		# free to try: the first Spoiler is beaten; what's next is the end card
 		_button("free_next", "WHAT'S NEXT", true, show_free_end)

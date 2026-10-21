@@ -22,6 +22,7 @@ var gilded := {}
 var cards: Array = []
 var boss_plan: Array = []
 var wager_at := {}
+var twist_plan := {}      ## "act-round" -> twist id (CribData.TWISTS)
 var shop_state = null
 var contrib_run = null
 var daily = null
@@ -56,6 +57,7 @@ func _init(meldling_id: String, street_ = null, trial_ = null, seed_ = null) -> 
 		cards = JS.shuffle(cards, rng).slice(0, ex.deckCap)
 	boss_plan = CribData.plan_bosses(rng)
 	plan_wagers()
+	plan_twists()
 
 
 func deck_size() -> int:
@@ -128,15 +130,38 @@ func round_index() -> int:
 
 
 ## The next round's target, read only (the round end's "Next" line).
+## The next slot's twist (read only, as next_target), or null.
+func next_twist() -> Variant:
+	var keep := [act, round]
+	if round == CribData.ROUNDS:
+		act += 1
+		round = 1
+	else:
+		round += 1
+	var t = twist()
+	act = keep[0]
+	round = keep[1]
+	return t
+
+
 func next_target() -> int:
-	var mul: float = JS.or_(street.get("mods", {}), "targetMul", 1)
-	mul *= JS.or_(trial.mods, "targetMul", 1) if trial != null else 1
-	return JS.round_(CribData.LADDER_BASE * pow(CribData.LADDER_GROWTH, round_index()) * mul)
+	# the next slot's real target (its twist included); read only: put back at once
+	var keep := [act, round]
+	if round == CribData.ROUNDS:
+		act += 1
+		round = 1
+	else:
+		round += 1
+	var t := target()
+	act = keep[0]
+	round = keep[1]
+	return t
 
 
 func target() -> int:
 	var mul: float = JS.or_(street.get("mods", {}), "targetMul", 1)
 	mul *= JS.or_(trial.mods, "targetMul", 1) if trial != null else 1
+	mul *= CribData.TWIST_TARGET if twist() != null else 1.0
 	return JS.round_(CribData.LADDER_BASE * pow(CribData.LADDER_GROWTH, round_index() - 1) * mul)
 
 
@@ -153,6 +178,34 @@ func plan_wagers() -> void:
 	var n := 1 + (1 if rng.next() < 0.45 else 0)  # one, sometimes two
 	for i in mini(n, slots_.size()):
 		wager_at[slots_[i]] = true
+
+
+## Its own stream when seeded (seed + 7919), so deals, cuts and the shop draw
+## what they did before twists; unseeded, the run's (JS.unseeded), as the web.
+func plan_twists() -> void:
+	var g: JsRng = JsRng.new(seed + CribData.TWIST_SEED_STEP) if seed != null else rng
+	twist_plan = {}
+	var last := -1
+	for a in range(1, CribData.ACTS + 1):
+		for r in range(1, CribData.ROUNDS):
+			var i := int(floor(g.next() * CribData.TWISTS.size()))
+			if i == last:
+				i = (i + 1) % CribData.TWISTS.size()
+			twist_plan["%d-%d" % [a, r]] = CribData.TWISTS[i].id
+			last = i
+
+
+## The plan as sorted "act-round=id" strings (the parity fixtures' form).
+func twist_sig() -> Array:
+	var ks: Array = twist_plan.keys()
+	ks.sort()
+	return ks.map(func(k): return "%s=%s" % [k, twist_plan[k]])
+
+
+func twist() -> Variant:
+	if endless or is_boss() or is_wager():
+		return null
+	return CribData.twist_by_id(twist_plan.get("%d-%d" % [act, round]))
 
 
 func is_wager() -> bool:
@@ -236,6 +289,19 @@ func rules() -> Dictionary:
 	var b = boss()
 	if b != null:
 		merge.call(b.rule)
+	# a twist only ever helps: the better of it and what's already there
+	var tw = twist()
+	if tw != null:
+		for k in tw.rule:
+			var v = tw.rule[k]
+			if k == "flushNeed":
+				r[k] = mini(r[k], v)
+			elif k in ["fifteenPoints", "nobsPoints"]:
+				r[k] = maxi(r[k], v)
+			elif k == "mulliganBonus":
+				r[k] += v
+			else:
+				r[k] = v
 	return r
 
 

@@ -591,6 +591,9 @@ func _show_round_end() -> void:
 
 func _update_status() -> void:
 	var second := "Deals left %d" % rd.deals_left
+	var tw = run.twist() if run != null else null
+	if tw != null and not rd.over:
+		second += "  |  " + String(tw.name)     # the round's twist, kept in sight
 	if rd.over:
 		var crib: int = rd.crib_result.total if rd.crib_result != null else 0
 		second = "%s  |  Crib +%d" % ["Round cleared" if rd.won else "Round lost", crib]

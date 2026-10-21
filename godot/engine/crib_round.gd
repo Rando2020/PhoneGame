@@ -40,6 +40,7 @@ var last_count = null
 var shattered_all: Array = []
 var coins_all := 0
 var contrib_totals := {}
+var synergy_totals := {}   ## "A + B" -> points the pair made together this round
 var level_total := 0
 var cut_total := 0
 var crib_result = null
@@ -358,6 +359,8 @@ func run_count(hand: Array, is_crib := false, starter_override = null, opts: Dic
 			break
 		if opts.get("skip") != null and is_same(opts.skip, ch):
 			continue
+		if opts.get("skip2") != null and is_same(opts.skip2, ch):
+			continue
 		var hit := false
 		if ch.on_event.is_valid():
 			for e in res.events:
@@ -509,6 +512,19 @@ func commit(keep_idx: Array):
 		var d = res.total - without.total
 		if d != 0:
 			res.contrib[ch.name] = d
+	# Synergy (pass 15, LOOP_AUDIT 7; presentation only): for two charms that both
+	# scored, what they make together beyond their two separate credits:
+	# total - without A - without B + without both. Pure recounts, no draws.
+	res["synergy"] = {}
+	var scored: Array = run.active_charms().filter(func(c): return res.contrib.has(c.name))
+	for i in scored.size():
+		for j in range(i + 1, scored.size()):
+			var a: Charm = scored[i]
+			var b: Charm = scored[j]
+			var both := run_count(hand, false, null, {"skip": a, "skip2": b, "luck": luck})
+			var syn = res.total - (res.total - res.contrib[a.name]) - (res.total - res.contrib[b.name]) + both.total
+			if JS.round_(syn) > 0:
+				res.synergy["%s + %s" % [a.name, b.name]] = syn
 	var no_levels := run_count(hand, false, null, {"noLevels": true, "luck": luck})
 	res["levelContrib"] = res.total - no_levels.total
 	var no_cut := run_count(hand, false, null, {"noStarter": true, "luck": luck})
@@ -536,6 +552,8 @@ func commit(keep_idx: Array):
 	coins_all += res.coins
 	for k in res.contrib:
 		contrib_totals[k] = contrib_totals.get(k, 0) + res.contrib[k]
+	for k in res.synergy:
+		synergy_totals[k] = synergy_totals.get(k, 0) + res.synergy[k]
 	level_total += res.levelContrib
 	cut_total += res.cutGain
 
@@ -612,6 +630,16 @@ func settle_crib() -> Dictionary:
 
 
 ## Who carried the round, and would you have failed without them?
+## The round's best pair (round end), or null under SYNERGY_MIN points.
+const SYNERGY_MIN := 5
+func best_synergy():
+	var best = null
+	for k in synergy_totals:
+		if JS.round_(synergy_totals[k]) >= SYNERGY_MIN and (best == null or synergy_totals[k] > synergy_totals[best]):
+			best = k
+	return {"pair": best, "points": JS.round_(synergy_totals[best])} if best != null else null
+
+
 func mvp():
 	var all := contrib_totals.duplicate()
 	if level_total:
