@@ -362,3 +362,12 @@ failure never reproduced on demand.
 
 **Store:** the shop shot re-rendered identical to the pixel (its bar has a
 free slot, so no mark). Listing and preview checkers: 0 fails.
+
+# Re-check, 2026-10-21 (after pass 17)
+
+Twist set re-measured with a sim that sees the Crib and mulligans (LOOP_AUDIT
+"Pass 17"). Five twists change the best play at least 11% of the time; Nobs
+for Three (1.7%) is replaced by Seventh Card (66.0%, dealt 7 cards). Both
+engines, same seeded draw; parity OK. TWIST_TARGET stays 1.10 (strong clears
+14.8% at 2,400 runs). Tests: pass15_test updated (Seventh Card deals 7; its
+dealtBonus adds to a deck's); 3 of 3 new mutants caught.

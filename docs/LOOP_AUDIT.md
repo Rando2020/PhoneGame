@@ -275,3 +275,47 @@ Reading it:
   Nobs for Three is a real miss: one jack per hand is rarely worth chasing.
 - Whether any of this feels different to a player is still unverified: it
   needs a playtest.
+
+## Pass 17: every twist earns its slot
+
+The pass 16 measure valued a keep by its hand EV only, so it couldn't see two
+of the twists. `tools/sim/twist_keep.js` now values a keep as hand EV plus the
+thrown cards' Crib EV at the Crib's real mult (0.5, or 1 under Open Crib). The
+Crib EV is estimated on 24 shared samples a deal, so all of a deal's keeps are
+valued on the same cards. For Second Look, a greedy player mulligans whenever
+the best keep is worth less than a fresh deal on average (10.79). "Changed"
+then means a round where that player wants a third mulligan. 2,000 each:
+
+| twist | pass 16 (hand only) | pass 17 (hand + Crib) |
+|---|---|---|
+| Short Suits | 27.8% | 28.2% of deals |
+| Open Crib | 0% | **17.6%** of deals |
+| Rich Fifteens | 10.8% | 11.9% of deals |
+| Doubled Pairs | 10.3% | 11.4% of deals |
+| Second Look | 0% | **46.1% of rounds** want a 3rd mulligan |
+| Nobs for Three | 2.8% | **1.7%: replaced** |
+
+Candidates screened with the same measure (existing rule keys, never
+shipped as twists): being dealt 7 cards 66.0%, runs of 2 count 30.4%, Aces
+High 16.6%, a 5-card Crib 12.8%, Round the Bend 9.6%. Double cuts and recuts
+weren't screened: the keep value doesn't model them.
+
+**Shipped: Seventh Card** ("You are dealt 7 cards, not 6") in Nobs for Three's
+place. Its index is the same, so the seeded draw is unchanged. It's named
+apart from the Generous Deal charm (the same rule), and the two stack: a twist
+adds to `dealtBonus`. Both engines; parity re-run (78 runs, 34 rounds with
+Seventh Card).
+
+**Target, re-swept** (`run_length.js`, 2,400 runs a row, about ±0.7 points):
+
+| | strong clears | strong run | beginner reaches the first Spoiler |
+|---|---|---|---|
+| no twists | 16.6% | 23.3 min | 51.7% |
+| twists, +5% | 17.1% | 23.5 min | 54.2% |
+| **twists, +10% (kept)** | **14.8%** | **23.2 min** | **51.2%** |
+| twists, +15% | 14.8% | 23.1 min | 47.4% |
+
++10% stays: strong clears at 14.8% sit in the 14.5 to 14.8% band, and
+beginners match no twists. (+15% gives the same strong rate but costs
+beginners 4 points.) "No twists" reads 16.6% here against 14.8% in pass 15.
+That's the noise of the smaller pass 15 sample; this one is 3 times larger.
