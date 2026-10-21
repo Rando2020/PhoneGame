@@ -106,7 +106,8 @@ func _go() -> void:
 			f.rd = nd
 			f._paid = true
 			f._render_round_end()
-			var want := "Next: %s, target %d" % ["Act 3" if rr == CribData.ROUNDS else ("the Spoiler" if rr + 1 == CribData.ROUNDS else "Round %d" % (rr + 1)), later.target()]
+			var lt = later.twist()
+			var want := "Next: %s, target %d%s" % ["Act 3" if rr == CribData.ROUNDS else ("the Spoiler" if rr + 1 == CribData.ROUNDS else "Round %d" % (rr + 1)), later.target(), "  ·  " + String(lt.name) if lt != null else ""]
 			var hit := f.find_children("*", "Label", true, false).filter(func(l): return l.text == want)
 			ok(hit.size() == 1, "round end %d-%d: no '%s'" % [nr.act, rr, want])
 	# ---- first-time celebrations

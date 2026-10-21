@@ -69,7 +69,7 @@ func sig(run: CribRun) -> Dictionary:
 	w.sort()
 	return {"meld": run.meldling, "street": run.street.id, "trial": run.trial.id if run.trial != null else null,
 		"endless": run.endless, "seed": run.seed, "cards": run.cards.map(card_out),
-		"bosses": run.boss_plan.map(func(b): return b.id), "wagers": w}
+		"bosses": run.boss_plan.map(func(b): return b.id), "wagers": w, "twists": run.twist_sig()}
 
 
 ## Every button on screen; action buttons centred; nothing above overlaps them.

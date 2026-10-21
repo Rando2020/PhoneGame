@@ -127,11 +127,12 @@ function playRun(cfg) {
   const run = new CribRun(cfg.meld, street, trial, cfg.seed === null ? undefined : cfg.seed);
   if (cfg.endless) { run.enterEndless(); run.endlessRound = 0; }
   const T = { cards: run.cards.map(cardOut), bosses: run.bossPlan.map((b) => b.id),
-              wagers: Object.keys(run.wagerAt).sort(), rounds: [] };
+              wagers: Object.keys(run.wagerAt).sort(), twists: Object.keys(run.twistPlan).sort().map((k) => k + "=" + run.twistPlan[k]), rounds: [] };
   for (let r = 0; r < cfg.maxRounds; r++) {
     const rd = new CribRound(run);
     const RT = { idx: run.roundIndex(), target: rd.target, boss: pad(run.boss() && run.boss().id),
-                 deadSuit: pad(rd.mods.deadSuit), stock: rd.stock.length, wager: !!rd.wager, deals: [] };
+                 deadSuit: pad(rd.mods.deadSuit), stock: rd.stock.length, wager: !!rd.wager,
+                 twist: pad(run.twist() && run.twist().id), deals: [] };
     let guard = 0;
     while (!rd.over && guard++ < 30) {
       if (!rd.newDeal()) break;
@@ -378,7 +379,7 @@ fx.selectui = [];
     { read: () => Achv.load(), write: (o) => Achv.save(o) }, "k", CRIB_ACTS, CRIB_ROUNDS);
   const sig = (run) => ({ meld: run.meldling, street: run.street.id, trial: run.trial ? run.trial.id : null,
     endless: !!run.endless, seed: run.seed === undefined ? null : run.seed,
-    cards: run.cards.map(cardOut), bosses: run.bossPlan.map((b) => b.id), wagers: Object.keys(run.wagerAt).sort() });
+    cards: run.cards.map(cardOut), bosses: run.bossPlan.map((b) => b.id), wagers: Object.keys(run.wagerAt).sort(), twists: Object.keys(run.twistPlan).sort().map((k) => k + "=" + run.twistPlan[k]) });
   const builders = [
     () => {},
     () => { Achv.unlockStreet(3); Achv.grant("long_road"); Achv.markTrial("pauper"); Achv.markTrial("court");

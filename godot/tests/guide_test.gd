@@ -79,7 +79,7 @@ func start(fx) -> RunFlow:
 	var w: Array = f.run.wager_at.keys()
 	w.sort()
 	var got := {"meld": f.run.meldling, "street": f.run.street.id, "trial": null, "endless": f.run.endless,
-		"seed": f.run.seed, "cards": f.run.cards.map(card_out), "bosses": f.run.boss_plan.map(func(b): return b.id), "wagers": w}
+		"seed": f.run.seed, "cards": f.run.cards.map(card_out), "bosses": f.run.boss_plan.map(func(b): return b.id), "wagers": w, "twists": f.run.twist_sig()}
 	var d: String = load("res://tests/parity_test.gd").diff(R.run, got)
 	ok(d == "", "guided run differs from the web's: %s" % d)
 	return f

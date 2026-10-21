@@ -7,6 +7,26 @@ const ACTS := 5
 const ROUNDS := 3   ## 3 rounds an act (2026-10-20, Ziah; tools/sim/run_length.sh)
 const LADDER_BASE := 36
 const LADDER_GROWTH := 1.29   ## was 1.19 at 5 rounds an act; 1.29 matches its clear rate
+
+## Plain-round twists (pass 15, LOOP_AUDIT 5), the web's CRIB_TWISTS word for
+## word: one small rule on each plain round, drawn at run start, shown ahead.
+const TWISTS := [
+	{"id": "pairs4", "name": "Doubled Pairs", "text": "Pairs score 4.", "rule": {"pairDouble": true}},
+	{"id": "fifteen3", "name": "Rich Fifteens", "text": "Fifteens score 3.", "rule": {"fifteenPoints": 3}},
+	{"id": "flush3", "name": "Short Suits", "text": "A flush needs only 3 cards.", "rule": {"flushNeed": 3}},
+	{"id": "nobs3", "name": "Nobs for Three", "text": "His nobs scores 3.", "rule": {"nobsPoints": 3}},
+	{"id": "cribfull", "name": "Open Crib", "text": "Your Crib scores in full.", "rule": {"cribFull": true}},
+	{"id": "mull1", "name": "Second Look", "text": "One extra mulligan.", "rule": {"mulliganBonus": 1}},
+]
+const TWIST_SEED_STEP := 7919
+const TWIST_TARGET := 1.10   ## a twist round's target: the better rule has a price
+
+
+static func twist_by_id(id) -> Variant:
+	for t in TWISTS:
+		if t.id == id:
+			return t
+	return null
 const DEALS := 4
 const DEALT := 6
 const KEEP := 4

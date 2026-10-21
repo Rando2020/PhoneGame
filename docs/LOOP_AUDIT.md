@@ -147,9 +147,9 @@ of these; keep them as rules:
 | 2 | The Play from the start | meta and round | done (pass 13) | |
 | 3 | "Next unlock" line on the run end | meta | done (pass 13) | |
 | 4 | Count speed 2x by default from run 2 | run | done (pass 14) | |
-| 5 | Plain-round twists | round | new content, sim | design and sim |
+| 5 | Plain-round twists | round | done (pass 15) | |
 | 6 | 3 rounds an act, growth x1.29 (simulated above) | run | done (pass 14) | |
-| 7 | Synergy callouts on the round end | round | UI | nothing |
+| 7 | Synergy callouts on the round end | round | done (pass 15) | |
 | 8 | "Needs N more" on the count | micro | done (pass 14) | |
 | 9 | Cut-tier sound step | micro | done (pass 14) | |
 | 10 | First-time celebrations | meta | done (pass 14) | |
@@ -183,3 +183,40 @@ before the paywall card.
   its own (an extra Spoiler from Third Street), and a first Peddler buy.
 - The Play has a coach line on its first opening, and How to play has an
   8th step, "The Play".
+
+## Pass 15: what changed
+
+- **Plain-round twists** (both engines). Every plain round gets one of 6
+  twists, drawn once at run start: Doubled Pairs (pairs score 4), Rich
+  Fifteens (fifteens score 3), Short Suits (a flush needs 3), Nobs for Three,
+  Open Crib (the Crib scores in full) and Second Look (one more mulligan).
+  - No twist twice in a row.
+  - No twist on Spoiler rounds, Wagers or the Long Count.
+  - A twist never makes a rule worse: if a deck or charm already has a better
+    rule, that one stays.
+  - A twist round's target is 10% higher.
+  - Twists are drawn from a stream seeded with the run seed + 7919. Deals,
+    cuts and the shop draw exactly what they did before (tested: planning
+    leaves the run's rng untouched).
+  - Shown on the intro (in place of "Score N in D deals"), in the keep
+    screen's status line, and ahead of time on the round end's "Next" line.
+- **The twist round's target, simulated** (`run_length.js`, 800 runs a row,
+  about ±1.3 points of noise):
+
+| | strong clears | strong run | beginner reaches the first Spoiler |
+|---|---|---|---|
+| no twists (pass 14) | 14.8% | 23.2 min | 50.8% |
+| twists, target +0% | 17.4% | 23.7 min | 61.5% |
+| twists, target +5% | 13.8% | 23.3 min | 53.8% |
+| **twists, target +10% (shipped)** | **14.5%** | **22.7 min** | **50.4%** |
+| twists, target +15% | 13.3% | 22.2 min | 47.1% |
+
+  At +10%, difficulty and run length stay the same; what changes is that the
+  best keep moves round to round. Whether that breaks the autopilot feeling
+  is unverified: it needs a playtest.
+- **Synergy callouts** (port, presentation only). For two charms that both
+  scored in a count, their synergy is the total, minus the total without A,
+  minus the total without B, plus the total without either. Those are pure
+  recounts, with no draws, so parity is unchanged. The round end names the
+  round's best pair at 5 points or more: "Ballast + Fifteener fed each other
+  +7".

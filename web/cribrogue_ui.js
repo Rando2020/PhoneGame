@@ -699,7 +699,10 @@ function cribRoundIntro() {
     c.append(el("h2", "title", `TARGET ${run.target()}`));
     c.append(creatureEl(run.meldling, "idle", 4));
   }
-  c.append(el("p", "gold", `Score ${run.target()} in ${CRIB_DEALS + m.dealBonus} deals`));
+  /* the plain round's twist (LOOP_AUDIT 5), in the place of the Score line */
+  const tw = !run.isBoss() && !run.isWager() ? run.twist() : null;
+  if (tw) c.append(el("p", "gold", `${tw.name.toUpperCase()}: ${tw.text}  Target +${Math.round((TWIST_TARGET - 1) * 100)}%, ${CRIB_DEALS + m.dealBonus} deals.`));
+  else c.append(el("p", "gold", `Score ${run.target()} in ${CRIB_DEALS + m.dealBonus} deals`));
   c.append(cribCharmRow(run));
   c.append(cribLevelRow(run));
   c.append(el("p", "small dim", `${run.street.name}  ·  deck ${run.deckSize()}  ·  charms ${run.charms.length}/${run.slots()}`));

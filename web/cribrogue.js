@@ -432,6 +432,21 @@ function planBosses(rng) {
 }
 
 /* ---------------------------------------------------------------- run */
+/* Plain-round twists (pass 15, LOOP_AUDIT 5): one small rule on each plain
+   round, drawn once at run start and shown in advance like the Spoilers. Each
+   only helps, and each points at a different keep. Not on Spoiler rounds,
+   Wagers or the Long Count. */
+const CRIB_TWISTS = [
+  { id: "pairs4", name: "Doubled Pairs", text: "Pairs score 4.", rule: { pairDouble: true } },
+  { id: "fifteen3", name: "Rich Fifteens", text: "Fifteens score 3.", rule: { fifteenPoints: 3 } },
+  { id: "flush3", name: "Short Suits", text: "A flush needs only 3 cards.", rule: { flushNeed: 3 } },
+  { id: "nobs3", name: "Nobs for Three", text: "His nobs scores 3.", rule: { nobsPoints: 3 } },
+  { id: "cribfull", name: "Open Crib", text: "Your Crib scores in full.", rule: { cribFull: true } },
+  { id: "mull1", name: "Second Look", text: "One extra mulligan.", rule: { mulliganBonus: 1 } },
+];
+const TWIST_SEED_STEP = 7919;
+const TWIST_TARGET = 1.10;   /* a twist round's target: the better rule has a price (cribsim gate 4) */
+
 class CribRun {
   constructor(meldling, street, trial, seed) {
     /* With a seed the whole run is deterministic — same deck, same Spoilers,
@@ -470,6 +485,28 @@ class CribRun {
     if (ex.deckCap) this.cards = cShuf(this.cards, this.rng).slice(0, ex.deckCap);
     this.bossPlan = planBosses(this.rng);
     this.planWagers();
+    this.planTwists();
+  }
+
+  /* Its own stream when seeded (seed + 7919), so the deals, cuts and shop
+     draw exactly what they did before twists existed. Unseeded: the run's. */
+  planTwists() {
+    const g = this.seed !== undefined ? makeRng((this.seed + TWIST_SEED_STEP) >>> 0) : this.rng;
+    this.twistPlan = {};
+    let last = -1;
+    for (let a = 1; a <= CRIB_ACTS; a++)
+      for (let r = 1; r < CRIB_ROUNDS; r++) {
+        let i = Math.floor(g() * CRIB_TWISTS.length);
+        if (i === last) i = (i + 1) % CRIB_TWISTS.length;
+        this.twistPlan[`${a}-${r}`] = CRIB_TWISTS[i].id;
+        last = i;
+      }
+  }
+
+  twist() {
+    if (this.endless || this.isBoss() || this.isWager()) return null;
+    const id = (this.twistPlan || {})[`${this.act}-${this.round}`];
+    return CRIB_TWISTS.find((t) => t.id === id) || null;
   }
 
   deckSize() { return this.cards.length; }
@@ -520,8 +557,8 @@ class CribRun {
   }
   target() {
     const mul = ((this.street && this.street.mods.targetMul) || 1) *
-                ((this.trial && this.trial.mods.targetMul) || 1);
-
+                ((this.trial && this.trial.mods.targetMul) || 1) *
+                (this.twist() ? TWIST_TARGET : 1);
     return Math.round(CRIB_LADDER.baseTarget *
       Math.pow(CRIB_LADDER.growth, this.roundIndex() - 1) * mul);
   }
@@ -595,6 +632,15 @@ class CribRun {
       if (ex[k] !== undefined) r[k] = ex[k];
     const b = this.boss();
     if (b) merge(b.rule);
+    /* a twist only ever helps: the better of it and what's already there */
+    const tw = this.twist();
+    if (tw) for (const k in tw.rule) {
+      const v = tw.rule[k];
+      if (k === "flushNeed") r[k] = Math.min(r[k], v);
+      else if (k === "fifteenPoints" || k === "nobsPoints") r[k] = Math.max(r[k], v);
+      else if (k === "mulliganBonus") r[k] += v;
+      else r[k] = v;
+    }
     return r;
   }
 
@@ -1255,7 +1301,7 @@ class CribRound {
 }
 
 if (typeof module !== "undefined")
-  module.exports = { CCHARMS, CRIB_DECKS, CribRun, CribRound,
+  module.exports = { CCHARMS, CRIB_TWISTS, CRIB_DECKS, CribRun, CribRound,
     CRIB_ACTS, CRIB_ROUNDS, CRIB_LADDER, CRIB_DEALS, CRIB_DEALT, CRIB_KEEP, CHARM_SLOTS,
     LEVEL_CATS, LEVEL_GAIN, levelCost, BASE_MULLIGANS, CRIB_SIZE, SKIP_COST,
     RARITY, RARITY_ORDER, rollRarity,

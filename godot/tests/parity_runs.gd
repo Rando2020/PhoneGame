@@ -41,7 +41,7 @@ func run(test, fx) -> void:
 
 ## Narrow a failing run to the first deal that differs.
 func _locate(exp, got) -> void:
-	for k in ["cards", "bosses", "wagers"]:
+	for k in ["cards", "bosses", "wagers", "twists"]:
 		if T.diff(exp[k], got[k]) != "":
 			print("   first difference in run start: ", k)
 			return
@@ -83,7 +83,7 @@ func play_run(cfg) -> Dictionary:
 	var wk: Array = run.wager_at.keys()
 	wk.sort()
 	var tr := {"cards": run.cards.map(func(c): return T.card_out(c)),
-		"bosses": run.boss_plan.map(func(b): return b.id), "wagers": wk, "rounds": []}
+		"bosses": run.boss_plan.map(func(b): return b.id), "wagers": wk, "twists": run.twist_sig(), "rounds": []}
 	for r in cfg.maxRounds:
 		var rd := CribRound.new(run)
 		var hp := _h(run, rd)
@@ -91,7 +91,8 @@ func play_run(cfg) -> Dictionary:
 		rd = hp[1]
 		var bs = run.boss()
 		var rt := {"idx": run.round_index(), "target": rd.target, "boss": bs.id if bs != null else null,
-			"deadSuit": rd.mods.deadSuit, "stock": rd.stock.size(), "wager": rd.wager != null, "deals": []}
+			"deadSuit": rd.mods.deadSuit, "stock": rd.stock.size(), "wager": rd.wager != null,
+			"twist": run.twist().id if run.twist() != null else null, "deals": []}
 		var guard := 0
 		while not rd.over and guard < 30:
 			guard += 1
