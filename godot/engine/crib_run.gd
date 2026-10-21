@@ -302,7 +302,7 @@ func rules() -> Dictionary:
 				r[k] = mini(r[k], v)
 			elif k in ["fifteenPoints", "nobsPoints"]:
 				r[k] = maxi(r[k], v)
-			elif k == "mulliganBonus":
+			elif k in ["mulliganBonus", "dealtBonus"]:
 				r[k] += v
 			else:
 				r[k] = v

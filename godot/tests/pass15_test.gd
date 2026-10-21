@@ -74,7 +74,7 @@ func _go() -> void:
 
 	# ---- rules, only helping, and the target
 	var want := {"pairs4": ["pairDouble", true], "fifteen3": ["fifteenPoints", 3], "flush3": ["flushNeed", 3],
-		"nobs3": ["nobsPoints", 3], "cribfull": ["cribFull", true], "mull1": ["mulliganBonus", 1]}
+		"deal7": ["dealtBonus", 1], "cribfull": ["cribFull", true], "mull1": ["mulliganBonus", 1]}
 	for id in ids:
 		var r := CribRun.new("thump", Meta.STREETS[0], null, 9)
 		r.wager_at = {}
@@ -84,11 +84,14 @@ func _go() -> void:
 		r.twist_plan["1-1"] = id
 		var m := r.rules()
 		var k: String = want[id][0]
-		ok(m[k] == want[id][1] if k != "mulliganBonus" else m[k] == base_rules[k] + 1, "%s: %s = %s" % [id, k, m[k]])
+		ok(m[k] == want[id][1] if not k in ["mulliganBonus", "dealtBonus"] else m[k] == base_rules[k] + 1, "%s: %s = %s" % [id, k, m[k]])
 		ok(r.target() == JS.round_(CribData.LADDER_BASE * CribData.TWIST_TARGET), "%s: target %d (plain %d)" % [id, r.target(), plain])
 		var rd := CribRound.new(r)
 		ok(rd.target == r.target(), "the round's target is the twisted one")
 		ok(JS.truthy(rd.mods.get(k)) or rd.mods.get(k) == want[id][1] or k == "mulliganBonus", "%s reaches the round's mods" % id)
+		if id == "deal7":
+			rd.new_deal()
+			ok(rd.dealt.size() == CribData.DEALT + base_rules.dealtBonus + 1, "Seventh Card deals %d" % rd.dealt.size())
 	var r0 := CribRun.new("thump", Meta.STREETS[0], null, 9)
 	r0.twist_plan = {}
 	r0.round = 1
@@ -98,9 +101,9 @@ func _go() -> void:
 	rich.wager_at = {}
 	rich.round = 1
 	var dk: Dictionary = rich.deck.duplicate(true)
-	dk["rule"] = {"flushNeed": 2, "fifteenPoints": 4, "nobsPoints": 5}
+	dk["rule"] = {"flushNeed": 2, "fifteenPoints": 4, "dealtBonus": 1}
 	rich.deck = dk
-	for pair in [["flush3", "flushNeed", 2], ["fifteen3", "fifteenPoints", 4], ["nobs3", "nobsPoints", 5]]:
+	for pair in [["flush3", "flushNeed", 2], ["fifteen3", "fifteenPoints", 4], ["deal7", "dealtBonus", 2]]:
 		rich.twist_plan["1-1"] = pair[0]
 		ok(rich.rules()[pair[1]] == pair[2], "%s: a better %s stays %s (got %s)" % [pair[0], pair[1], pair[2], rich.rules()[pair[1]]])
 
