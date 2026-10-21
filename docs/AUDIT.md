@@ -331,3 +331,34 @@ checks); 12 of 12 mutants caught. Suites 37 of 37; 20-run soak clean.
 Still open: a playtest of whether twists end the mid-run autopilot
 (unverified); LOOP_AUDIT 3 (a shop item that tempts a sell); the store plugin
 and the in-app purchase (Mac).
+
+# Re-check, 2026-10-21 (after pass 16)
+
+**Upgrade mark** (port, presentation only). With the charm bar full, the shop
+marks one offer, for example "UPGRADE over Keystone: +23 on your last 9
+counts". It comes from replaying the run's last 24 logged hand counts with
+the offer in each owned charm's slot.
+- A replay round takes the logged rules and does no shuffle and no draws.
+- Tested: replaying a logged count with the bar unchanged gives the real
+  total (209 of 209). The mark is always the best pair, recomputed by hand.
+  The bar, the rng, Glim and the log are untouched.
+- Charms that change the rules are never compared.
+- `pass16_test` (518 checks); 9 of 9 mutants caught after hardening. Two got
+  past at first: the deal number not restored on replay, and rule offers not
+  skipped.
+- Parity unchanged; `web/` untouched.
+
+**Twist evidence** (`tools/sim/twist_keep.js`, numbers in LOOP_AUDIT "Pass
+16"): Short Suits changes the best keep in 27.8% of deals, Rich Fifteens
+10.8%, Doubled Pairs 10.3%, Nobs for Three 2.8%, Open Crib and Second Look 0%
+(the measure can't see the Crib or mulligans). Candidates to replace: Nobs for
+Three, and the other two pending a measure that can see them.
+
+**A flaky count display fixed:** cascade_test failed once in the full suite
+(a full play ended showing 22 of 28) and passed 3 of 3 alone. The count's end
+state now stops any count tween before writing the final number. 4 copies
+running in parallel passed. That this was the cause is unverified: the
+failure never reproduced on demand.
+
+**Store:** the shop shot re-rendered identical to the pixel (its bar has a
+free slot, so no mark). Listing and preview checkers: 0 fails.

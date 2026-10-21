@@ -195,6 +195,10 @@ func _trim() -> void:
 
 
 func _finish_display() -> void:
+	# the end state wins: a count tween still stepping (a long frame under
+	# load) must not write an older number over it (cascade_test, pass 16)
+	if _tween and _tween.is_valid():
+		_tween.kill()
 	shown = plan.final
 	number.text = str(shown)
 	var slam: Dictionary = plan.beats[plan.beats.size() - 1]
