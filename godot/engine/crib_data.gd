@@ -14,7 +14,8 @@ const TWISTS := [
 	{"id": "pairs4", "name": "Doubled Pairs", "text": "Pairs score 4.", "rule": {"pairDouble": true}},
 	{"id": "fifteen3", "name": "Rich Fifteens", "text": "Fifteens score 3.", "rule": {"fifteenPoints": 3}},
 	{"id": "flush3", "name": "Short Suits", "text": "A flush needs only 3 cards.", "rule": {"flushNeed": 3}},
-	{"id": "nobs3", "name": "Nobs for Three", "text": "His nobs scores 3.", "rule": {"nobsPoints": 3}},
+	# replaced Nobs for Three in pass 17: it changed the best keep in 1.7% of deals
+	{"id": "deal7", "name": "Seventh Card", "text": "You are dealt 7 cards, not 6.", "rule": {"dealtBonus": 1}},
 	{"id": "cribfull", "name": "Open Crib", "text": "Your Crib scores in full.", "rule": {"cribFull": true}},
 	{"id": "mull1", "name": "Second Look", "text": "One extra mulligan.", "rule": {"mulliganBonus": 1}},
 ]
