@@ -17,6 +17,7 @@ const INK := Color(0.96, 0.93, 0.88)
 const DIM := Color(0.96, 0.93, 0.88, 0.55)
 const GOLD := Color(0.91, 0.71, 0.30)
 const RED := Color(0.93, 0.38, 0.38)
+const GREEN := Color(0.43, 0.79, 0.54)
 const DECK_TINT := Color(0.91, 0.71, 0.30)
 const MARGIN := 24.0
 const MAX_COLUMN := 920.0
@@ -26,6 +27,8 @@ var run
 var juice: Juice = null    ## set by RunFlow: a legendary purchase bursts
 var sell_buttons := {}
 var offer_buttons := {}
+var upgrade = null              ## Upgrade.best() for this render, or null
+var upgrade_label: Label = null
 var card_buttons := {}
 var level_buttons := {}
 var reroll_button: Button
@@ -252,6 +255,7 @@ func _begin() -> Dictionary:
 		c.queue_free()
 	sell_buttons.clear()
 	offer_buttons.clear()
+	upgrade_label = null
 	card_buttons.clear()
 	level_buttons.clear()
 	var ins := _insets()
@@ -352,6 +356,8 @@ func _stage_offers(ctx: Dictionary) -> void:
 	var owned := {}
 	for c in run.charms:
 		owned[c.id] = true
+	# the upgrade mark (LOOP_AUDIT 3): measured on this run's counts, not guessed
+	upgrade = Upgrade.best(run, run.shop_state.offer) if full else null
 	for ch in run.shop_state.offer:
 		if owned.has(ch.id):
 			continue
@@ -380,7 +386,17 @@ func _stage_offers(ctx: Dictionary) -> void:
 		tx.position = Vector2(14, nm.position.y + nm.get_minimum_size().y - 2.0)
 		tx.size = Vector2(col - 110, 0)
 		b.add_child(tx)
-		var row_h := maxf(88.0, tx.position.y + tx.get_minimum_size().y + 6.0)
+		var bottom := tx.position.y + tx.get_minimum_size().y
+		if upgrade != null and upgrade.offer == ch:
+			var up := _label(TypeScale.BODY, GREEN)
+			up.text = "UPGRADE over %s: +%d on your last %d counts" % [upgrade.over.name, upgrade.gain, upgrade.counts]
+			up.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			up.position = Vector2(14, bottom)
+			up.size = Vector2(col - 110, 0)
+			b.add_child(up)
+			upgrade_label = up
+			bottom = up.position.y + up.get_minimum_size().y
+		var row_h := maxf(88.0, bottom + 6.0)
 		b.size.y = row_h
 		var cost := _label(26, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
 		cost.text = str(ch.cost)
@@ -389,6 +405,7 @@ func _stage_offers(ctx: Dictionary) -> void:
 		cost.size = Vector2(66, row_h)
 		b.add_child(cost)
 		if b.disabled:
+			# (the upgrade line stays bright: it's why you'd pawn a charm)
 			for k in [nm, tx, cost]:
 				k.modulate.a = 0.45
 		offer_buttons[ch.id] = b

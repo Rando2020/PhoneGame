@@ -53,7 +53,7 @@ func _recount(run: CribRun) -> float:
 	return t
 
 
-const BAR := ["twinner", "rambler", "peacock", "facecard", "keystone2"]
+const BAR := ["twinner", "rambler", "peacock", "streak", "keystone2"]   # Streak reads the deal number
 const OFFER := ["fifteener", "fever", "counting"]
 
 
@@ -152,6 +152,13 @@ func _go() -> void:
 	_play(rr2)
 	var only_rules = Upgrade.best(rr2, [CribData.charm_by_id("aceeleven"), CribData.charm_by_id("shortflush")])
 	ok(only_rules == null, "rule offers are never marked: %s" % [only_rules])
+	# a strong scorer given a rule is still never compared (it would win otherwise)
+	var strong := CribData.charm_by_id("fifteener")
+	var plain_mark = Upgrade.best(rr2, [strong])
+	strong.rule = {"nobsPoints": 1}
+	var ruled_mark = Upgrade.best(rr2, [strong])
+	strong.rule = null
+	ok(plain_mark != null and ruled_mark == null, "a rule offer was compared: plain %s, with a rule %s" % [plain_mark, ruled_mark])
 	# the log's cap
 	var lr := CribRun.new("thump", Meta.STREETS[0], null, 79)
 	for k in 12:

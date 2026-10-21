@@ -61,8 +61,13 @@ var _ev_dealt = null
 var _ev_stock_n := -1
 
 
-func _init(run_) -> void:
+## replay_mods: a recount-only round (Upgrade) with a past round's rules: no
+## shuffle, no draws, nothing on the run touched.
+func _init(run_, replay_mods = null) -> void:
 	run = run_
+	if replay_mods != null:
+		mods = replay_mods
+		return
 	mods = run.rules()
 	target = run.target()
 	deals_left = CribData.DEALS + mods.dealBonus
@@ -504,6 +509,12 @@ func commit(keep_idx: Array):
 			thrown.append(dealt[i])
 	var luck := roll_luck(hand + [live_starter(hand)])
 	var res := run_count(hand, false, null, {"luck": luck})
+	# the count, for the shop's Upgrade replay (presentation; capped, no draws)
+	run.count_log.append({"hand": hand.duplicate(), "starter": starter, "starter2": starter2,
+		"mods": mods.duplicate(true), "luck": luck,
+		"deal_index": deal_index, "mulligans_left": mulligans_left, "deals_left": deals_left})
+	if run.count_log.size() > CribRun.COUNT_LOG_MAX:
+		run.count_log = run.count_log.slice(run.count_log.size() - CribRun.COUNT_LOG_MAX)
 
 	# Counterfactual attribution: re-score with each charm removed, and with no cut.
 	res["contrib"] = {}
