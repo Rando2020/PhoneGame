@@ -7,8 +7,8 @@ from the repo root. "Today" is 2026-10-21, on the Linux build machine.
 |---|---|---|---|---|
 | 1 | all test suites (37) | `cd godot && for t in $(grep -l "^extends SceneTree" tests/*_test*.gd \| grep -v soak_test); do godot --headless --path . --script res://$t >/dev/null 2>&1 \|\| echo "FAIL $t"; done` | no FAIL lines | **pass** (37 of 37, pass 15) |
 | 2 | web parity (inside 1) | `godot --headless --path godot --script res://tests/parity_test.gd` | exit 0 | **pass** (78 runs, 564 rounds, 262 with a twist) |
-| 3 | soak, 200 runs | `tools/soak.sh 200` | `0 fails`, `errors: 0` | **pass** (pass 11: 2,445 saves round-tripped, no growth in nodes) |
-| 4 | deep soak, 50 strong runs | `SOAK_STRONG=1 tools/soak.sh 50` | `0 fails`, `errors: 0`, half the runs reach act 3 | **pass** (27 of 50 reached act 3+, 4 reached act 5, 1 won; 194 Spoiler rounds; 1,887 saves round-tripped; 18 min) |
+| 3 | soak, 200 runs | `tools/soak.sh 200` | `0 fails`, `errors: 0` | **pass** (pass 15: 1,919 checks, 0 errors; 178 Spoiler rounds; furthest act 4) |
+| 4 | deep soak, 50 strong runs | `SOAK_STRONG=1 tools/soak.sh 50` | `0 fails`, `errors: 0`, half the runs reach act 3 | **pass** (pass 15: 25 of 50 reached act 3+, 6 reached act 5, 0 won; 168 Spoiler rounds; 1,123 checks, 0 errors) |
 | 5 | listing within Apple's limits | `godot --headless --path godot --script res://tests/listing_counts.gd && python3 tools/check_listing.py --counts /tmp/listing_counts.json` | `listing: 0 fails` | **pass** |
 | 6 | app preview within Apple's spec | `tools/make_preview.sh` (records, encodes, checks) | `preview: 0 fails` | **pass** (pass 15: 21.0 s, 886x1920, 30 fps; shows a Short Suits twist round) |
 | 7 | store screenshots current | `python3 tools/make_store_shots.py store/screenshots` after re-rendering the six states at the three sizes | 18 files, looked at by eye | **pass** (pass 15: all 18 re-rendered; the count shot's deal is now searched, a 48 on a twist round; the boss caption says every third round) |
