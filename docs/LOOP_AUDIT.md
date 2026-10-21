@@ -220,3 +220,58 @@ before the paywall card.
   recounts, with no draws, so parity is unchanged. The round end names the
   round's best pair at 5 points or more: "Ballast + Fifteener fed each other
   +7".
+
+## Pass 16: what changed
+
+### The shop's upgrade mark (LOOP_AUDIT 3)
+
+When the charm bar is full, the shop marks at most one offer: "UPGRADE over
+Keystone: +23 on your last 9 counts". It's measured, not guessed:
+- The run logs its latest 24 hand counts: the hand, the cut, that round's
+  rules, the luck rolls, and the round state charms read (deal number,
+  mulligans left, deals left).
+- In the shop, each logged count is recounted with the offer in the owned
+  charm's slot, for every pair. The gain is that total minus the same counts
+  with the bar as it is.
+- The best pair is marked at 5 points or more.
+- Replay fidelity is tested: a logged count recounted with the bar unchanged
+  gives exactly the real count's total (201 of 201).
+
+Limits:
+- Charms that change the rules (Aces High, Half a Flush and the like) are
+  never compared: the logged rules already carry them.
+- Charms that read Glim use today's Glim.
+- The log isn't kept across a resume of an older save: it starts empty, so no
+  mark until new counts come in.
+
+Presentation only, port only: parity unchanged, and nothing in `web/`
+changed, so the cribsim gates are the same by construction.
+
+### Do twists change the keep? (the playtest proxy)
+
+`tools/sim/twist_keep.js`: 2,000 round-1 deals per twist. Each deal is valued
+twice, under plain rules and then under the twist's, by the game's own keep
+value (the hand's expected count over the cut). "Changed" means the plain
+best keep is no longer best under the twist (ties don't count).
+
+| twist | best keep changes | avg gain when it does |
+|---|---|---|
+| Short Suits (flush needs 3) | 27.8% | +1.77 |
+| Rich Fifteens (fifteens score 3) | 10.8% | +0.68 |
+| Doubled Pairs (pairs score 4) | 10.3% | +0.96 |
+| Nobs for Three | 2.8% | +0.35 |
+| Open Crib (Crib in full) | 0% | 0 |
+| Second Look (one more mulligan) | 0% | 0 |
+
+Reading it:
+- **For "breaks autopilot":** Short Suits clearly changes play (more than 1
+  in 4 deals). Rich Fifteens and Doubled Pairs change about 1 deal in 10.
+- **Against:** the other three mostly don't change the four cards you keep.
+- **Below the 10% bar, candidates to replace: Nobs for Three, Open Crib,
+  Second Look.**
+- **The measure's blind spot:** Open Crib changes what you throw, not what you
+  keep, and Second Look changes whether you redraw. The game's keep value
+  can't see either, so their 0% means "not measured here", not "no effect".
+  Nobs for Three is a real miss: one jack per hand is rarely worth chasing.
+- Whether any of this feels different to a player is still unverified: it
+  needs a playtest.
