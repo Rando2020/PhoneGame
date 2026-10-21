@@ -298,3 +298,36 @@ that JS.unseeded is untouched. Mutation-tested: 12 mutants.
 
 Still open: the store plugin and the in-app purchase (Mac). Plain-round
 twists and synergy callouts (LOOP_AUDIT 5 and 7).
+
+# Re-check, 2026-10-21 (after pass 15)
+
+**Plain-round twists** (both engines; numbers in LOOP_AUDIT "Pass 15"). There
+are 6 twists, one on each plain round, drawn at run start from their own
+stream seeded off the run seed. Deals, cuts and the shop are unchanged
+(tested: planning leaves the run's rng untouched). A twist round's target is
++10%, which the 800-run sweep showed keeps today's difficulty: strong clears
+14.5% against 14.8% with no twists. Parity: 78 runs, 564 rounds, 262 of them
+with a twist, all equal between the engines.
+
+**Synergy callouts** (port, presentation only). For two charms that both
+scored: total - without A - without B + without both, from pure recounts.
+The round end names the best pair at 5 points or more. Parity is unchanged
+(the web has no synergy, and none of it draws).
+
+**Shown:** the twist takes the place of "Score N in D deals" on the intro,
+which keeps reach_test green at Larger text on a 1280 px phone (a separate
+panel pushed the road list 31 px under the home bar). It is also in the keep
+screen's status line and on the round end's "Next" line.
+
+**Store:** all 18 screenshots and the preview were re-rendered and checked by
+eye. Two store shots had a fixed seed that drifted with the engine changes:
+- The count shot showed a 2-point hand (last rendered in pass 10). It is now
+  searched: a 48 on a twist round.
+- The Play shot's seed hung. It is now searched too (5335).
+
+The boss caption now says "every third round". Tests: `pass15_test` (8,748
+checks); 12 of 12 mutants caught. Suites 37 of 37; 20-run soak clean.
+
+Still open: a playtest of whether twists end the mid-run autopilot
+(unverified); LOOP_AUDIT 3 (a shop item that tempts a sell); the store plugin
+and the in-app purchase (Mac).
