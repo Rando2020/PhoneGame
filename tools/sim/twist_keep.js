@@ -116,7 +116,7 @@ function mulliganTwist(tw) {
     const g = makeRng(999 + i);
     let deck = rd.stock.slice(), wants = 0;
     for (let deal = 0; deal < 4 && deck.length > 12; deal++) {
-      for (let tries = 0; tries < 4; tries++) {
+      for (let tries = 0; tries < 4 && deck.length >= 12; tries++) {
         const dealt = deck.splice(0, 6);
         const smp = samplesFrom(deck, g, 2);
         const best = values(dealt, deck, 4, rd.mods, smp)[0].v;
