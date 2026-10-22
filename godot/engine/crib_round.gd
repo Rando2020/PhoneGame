@@ -509,6 +509,7 @@ func commit(keep_idx: Array):
 			thrown.append(dealt[i])
 	var luck := roll_luck(hand + [live_starter(hand)])
 	var res := run_count(hand, false, null, {"luck": luck})
+	run.best_count = maxi(run.best_count, JS.round_(res.total))   # the run card (pass 19)
 	# the count, for the shop's Upgrade replay (presentation; capped, no draws)
 	run.count_log.append({"hand": hand.duplicate(), "starter": starter, "starter2": starter2,
 		"mods": mods.duplicate(true), "luck": luck,

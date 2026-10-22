@@ -26,6 +26,7 @@ var twist_plan := {}
 ## The run's latest hand counts (hand, cut, rules, luck), newest last, for the
 ## shop's Upgrade mark. Presentation only.
 const COUNT_LOG_MAX := 24
+var best_count := 0       ## the run's best single hand count (the run card; presentation)
 var count_log: Array = []      ## "act-round" -> twist id (CribData.TWISTS)
 var shop_state = null
 var contrib_run = null

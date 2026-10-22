@@ -307,6 +307,29 @@ var _toast: Label
 var _toast_tween: Tween
 
 
+## The run card (pass 19): render it once, save it, then the share sheet when
+## the build has the plugin (iOS, unverified), else say where it went.
+var run_card: RunCard = null
+var run_card_path := ""
+
+
+func _share_card(won: bool) -> void:
+	if run == null or run_card != null:
+		return
+	run_card = RunCard.build(run, won)
+	add_child(run_card)
+	var path := "user://run_card_%s.png" % Time.get_datetime_string_from_system().replace(":", "-")
+	run_card.render_to(path, func(saved: String):
+		run_card_path = saved
+		if is_instance_valid(run_card):
+			run_card.queue_free()
+		run_card = null
+		if saved == "":
+			flash("Couldn't draw the card here.")
+		elif not RunCard.share(saved):
+			flash("Run card saved."))
+
+
 func flash(msg: String) -> void:
 	if _toast == null:
 		_toast = Label.new()
@@ -821,8 +844,9 @@ func _render_round_end() -> void:
 		y = _line(y, RunRecord.line(), 18, GOLD)
 		y = _line(y, NextUnlock.line(), 20, INK)
 		_button("new_run", "NEW RUN", true, _new_run)
+		_button("share", "Share", false, _share_card.bind(false))
 		_button("title", "Title", false, func(): show_front_door("title"))
-		_place_buttons(["new_run", "title"])
+		_place_buttons(["new_run", "share", "title"])
 	_fill(first, ins.top, y)
 
 	if rd.won:
@@ -1038,4 +1062,5 @@ func show_run_won() -> void:
 	if run.street.id < Meta.STREETS.size():
 		y = _line(y, "%s is open." % Meta.STREETS[run.street.id].name, 18, GOLD)
 	_button("new_run", "NEW RUN", true, _new_run)
-	_place_buttons(["new_run"])
+	_button("share", "Share", false, _share_card.bind(true))
+	_place_buttons(["new_run", "share"])
