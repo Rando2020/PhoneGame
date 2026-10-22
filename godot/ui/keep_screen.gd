@@ -589,6 +589,60 @@ func _show_round_end() -> void:
 	keep_button.disabled = false
 
 
+## The Shortage's HALF stamp (pass 21): a small red tag just after the status
+## line's text, landing once per round (1.4 to 1.0, a short shake, a heavy
+## note). Only where it fits on the screen; gone when the round is over.
+var half_stamp: Label = null
+var keep_motion := Motion.new()
+var _stamped_rd = null
+
+
+func _half_stamp(show: bool) -> void:
+	if not show:
+		if half_stamp != null and is_instance_valid(half_stamp):
+			half_stamp.queue_free()
+		half_stamp = null
+		return
+	var font := status_label.get_theme_font("font")
+	var fs := status_label.get_theme_font_size("font_size")
+	var lines := status_label.text.split("\n")
+	var w := font.get_string_size(lines[lines.size() - 1], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var x := status_label.position.x + (status_label.size.x + w) / 2.0 + 10.0
+	var y := status_label.position.y + font.get_height(fs) * (lines.size() - 1)
+	var fresh := half_stamp == null or not is_instance_valid(half_stamp)
+	if fresh:
+		half_stamp = _label(20, Color(0.93, 0.38, 0.38))
+		half_stamp.text = "HALF"
+		half_stamp.name = "half_stamp"
+		add_child(half_stamp)
+	var sw := font.get_string_size("HALF", HORIZONTAL_ALIGNMENT_LEFT, -1, half_stamp.get_theme_font_size("font_size")).x + 4.0
+	if x + sw > size.x - 4.0:
+		half_stamp.queue_free()      # no room beside the text: the status already names it
+		half_stamp = null
+		return
+	half_stamp.size = Vector2(sw, font.get_height(fs))
+	half_stamp.position = Vector2(x, y + (font.get_height(fs) - half_stamp.get_combined_minimum_size().y) / 2.0)
+	if _stamped_rd == rd or not Motion.on():
+		return
+	_stamped_rd = rd
+	Sound.play("spoiler_peg")
+	if Motion.reduced():
+		keep_motion.fade_in(half_stamp)
+		return
+	var st := half_stamp
+	var rest: Vector2 = st.position
+	st.pivot_offset = st.size / 2.0
+	st.scale = Vector2.ONE * 1.4
+	var tw := st.create_tween()
+	tw.tween_property(st, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	for dx in [4.0, -3.0, 2.0, 0.0]:
+		tw.tween_property(st, "position", rest + Vector2(dx, 0), 0.04)
+	keep_motion.add(tw, func():
+		if is_instance_valid(st):
+			st.scale = Vector2.ONE
+			st.position = rest)
+
+
 func _update_status() -> void:
 	var second := "Deals left %d" % rd.deals_left
 	var tw = run.twist() if run != null else null
@@ -601,10 +655,17 @@ func _update_status() -> void:
 		var crib: int = rd.crib_result.total if rd.crib_result != null else 0
 		second = "%s  |  Crib +%d" % ["Round cleared" if rd.won else "Round lost", crib]
 	status_label.text = "%s  |  Target %d  |  Score %d\n%s" % [run.deck.name, rd.target, rd.score, second]
+	_half_stamp(sh != null and not rd.over)
 
 
 ## During a count the whole screen is the skip button: the thumb shouldn't
 ## have to aim. Continuing still uses the button, so a stray tap can't deal.
+## A tap lands the HALF stamp (it never stops the tap).
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and keep_motion.running():
+		keep_motion.skip()
+
+
 func _gui_input(event: InputEvent) -> void:
 	if (cascading or cutting) and event is InputEventMouseButton and event.pressed \
 			and event.button_index == MOUSE_BUTTON_LEFT:

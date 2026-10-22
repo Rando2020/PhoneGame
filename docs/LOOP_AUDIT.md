@@ -496,3 +496,36 @@ highest cards):
   line ("Next: Round 2, target 51 · Shortage: Pairs").
 - Checked: the engine's own run of the plain game reproduces the sim exactly
   (66.8%, 15.3%). Parity OK, with 46 Shortage rounds in the fixtures.
+
+## Pass 21: building and collecting feel physical
+
+Every one of these animations follows one rule (`ui/fx/motion.gd`): the screen
+draws its **final** state first, then each animation runs from a temporary
+start toward it. Each animation carries a `finish` that puts its nodes back
+at rest, so a tap (`skip()`) lands exactly on the static draw.
+- Tweens live on the animated node: no await, no timers.
+- `Motion.enabled = false` is the static draw the tests compare against.
+- Reduce Motion swaps movement for a 0.2 s cross-fade.
+
+| moment | motion | Reduce Motion |
+|---|---|---|
+| buying a charm | its icon flies from the offer row to its new chip (0.35 s, ease out), the chip settles 1.12 to 1.0, the Glim ticks down (0.3 s); a chip with no icon just settles | the chip fades in; Glim shows at once |
+| any other spend | the Glim ticks to its new value | at once |
+| the round end | Final score and Glim count up (0.6 s), the act track's new dot pops in, the Next line slides in last (after 0.5 s) | dot and Next line fade in; numbers at once |
+| the Gallery | charms that rose since the last visit flip from their old look (silhouette or dimmed) to the new, 60 ms apart, once; the first visit ever just records the levels | a fade |
+| the Shortage | the intro's Shortage line lands like a stamp (1.4 to 1.0, a short shake, the Spoiler's heavy note); the keep screen gets a small red HALF tag after its status text, once per round, where it fits | a fade (the note still plays) |
+| the upgrade mark | a soft 1.5 s pulse on the marked offer's border | a steady border |
+
+A tap anywhere on the shop, the run screen or the Gallery lands everything
+(the tap still presses what's under it). The upgrade pulse is ambient: it
+keeps going.
+
+Found by eye on the way: Gallery cells at 5 a row broke "Quartermaster"
+mid-word at the text-size floor. They're now 4 a row.
+
+`pass21_test`: for the shop purchase, the round end, the Gallery and the
+Shortage intro, the static draw, the drawn-then-skipped and the
+drawn-then-run snapshots match, with and without Reduce Motion. Each one is
+seen moving mid-flight, the fade path is taken under Reduce Motion, reveals
+happen once and only for risen charms, the keep stamp comes to rest on
+screen, and the pulse loops with motion and sits still without it.

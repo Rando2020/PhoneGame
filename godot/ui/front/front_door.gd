@@ -658,3 +658,9 @@ func _tap_back(id: String) -> void:
 		last_tap = "short"
 	_flash_pending = last_tap == "short"
 	render()
+
+
+## A tap lands the Gallery's reveals (pass 21); it never stops the tap.
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and Menus.gal_motion.running():
+		Menus.gal_motion.skip()

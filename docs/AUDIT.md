@@ -416,3 +416,12 @@ MAC_HANDOFF step.
 
 `pass20_test`: 65 checks, 10 of 10 mutants caught after two checks were
 tightened (round 1 of a later act; a scale other than half).
+
+# Re-check, 2026-10-22 (after pass 21)
+
+Motion for building and collecting (LOOP_AUDIT "Pass 21"): the charm flight
+and chip settle, the Glim tick, the round end's count-up, dot pop and Next
+slide, the Gallery reveals, the Shortage stamp, and the upgrade pulse. Every
+animation is drawn at rest first, lands exactly on that by a tap, uses a
+cross-fade under Reduce Motion, and keeps its tweens on its node. Gallery
+cells went to 4 a row (a mid-word break at 5).
