@@ -979,6 +979,10 @@ func show_shop() -> void:
 	shop.open(run, absf(_page.position.x) > 1.0)
 	shop.next_round.connect(_on_next_round, CONNECT_ONE_SHOT)
 	shop.acted.connect(func(_k): save_now())
+	shop.first_charm.connect(func(ch: Charm):
+		if deed_toast != null:
+			move_child(deed_toast, -1)
+			deed_toast.celebrate_charm(ch))
 	save_now()
 
 
@@ -1003,6 +1007,7 @@ var _won_pegs := 0
 
 ## Port of cribRunWon's state changes, in its order. Runs once.
 func _run_won_effects() -> void:
+	Collection.mark_all(run.charms.map(func(c): return c.id), Collection.WON)   # the collection (pass 19)
 	announce_deeds(Achv.check("run", {"cleared": true, "street": run.street.id}))
 	Achv.mark_cleared(run.meldling)
 	if run.trial != null:

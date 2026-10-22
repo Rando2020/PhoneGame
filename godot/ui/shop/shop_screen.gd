@@ -27,6 +27,7 @@ var run
 var juice: Juice = null    ## set by RunFlow: a legendary purchase bursts
 var sell_buttons := {}
 var offer_buttons := {}
+signal first_charm(ch: Charm)   ## a charm bought for the first time ever (pass 19)
 var upgrade = null              ## Upgrade.best() for this render, or null
 const OFFER_ICON := 64.0        ## an offer row's charm icon (pass 19)
 var upgrade_label: Label = null
@@ -97,6 +98,8 @@ func buy_charm(ch: Charm) -> bool:
 	if ch.on_acquire.is_valid():
 		ch.on_acquire.call(run)
 	run.shop_state.offer = run.shop_state.offer.filter(func(x): return x.id != ch.id)
+	if Collection.mark(ch.id, Collection.OWNED):
+		first_charm.emit(ch)        # once per charm, ever: RunFlow's toast celebrates
 	if ch.rarity == "legendary":
 		Sound.play("milestone")
 		if juice != null:
@@ -373,6 +376,8 @@ func _stage_offers(ctx: Dictionary) -> void:
 	var owned := {}
 	for c in run.charms:
 		owned[c.id] = true
+	# the collection (pass 19): every offer shown is now seen (idempotent)
+	Collection.mark_all(run.shop_state.offer.map(func(x): return x.id), Collection.SEEN)
 	# the upgrade mark (LOOP_AUDIT 3): measured on this run's counts, not guessed
 	upgrade = Upgrade.best(run, run.shop_state.offer) if full else null
 	for ch in run.shop_state.offer:

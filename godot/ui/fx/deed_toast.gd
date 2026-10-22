@@ -41,6 +41,14 @@ func celebrate(id: String) -> void:
 
 
 var celebrated: Array = []    ## first ids queued, in order (tests)
+
+
+## A charm bought for the first time ever (Collection): the same card, its icon.
+func celebrate_charm(ch) -> void:
+	celebrated.append("charm:" + ch.id)
+	queue.append({"name": "%s joins your collection" % ch.name, "text": ch.text,
+		"head": "A NEW CHARM", "first": "charm:" + ch.id, "icon": ch.id})
+	pump()
 signal burst_wanted(at: Vector2)
 
 
@@ -60,8 +68,13 @@ func pump() -> void:
 	_card.add_theme_stylebox_override("panel", sb)
 	_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_card)
-	var star := _lab("★", 40, Color(0.91, 0.71, 0.30), Vector2(18, 16), 50)
-	_card.add_child(star)
+	var icon := CharmIcon.make(String(a.get("icon", "")), 52.0) if a.has("icon") else null
+	if icon != null:
+		icon.position = Vector2(14, 14)
+		_card.add_child(icon)
+	else:
+		var star := _lab("★", 40, Color(0.91, 0.71, 0.30), Vector2(18, 16), 50)
+		_card.add_child(star)
 	var k := _lab(String(a.get("head", "DEED UNLOCKED")), 16, Color(0.91, 0.71, 0.30), Vector2(78, 12), w - 96.0)
 	_card.add_child(k)
 	var n := _lab(String(a.name), 24, Color(0.96, 0.93, 0.88), Vector2(78, 34), w - 96.0)

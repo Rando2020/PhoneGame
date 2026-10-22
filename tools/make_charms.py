@@ -241,6 +241,27 @@ def make(cid, cat, rarity):
     return img
 
 
+def make_silhouette(cat):
+    """The unseen state: a neutral frame and the category's shape in flat
+    shadow. Shows the category, never which charm or how rare."""
+    img = Image.new("RGBA", (32, 32), CLEAR)
+    body = rrect(0, 0, 31, 31, 4)
+    for y in range(32):
+        for x in range(32):
+            if body(x, y):
+                edge = not (body(x - 1, y) and body(x + 1, y) and body(x, y - 1) and body(x, y + 1))
+                img.putpixel((x, y), (70, 64, 92, 255) if edge else (34, 31, 50, 255))
+    for f in SIL[cat]:
+        for y in range(32):
+            for x in range(32):
+                if f(x, y):
+                    img.putpixel((x, y), (58, 53, 80, 255))
+                elif any(0 <= x + dx < 32 and 0 <= y + dy < 32 and f(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))) \
+                        and img.getpixel((x, y))[:3] != (58, 53, 80):
+                    img.putpixel((x, y), (24, 22, 36, 255))
+    return img
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     cs = charms()
@@ -259,6 +280,10 @@ def main():
         im = make(cid, cat, rarity)
         im.save(os.path.join(OUT, f"charm_{cid}.png"))
         im.resize((64, 64), Image.NEAREST).save(os.path.join(OUT, f"charm_{cid}@2x.png"))
+    for cat in SIL:
+        sil = make_silhouette(cat)
+        sil.save(os.path.join(OUT, f"sil_{cat}.png"))
+        sil.resize((64, 64), Image.NEAREST).save(os.path.join(OUT, f"sil_{cat}@2x.png"))
     # contact sheet: each charm at 1x and 3x, grouped by category, with its id
     from PIL import ImageDraw
     order = sorted(cs, key=lambda c: (list(SIL).index(c[2]), c[0]))

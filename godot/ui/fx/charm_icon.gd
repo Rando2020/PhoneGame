@@ -46,3 +46,19 @@ static func make(id: String, px: float) -> TextureRect:
 	r.custom_minimum_size = Vector2(px, px)
 	r.set_meta("charm_icon", id)
 	return r
+
+
+## The unseen state: the category's silhouette (no motif, no rarity), or null.
+static func silhouette(cat: String, px: float) -> TextureRect:
+	var p := DIR + "sil_%s@2x.png" % cat
+	if not ResourceLoader.exists(p):
+		return null
+	var r := TextureRect.new()
+	r.texture = load(p)
+	r.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.size = Vector2(px, px)
+	r.set_meta("charm_silhouette", cat)
+	return r

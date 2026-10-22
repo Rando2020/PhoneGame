@@ -11,8 +11,9 @@ extends RefCounted
 ## compares them against fixtures rendered from the web (tools/parity/gen_menus.js).
 ## Back returns to the title (the web went to the run choices).
 
-const GAL_TABS := [["cards", "Cards"], ["split", "Split"], ["marks", "Marks"],
+const GAL_TABS := [["charms", "Charms"], ["cards", "Cards"], ["split", "Split"], ["marks", "Marks"],
 	["backs", "Backs"], ["meld", "Meldlings"], ["spoil", "Spoilers"]]
+const GAL_PER_ROW := 4          ## tabs a row (7 tabs: 4 + 3, two rows of 44 pt)
 
 ## How to play: the web's six beats. art: a Meldling id, or a Spoiler art id
 ## (kingpin), drawn with the new art.
@@ -161,9 +162,9 @@ static func _section(fd: FrontDoor, parent: Control, y: float, title: String, no
 static func gallery(fd: FrontDoor) -> void:
 	fd._clear()
 	var y := fd._line(fd._top(), "THE GALLERY", 34, fd.INK)
-	# tabs: two rows of three, each 44 pt
+	# tabs: two rows (4 + 3), each 44 pt
 	var c := fd._col()
-	var tw := (c.y - 16.0) / 3.0
+	var tw := (c.y - 8.0 * (GAL_PER_ROW - 1)) / GAL_PER_ROW
 	for i in GAL_TABS.size():
 		var tab: Array = GAL_TABS[i]
 		var b := Button.new()
@@ -172,14 +173,14 @@ static func gallery(fd: FrontDoor) -> void:
 		b.button_pressed = gal_tab == tab[0]
 		TypeScale.set_size(b, 20)
 		b.size = Vector2(tw, Press.MIN_H)
-		b.position = Vector2(c.x + (i % 3) * (tw + 8.0), y + floorf(i / 3.0) * (Press.MIN_H + 8.0))
+		b.position = Vector2(c.x + (i % GAL_PER_ROW) * (tw + 8.0), y + floorf(i / float(GAL_PER_ROW)) * (Press.MIN_H + 8.0))
 		var id: String = tab[0]
 		b.pressed.connect(func():
 			gal_tab = id
 			_gal_switch(fd))
 		fd._page.add_child(b)
 		fd.buttons["tab_" + id] = b
-	y += 2.0 * (Press.MIN_H + 8.0) + 6.0
+	y += ceilf(GAL_TABS.size() / float(GAL_PER_ROW)) * (Press.MIN_H + 8.0) + 6.0
 	var inner := _scroll(fd, y)
 	_gal_fill(fd, inner)
 
@@ -211,6 +212,7 @@ static func _gal_fill(fd: FrontDoor, inner: Control) -> void:
 		"marks": tab = _gal_marks(fd, inner)
 		"backs": tab = _gal_backs(fd, inner)
 		"meld": tab = _gal_meld(fd, inner)
+		"charms": tab = _gal_charms(fd, inner)
 		_: tab = _gal_spoil(fd, inner)
 	fd.queue_rows(tab[1], tab[0], func(yy: float): _done(inner, fd, yy))
 
@@ -249,6 +251,59 @@ static func _gal_cards(fd: FrontDoor, box: Control) -> Array:
 				var k := r - 1
 				_card_at(box, {"rank": r, "suit": suit}, sc, Vector2(c.x + (k % per) * (cw * sc + 6.0), yy + floorf(k / float(per)) * (ch * sc + 6.0)))
 			return yy + 2.0 * (ch * sc + 6.0) + 8.0)
+	return [y, rows]
+
+
+## The charm collection (pass 19): all of them, by category. Unseen charms are
+## a dark silhouette with no name; seen ones dim; owned ones full; won-with
+## ones carry a gold WON tag. The header counts are real.
+const CHARM_CATS := [["fifteen", "Fifteens"], ["pair", "Pairs"], ["run", "Runs"], ["flush", "Flushes"],
+	["mult", "Multipliers"], ["rule", "Rules"], ["deck", "Deck"]]
+static var charm_cells: Array = []     ## [{id, level, icon, name}] (tests)
+
+
+static func _gal_charms(fd: FrontDoor, box: Control) -> Array:
+	charm_cells.clear()
+	var c := fd._col()
+	var have := Collection.count(Collection.OWNED)
+	var head := _lab(fd, box, "Charms %d / %d" % [have, Collection.total()], 26, fd.GOLD, c.x, 0.0, c.y)
+	var y := head.size.y + 4.0
+	y = _note(fd, box, y, "Seen %d  ·  owned %d  ·  ★ won a run with %d. A charm counts once you've bought it." % [
+		Collection.count(Collection.SEEN), have, Collection.count(Collection.WON)])
+	var per := 5
+	var cell := (c.y - 8.0 * (per - 1)) / per
+	var icon_px := minf(88.0, cell - 8.0)
+	var rows := []
+	for cat in CHARM_CATS:
+		var list: Array = CribData.CHARMS.filter(func(ch): return ch.get("cat") == cat[0])
+		if list.is_empty():
+			continue
+		var owned_here := list.filter(func(ch): return Collection.level(ch.id) >= Collection.OWNED).size()
+		rows.append(func(yy: float) -> float:
+			return _lab(fd, box, "%s  %d / %d" % [cat[1], owned_here, list.size()], 18, fd.GOLD, c.x, yy, c.y).size.y + yy + 6.0)
+		for r0 in range(0, list.size(), per):
+			var chunk: Array = list.slice(r0, r0 + per)
+			rows.append(func(yy: float) -> float:
+				var tallest := 0.0
+				for k in chunk.size():
+					var ch: Charm = chunk[k]
+					var lv := Collection.level(ch.id)
+					var x := c.x + k * (cell + 8.0)
+					# unseen: the category's silhouette only (not which charm, not how rare)
+					var ic: TextureRect = CharmIcon.silhouette(ch.cat, icon_px) if lv == Collection.UNSEEN else CharmIcon.make(ch.id, icon_px)
+					if ic != null:
+						ic.position = Vector2(x + (cell - icon_px) / 2.0, yy)
+						if lv == Collection.SEEN:
+							ic.modulate = Color(1, 1, 1, 0.45)
+						box.add_child(ic)
+					# won with: the name in gold with a star (no badge over the art)
+					var label := "???" if lv == Collection.UNSEEN else (("★ " + ch.name) if lv == Collection.WON else ch.name)
+					var col: Color = fd.GOLD if lv == Collection.WON else (fd.INK if lv == Collection.OWNED else fd.DIM)
+					var nm := _lab(fd, box, label, 15, col, x, yy + icon_px + 2.0, cell, HORIZONTAL_ALIGNMENT_CENTER)
+					var h := icon_px + 2.0 + nm.size.y
+					charm_cells.append({"id": ch.id, "level": lv, "icon": ic, "name": nm})
+					tallest = maxf(tallest, h)
+				return yy + tallest + 10.0)
 	return [y, rows]
 
 
