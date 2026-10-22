@@ -529,3 +529,14 @@ drawn-then-run snapshots match, with and without Reduce Motion. Each one is
 seen moving mid-flight, the fade path is taken under Reduce Motion, reveals
 happen once and only for risen charms, the keep stamp comes to rest on
 screen, and the pulse loops with motion and sits still without it.
+
+Found by the suite after the motion went in:
+- **A real leak, fixed.** A finished animation's job held its tween, and the
+  tween's signal held the job: a reference cycle that kept every one alive
+  (the shop grew by 49 objects over 7 visits). Finished jobs now let go, and
+  each screen finishes its animations when it leaves the tree. 0 growth over
+  11 screens and 7 shops.
+- shop_test and dead_space_test read the screen right after an action, while
+  the Glim was ticking or the Next line was still sliding in. They check the
+  resting draw, so they now run with motion off; pass21_test covers the
+  motion.

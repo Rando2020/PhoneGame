@@ -669,3 +669,9 @@ func _animate_after(kind: String, glim_before: int) -> void:
 				fly.queue_free())
 	else:
 		motion.settle(chip)
+
+
+## Pass 21: no animation outlives its screen (a running job would keep a
+## reference cycle alive: screen_leak_test).
+func _exit_tree() -> void:
+	motion.skip()

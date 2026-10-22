@@ -125,6 +125,7 @@ func _go() -> void:
 	var f := FileAccess.open("res://tests/fixtures/parity.json", FileAccess.READ)
 	var fx = P.norm(JSON.parse_string(f.get_as_text()))
 	Achv.persist = false
+	Motion.enabled = false   # this test checks the resting draw (pass 21 motion is tested in pass21_test)
 	var shapes_fit := {}
 	var acts := {}
 	var si := 0

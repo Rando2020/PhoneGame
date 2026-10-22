@@ -674,3 +674,9 @@ func _gui_input(event: InputEvent) -> void:
 		else:
 			cascade.skip()
 		accept_event()
+
+
+## Pass 21: no animation outlives its screen (a running job would keep a
+## reference cycle alive: screen_leak_test).
+func _exit_tree() -> void:
+	keep_motion.skip()

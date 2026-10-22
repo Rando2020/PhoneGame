@@ -136,6 +136,7 @@ func _peg_session(st: String, sd: int):
 
 func _go() -> void:
 	Achv.persist = false
+	Motion.enabled = false   # this test checks the resting draw (pass 21 motion is tested in pass21_test)
 	Achv.save_store({"__v": 3})
 	for view in [Vector2(720, 1560), Vector2(720, 1280)]:
 		root.size = Vector2i(view)

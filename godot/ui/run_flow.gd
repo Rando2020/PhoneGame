@@ -1150,3 +1150,9 @@ func show_run_won() -> void:
 	_button("new_run", "NEW RUN", true, _new_run)
 	_button("share", "Share", false, _share_card.bind(true))
 	_place_buttons(["new_run", "share"])
+
+
+## Pass 21: no animation outlives its screen (a running job would keep a
+## reference cycle alive: screen_leak_test).
+func _exit_tree() -> void:
+	round_motion.skip()

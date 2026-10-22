@@ -40,6 +40,11 @@ func _end(job: Dictionary) -> void:
 	job.done = true
 	if job.finish.is_valid():
 		job.finish.call()
+	# let go of it: the job held the tween and the tween's signal held the job,
+	# a cycle that kept every finished animation alive (screen_leak_test)
+	job.tween = null
+	job.finish = Callable()
+	jobs.erase(job)
 
 
 func running() -> bool:
@@ -51,13 +56,12 @@ func running() -> bool:
 
 ## Finish everything now, at rest. Safe any number of times.
 func skip() -> void:
-	for j in jobs:
+	for j in jobs.duplicate():
 		if j.done:
 			continue
 		if j.tween != null and j.tween.is_valid():
 			j.tween.kill()
 		_end(j)
-	jobs = jobs.filter(func(j): return not j.done)
 
 
 ## A cross-fade in (Reduce Motion's stand-in for movement): alpha 0 -> rest.
