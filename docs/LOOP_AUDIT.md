@@ -319,3 +319,67 @@ Seventh Card).
 beginners match no twists. (+15% gives the same strong rate but costs
 beginners 4 points.) "No twists" reads 16.6% here against 14.8% in pass 15.
 That's the noise of the smaller pass 15 sample; this one is 3 times larger.
+
+## Pass 18: does it feel different? (and what's left)
+
+`tools/sim/twist_feel.js` plays seeded runs with cribsim's strong player,
+twists on and off on the same seeds. For each round it records the points the
+kept hands scored by category (fifteens, pairs, runs, flushes).
+
+**The autopilot number** (800 runs; 40 runs as asked gave the same shape:
+41.9% on, 41.0% off). Over consecutive plain rounds, how often the round's
+leading category changes:
+
+| | transitions | leading category changes | mean distance between mixes (0 to 2) |
+|---|---|---|---|
+| twists on | 5,513 | **40.9%** | 0.637 |
+| twists off | 5,567 | **39.4%** | 0.615 |
+
+**Verdict: twists barely move it (+1.5 points).** They change single keeps
+(11% to 66% of deals, pass 17), but over a round the strong player's charms
+decide what it scores with. A twist that pays pairs doesn't turn a fifteens
+build into a pairs build. To truly break autopilot, the round has to ask for
+something the build doesn't already do: a twist the build is weak at, with a
+reward for answering it. That's a design for pass 19 or later, not a tweak.
+
+**Per-twist round-clear rates** (twist rounds, twists on, 800 runs):
+
+| twist | rounds | clear | vs others' mean |
+|---|---|---|---|
+| Seventh Card | 1,067 | 96.1% | +1.2 |
+| Open Crib | 1,041 | 95.5% | +0.5 |
+| Rich Fifteens | 1,061 | 95.2% | +0.1 |
+| Short Suits | 1,032 | 94.9% | -0.3 |
+| Doubled Pairs | 1,053 | 94.8% | -0.4 |
+| Second Look | 1,059 | 94.2% | -1.1 |
+
+No twist is more than 8 points above the others, so no fix is needed:
+Seventh Card changes the keep most but doesn't make the round much easier.
+
+**A bug the sim found: nearby seeds shared their first twist.** xorshift's
+first draw from seed + 7919 barely moved between neighbouring seeds, so seeds
+40000 to 40799 all opened act 1 on Second Look (800 of 800). Over whole runs,
+Second Look came up about 1.5 times as often as the others. Fixed in both
+engines with a 32-bit integer mix (`twistSeed` / `CribRun.twist_seed`); parity
+OK. The Daily was never affected: its date hash already spreads the seeds
+(2026: 55 to 69 per twist on act 1 round 1 before the fix). Test: consecutive
+seeds now open on each twist 60 to 140 times in 600 (the old formula fails
+it: 600 of 600 on one twist).
+
+### What's still open
+
+| item | status |
+|---|---|
+| Ranked fixes 1 to 10, and the round-loop fixes 1 to 3 (section 2) | all done (passes 13 to 17) |
+| Twists break autopilot | **not shown**: +1.5 points on the autopilot number. Needs a build-aware twist (above) or a human playtest |
+| A playtest of passes 13 to 18 | open; needs Ziah |
+| The in-app purchase and store plugin | open; needs a Mac (MAC_HANDOFF 3b) |
+| **Charms have no art** | **open, new**: 53 charms are text rows in the shop, the bar and the round end; the Gallery has no Charms tab. In the genre this game sits in, the build pieces are the collectible |
+| A run card to share | open, new: nothing leaves the game when a run ends |
+
+**Next, best pull per hour: charm art plus a Charms tab in the Gallery.**
+It is the one loop with no art: 53 pixel icons drawn by a script, like
+every other asset here. The icons then go everywhere charms appear (shop,
+bar, round end, the upgrade mark, synergy lines). The tab shows each charm
+as seen, bought, or won a run with. That gives the meta loop a "collect them
+all" target that the run loop already feeds.

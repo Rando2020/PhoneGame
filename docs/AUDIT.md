@@ -371,3 +371,15 @@ for Three (1.7%) is replaced by Seventh Card (66.0%, dealt 7 cards). Both
 engines, same seeded draw; parity OK. TWIST_TARGET stays 1.10 (strong clears
 14.8% at 2,400 runs). Tests: pass15_test updated (Seventh Card deals 7; its
 dealtBonus adds to a deck's); 3 of 3 new mutants caught.
+
+# Re-check, 2026-10-22 (after pass 18)
+
+Twist feel measured (LOOP_AUDIT "Pass 18"): the autopilot number (leading
+category changes between plain rounds) is 40.9% with twists against 39.4%
+without, 800 runs. Twists change keeps but not a strong build's scoring mix.
+Per-twist clear rates sit within ±1.2 points of each other; nothing flagged.
+Bug fixed: nearby seeds opened act 1 on the same twist (xorshift's first
+draw). Both engines now mix the twist seed; parity OK; the Daily was never
+affected. The new fair-draw test catches the old formula (1 of 1 mutant).
+Open: charm art and a Charms tab (next), build-aware twists, a playtest, the
+in-app purchase (Mac).
