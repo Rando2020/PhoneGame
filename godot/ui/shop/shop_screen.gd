@@ -334,11 +334,15 @@ func _stage_top(ctx: Dictionary) -> void:
 		if ic != null:
 			var f := nm.get_theme_font("font")
 			var fsz := nm.get_theme_font_size("font_size")
+			var room := cw - 8.0 - xw - 42.0
+			var fits := f.get_multiline_string_size(ch.name, HORIZONTAL_ALIGNMENT_CENTER, room, fsz).y <= ch_h - 4.0
 			for word in String(ch.name).split(" "):
-				if f.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x > cw - 8.0 - xw - 42.0:
-					ic.free()
-					ic = null
-					break
+				if f.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x > room:
+					fits = false
+			# and the name must still fit the chip's height beside it (Larger text)
+			if not fits:
+				ic.free()
+				ic = null
 		if ic != null:
 			ic.position = Vector2(4, (ch_h - 40.0) / 2.0)
 			p.add_child(ic)

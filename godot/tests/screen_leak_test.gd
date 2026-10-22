@@ -49,6 +49,10 @@ func _go() -> void:
 		if fn.ends_with(".png"):
 			CardArt._tex(CardArt.DIR + fn)
 	print("card textures cached: %d" % CardArt._cache.size())
+	# the charm icons (pass 19) are cached the same way, bounded by the charm list
+	for ch in CribData.CHARMS:
+		CharmIcon.texture(ch.id)
+	print("charm icons cached: %d" % CharmIcon._cache.size())
 	var shop_first := -1
 	var shop_last := -1
 	var shop_acts := 0

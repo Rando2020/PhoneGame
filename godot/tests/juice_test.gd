@@ -183,10 +183,24 @@ func _go() -> void:
 			common = c
 		if c.rarity == "legendary" and legend == null:
 			legend = c
+	# owned before (pass 19): a charm's first purchase ever adds its own
+	# celebration burst, checked separately below; this checks the rarity rule
+	Collection.mark_all([common.id, legend.id], Collection.OWNED)
 	f.shop.buy_charm(common)
 	ok(f.juice.bursts == b0, "a common purchase doesn't burst")
 	f.shop.buy_charm(legend)
 	ok(f.juice.bursts == b0 + 1, "a legendary purchase bursts")
+	# a charm never bought before: its first-purchase card bursts once
+	var fresh: Charm = null
+	for c in CribData.CHARMS:
+		if c.rarity == "common" and Collection.level(c.id) < Collection.OWNED and not f.run.charms.has(c):
+			fresh = c
+			break
+	f.run.essence = 999
+	var b1: int = f.juice.bursts
+	if not f.run.is_full():
+		f.shop.buy_charm(fresh)
+		ok(f.juice.bursts == b1 + 1, "a first purchase bursts once: %d" % (f.juice.bursts - b1))
 	f.queue_free()
 	await _frames(2)
 
