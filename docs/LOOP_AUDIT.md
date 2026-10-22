@@ -444,3 +444,55 @@ category doesn't change what a strong build scores with; the charms decide.
 Breaking autopilot will take something the build has to *answer*, not a
 nudge: for example a round rule that blocks the build's best category.
 That's a design question for Ziah and a playtest, not more tuning.
+
+## Pass 20: the middle of a run asks a new question (the Shortage)
+
+**A correction first.** Pass 19 said "the charms decide how a run scores".
+The sim doesn't show that. cribsim's strong player picks keeps by the hand's
+base points only (`bestKeepEV`) and never looks at its charms, so the
+autopilot number measures the base scoring mix of what it keeps. A rule
+that changes what a category is worth makes it re-pick, and that moves the
+number; a nudge that doesn't change the best keep's category doesn't.
+
+Three designs, each pushing back against the build (`tools/sim/twist_feel.js`,
+800 runs a row, the same seeds; strong = cribsim's best keeps, beginner =
+highest cards):
+
+| design | autopilot number | strong clears | beginner reaches the first Spoiler |
+|---|---|---|---|
+| twists only (before) | 40.9% | 14.8% | 50.9% |
+| (a) Shortage on every plain round from round 2 | 66.5% | 14.9% | 51.1% |
+| **(a) Shortage on round 2 of each act (shipped)** | **66.8%** | **15.3%** | **51.1%** |
+| (b) Contract: score 8 from your weakest category for 6 Glim | 39.6% | 16.6% | 51.8% |
+| (c) Benched: the charm that has added most sits the round out | 37.7% | 8.3% | 51.4% |
+
+- **Shortage passes** (+25.9 points, clears in band) with no tuning of its
+  numbers: half points, no target change. What I tuned was *where* it applies.
+  Every plain round from round 2 also passed, but it would have removed twists
+  almost entirely, so it ships on round 2 of each act, the round before the
+  Spoiler. Twists keep round 1.
+- **Part of its effect is mechanical:** halving the leading category can flip
+  which category leads even with the same keeps. The sim player does re-pick
+  around it, which is the behaviour wanted. Whether it feels like a question
+  rather than a tax is for a playtest.
+- **Contract fails:** the chase barely moves keeps (a strong player's keeps
+  already score some of every category), and the Glim lifts clears.
+- **Benched fails hard:** removing the top charm makes rounds much harder
+  (8.3%) and the scoring mix *less* varied (37.7%). The build just plays
+  weaker.
+
+**Shipped: the Shortage, in both engines.**
+- The run tallies what its kept hands score by category (`catPoints` /
+  `cat_points`).
+- On round 2 of each act, the tally's leading category scores half that round
+  (ties: fifteens, pairs, runs, flushes), and the round has no twist.
+- Never on the run's first round, a Spoiler, a Wager or the Long Count.
+- There's no random draw: it follows from how the run has played, so it can't
+  be gamed or rerolled, and it's the same in both engines by construction.
+- A new rule key, `catScale`, scales a category's events inside the count;
+  it's absent unless a round sets it.
+- Shown ahead: the intro ("SHORTAGE: Runs score half this round, your best so
+  far."), the keep screen's status ("Short: Runs") and the round end's "Next"
+  line ("Next: Round 2, target 51 · Shortage: Pairs").
+- Checked: the engine's own run of the plain game reproduces the sim exactly
+  (66.8%, 15.3%). Parity OK, with 46 Shortage rounds in the fixtures.
