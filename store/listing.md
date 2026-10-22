@@ -43,7 +43,7 @@ Each deal gives you six cards. Keep four, throw two to your Crib, then the cut d
 
 HOW A RUN WORKS
 - 5 acts of 3 rounds. Every third round is a Spoiler: a boss with a rule that breaks something, like "pairs score half" or "you keep one card fewer".
-- Plain rounds bring a twist, a small rule like "pairs score 4" that changes the best keep, for a slightly higher target.
+- An act's first round brings a twist, a small rule like "pairs score 4" that changes the best keep, for a slightly higher target. Its second round runs short: whatever you have scored most with scores half, so you have to play another way.
 - Between rounds, spend Glim at the Peg House on charms, marked cards and Reckonings that level up a scoring type.
 - The Play: after the count, peg to 31 against the Spoiler. What you peg rides your multiplier into your score.
 

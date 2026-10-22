@@ -133,19 +133,27 @@ func _go() -> void:
 	for i in 40:
 		await process_frame
 	ok(f.keep.status_label.text.contains("|  Rich Fifteens"), "keep status: '%s'" % f.keep.status_label.text)
-	var nd := CribRound.new(sr)
+	# since pass 20, round 2 is the Shortage: a twist is announced at an act's
+	# end, for the next act's round 1
+	var ae := CribRun.new("pip", Meta.STREETS[0], null, 31)
+	ae.wager_at = {}
+	ae.round = CribData.ROUNDS
+	ae.twist_plan["2-1"] = "pairs4"
+	var nd := CribRound.new(ae)
 	nd.won = true
+	f.run = ae
 	f.rd = nd
 	f._paid = true
 	f._render_round_end()
 	await process_frame
-	var nl := "Next: Round 2, target %d  ·  Doubled Pairs" % sr.next_target()
+	var nl := "Next: Act 2, target %d  ·  Doubled Pairs" % ae.next_target()
 	ok(_labels(f).has(nl), "round end: no '%s'" % nl)
 	var t2 := CribRun.new("pip", Meta.STREETS[0], null, 31)
 	t2.wager_at = {}
-	t2.twist_plan["1-2"] = "pairs4"
-	t2.round = 2
-	ok(sr.next_target() == t2.target(), "next target %d is round 2's %d" % [sr.next_target(), t2.target()])
+	t2.twist_plan["2-1"] = "pairs4"
+	t2.act = 2
+	t2.round = 1
+	ok(ae.next_target() == t2.target(), "next target %d is act 2 round 1's %d" % [ae.next_target(), t2.target()])
 	# a plain round with no twist shows no panel
 	var bare := CribRun.new("pip", Meta.STREETS[0], null, 31)
 	bare.twist_plan = {}
