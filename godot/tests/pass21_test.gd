@@ -253,6 +253,8 @@ func _go() -> void:
 		ok(ib[1].sound, "intro stamp: no sound%s" % tag)
 		if not reduced:
 			ok(ib[1].scale > 1.05, "intro stamp: it didn't land from above (%s)" % ib[1].scale)
+		else:
+			ok(absf(ib[1].scale - 1.0) < 0.001, "intro stamp: Reduce Motion still scaled it (%s)" % ib[1].scale)
 		# ---- the keep screen's HALF stamp
 		Motion.enabled = true
 		f._on_deal()

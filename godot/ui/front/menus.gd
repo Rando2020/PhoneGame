@@ -263,15 +263,39 @@ const CHARM_CATS := [["fifteen", "Fifteens"], ["pair", "Pairs"], ["run", "Runs"]
 static var charm_cells: Array = []     ## [{id, level, icon, name}] (tests)
 
 
+## Gallery reveals (pass 21): charms that rose since the tab was last shown
+## flip from their old look (silhouette or dimmed) to the new one, 60 ms apart,
+## the first time only. "Shown" levels are saved; a first visit ever just
+## records them (nothing to compare against, so no flips).
+static var gal_motion := Motion.new()
+static var _shown_before := {}
+static var _reveal_n := 0
+static var revealed: Array = []          ## ids flipped this visit (tests)
+
+
 static func _gal_charms(fd: FrontDoor, box: Control) -> Array:
 	charm_cells.clear()
+	gal_motion.skip()
+	revealed = []
+	_reveal_n = 0
+	var store := Achv.load_store()
+	var first_visit := not store.has("charms_shown")
+	_shown_before = {} if first_visit else store.get("charms_shown", {}).duplicate()
+	var now := {}
+	for ch in CribData.CHARMS:
+		now[ch.id] = Collection.level(ch.id)
+	var m := store.duplicate(true)
+	m["charms_shown"] = now
+	Achv.save_store(m)
+	# a first visit (no "charms_shown" yet): _shown_before is empty, and a charm
+	# with no shown level counts as shown at its own level, so nothing flips
 	var c := fd._col()
 	var have := Collection.count(Collection.OWNED)
 	var head := _lab(fd, box, "Charms %d / %d" % [have, Collection.total()], 26, fd.GOLD, c.x, 0.0, c.y)
 	var y := head.size.y + 4.0
 	y = _note(fd, box, y, "Seen %d  ·  owned %d  ·  ★ won a run with %d. A charm counts once you've bought it." % [
 		Collection.count(Collection.SEEN), have, Collection.count(Collection.WON)])
-	var per := 5
+	var per := 4          # 5 a row broke "Quartermaster" mid-word at the text floor
 	var cell := (c.y - 8.0 * (per - 1)) / per
 	var icon_px := minf(88.0, cell - 8.0)
 	var rows := []
@@ -303,9 +327,44 @@ static func _gal_charms(fd: FrontDoor, box: Control) -> Array:
 					var nm := _lab(fd, box, label, 15, col, x, yy + icon_px + 2.0, cell, HORIZONTAL_ALIGNMENT_CENTER)
 					var h := icon_px + 2.0 + nm.size.y
 					charm_cells.append({"id": ch.id, "level": lv, "icon": ic, "name": nm})
+					var was: int = int(_shown_before.get(ch.id, lv))
+					if ic != null and lv > was:
+						_reveal(box, ic, nm, ch, was, icon_px)
 					tallest = maxf(tallest, h)
 				return yy + tallest + 10.0)
 	return [y, rows]
+
+
+## One reveal: the old look closes (scale x 1 -> 0), the new opens (0 -> 1).
+## Reduce Motion: the new look fades in. Ends exactly on the at-rest cell.
+static func _reveal(box: Control, ic: TextureRect, nm: Label, ch: Charm, was: int, px: float) -> void:
+	revealed.append(ch.id)
+	if not Motion.on():
+		return
+	if Motion.reduced():
+		gal_motion.fade_in(ic)
+		return
+	var old: TextureRect = CharmIcon.silhouette(ch.cat, px) if was == Collection.UNSEEN else CharmIcon.make(ch.id, px)
+	if was == Collection.SEEN:
+		old.modulate = Color(1, 1, 1, 0.45)
+	old.position = ic.position
+	box.add_child(old)
+	var rest_m := ic.modulate
+	var delay := 0.06 * _reveal_n
+	_reveal_n += 1
+	ic.pivot_offset = ic.size / 2.0
+	old.pivot_offset = old.size / 2.0
+	ic.scale = Vector2(0.0, 1.0)
+	var tw := ic.create_tween()
+	tw.tween_interval(delay)
+	tw.tween_property(old, "scale", Vector2(0.0, 1.0), 0.12).set_ease(Tween.EASE_IN)
+	tw.tween_property(ic, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	gal_motion.add(tw, func():
+		if is_instance_valid(ic):
+			ic.scale = Vector2.ONE
+			ic.modulate = rest_m
+		if is_instance_valid(old):
+			old.queue_free())
 
 
 static func _gal_split(fd: FrontDoor, box: Control) -> Array:

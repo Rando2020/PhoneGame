@@ -227,6 +227,9 @@ func _clear() -> void:
 	buttons.clear()
 	mvp_icon = null
 	synergy_icons = []
+	new_dot = null
+	short_line = null
+	round_motion.skip()
 	var animate: bool = _page != null and not _no_slide and not MeldSprite.reduce_motion and size.x > 0.0
 	var from_x: float = _page.position.x if _page != null else 0.0
 	if _outgoing != null:
@@ -411,6 +414,8 @@ func _act_track(y: float, done_this := false) -> float:
 		p.position = Vector2(x0 + i * step, y)
 		p.size = Vector2(d, d)
 		_page.add_child(p)
+		if here and done_this:
+			new_dot = p               # the dot this round just filled (pass 21's pop)
 		if boss:
 			var k := Label.new()
 			k.text = "!"
@@ -510,6 +515,75 @@ func _meld_at(y: float, px: float, pose: String, quiet := false) -> float:
 
 
 var mvp_icon: TextureRect = null   ## the round end's MVP icon (tests)
+var new_dot: Panel = null          ## the act track's dot this round filled
+var short_line: Label = null       ## the intro's Shortage line (the stamp lands on it)
+var round_motion := Motion.new()   ## the round end's count-up, dot pop, Next slide (pass 21)
+
+
+## A tap anywhere lands whatever is moving on this screen (it doesn't stop the
+## tap: a press on a button still presses it).
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and round_motion.running():
+		round_motion.skip()
+
+
+## The Shortage stamp (pass 21): its line lands like a stamp, 1.4 to 1.0 with a
+## short shake, and a heavy note. Reduce Motion: a fade.
+func _stamp(l: Label) -> void:
+	if not Motion.on():
+		return
+	Sound.play("spoiler_peg")
+	if Motion.reduced():
+		round_motion.fade_in(l)
+		return
+	var rest: Vector2 = l.position
+	l.pivot_offset = l.size / 2.0
+	l.scale = Vector2.ONE * 1.4
+	var tw := l.create_tween()
+	tw.tween_property(l, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	for dx in [6.0, -5.0, 3.0, -2.0, 0.0]:
+		tw.tween_property(l, "position", rest + Vector2(dx, 0), 0.04)
+	round_motion.add(tw, func():
+		if is_instance_valid(l):
+			l.scale = Vector2.ONE
+			l.position = rest)
+
+
+## The round end in motion: Final score and Glim count up (0.6 s), the new act
+## dot pops, the Next line slides in last. Drawn at rest first; a tap lands it.
+## Reduce Motion: the dot and the Next line fade in; numbers show at once.
+func _round_end_motion() -> void:
+	if not Motion.on():
+		return
+	var labels: Array = _page.find_children("*", "Label", true, false)
+	var reduced := Motion.reduced()
+	for l in labels:
+		var t := String(l.text)
+		if not reduced and t.begins_with("Final score  "):
+			round_motion.count(l, "Final score  %%d / %d" % rd.target, 0.0, rd.score, 0.6)
+		elif not reduced and t.begins_with("Glim  +"):
+			round_motion.count(l, "Glim  +%d", 0.0, rd.essence_earned, 0.6)
+		elif t.begins_with("Next: "):
+			if reduced:
+				round_motion.fade_in(l)
+			else:
+				var rest: Vector2 = l.position
+				var rest_m: Color = l.modulate
+				l.position = rest + Vector2(60, 0)
+				l.modulate = Color(rest_m, 0.0)
+				var tw: Tween = l.create_tween()
+				tw.tween_interval(0.5)
+				tw.tween_property(l, "position", rest, Motion.SPRING).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+				tw.parallel().tween_property(l, "modulate", rest_m, Motion.SPRING)
+				round_motion.add(tw, func():
+					if is_instance_valid(l):
+						l.position = rest
+						l.modulate = rest_m)
+	if new_dot != null and is_instance_valid(new_dot):
+		if reduced:
+			round_motion.fade_in(new_dot)
+		else:
+			round_motion.settle(new_dot, 0.4, 0.45)
 var synergy_icons: Array = []        ## the round end's synergy icons (tests)
 
 
@@ -647,6 +721,7 @@ func show_intro() -> void:
 		# the Shortage (pass 20): the run's best category is short this round
 		y = _line(y + 4.0, "SHORTAGE: %s score half this round, your best so far. %d deals." % [
 			CribData.SHORTAGE_NAMES[short], CribData.DEALS + m.dealBonus], 22, RED)
+		short_line = _page.get_child(_page.get_child_count() - 1)
 	elif tw != null:
 		# the plain round's twist (LOOP_AUDIT 5), its price, and the deals, in
 		# the place of "Score N in D deals" (the target is just above)
@@ -672,6 +747,8 @@ func show_intro() -> void:
 		order.append("walk")
 	_place_buttons(order)
 	_fill(first, ins.top, y)
+	if short_line != null and not _no_slide:
+		_stamp(short_line)
 	save_now()
 
 
@@ -855,6 +932,8 @@ func _render_round_end() -> void:
 		_button("title", "Title", false, func(): show_front_door("title"))
 		_place_buttons(["new_run", "share", "title"])
 	_fill(first, ins.top, y)
+	if not _no_slide:
+		_round_end_motion()
 
 	if rd.won:
 		_page.move_child(juice, -1)

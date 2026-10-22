@@ -93,6 +93,13 @@ func _notification(what: int) -> void:
 func buy_charm(ch: Charm) -> bool:
 	if ch.cost > run.essence or run.is_full():
 		return false
+	_flight_from = null
+	_flight_id = ch.id
+	var row = offer_buttons.get(ch.id)
+	if row != null:
+		for t in row.find_children("*", "TextureRect", true, false):
+			if t.get_meta("charm_icon", "") == ch.id:
+				_flight_from = t.get_global_rect()
 	run.essence -= ch.cost
 	run.charms.append(ch)
 	if ch.on_acquire.is_valid():
@@ -152,7 +159,9 @@ func sell(id: String) -> bool:
 
 
 func _after(kind: String, msg: String) -> void:
+	var glim_before := _glim_drawn
 	render()
+	_animate_after(kind, glim_before)
 	if msg != "":
 		_toast(msg)
 	acted.emit(kind)
@@ -250,7 +259,21 @@ var _pending: Array = []
 var _pending_ctx := {}
 
 
+var motion := Motion.new()       ## pass 21: purchase flight, settle, Glim tick
+var _glim_drawn := -1             ## the Glim the header last showed (for the tick)
+var _flight_from = null           ## a bought charm's icon rect, before the redraw
+var _flight_id := ""
+var upgrade_pulse: Panel = null   ## the upgrade mark's pulsing border (pass 21)
+
+
+## A tap anywhere finishes whatever is in flight (it lands on the at-rest draw).
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and motion.running():
+		motion.skip()
+
+
 func _begin() -> Dictionary:
+	motion.skip()
 	_drawn_for = TypeScale.layout_key(self)
 	_pending = []
 	set_process(false)
@@ -260,6 +283,7 @@ func _begin() -> Dictionary:
 	sell_buttons.clear()
 	offer_buttons.clear()
 	upgrade_label = null
+	upgrade_pulse = null
 	card_buttons.clear()
 	level_buttons.clear()
 	var ins := _insets()
@@ -285,6 +309,7 @@ func _stage_top(ctx: Dictionary) -> void:
 	head.add_child(title)
 	essence_label = _label(26, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
 	essence_label.text = "%d Glim" % run.essence
+	_glim_drawn = run.essence
 	essence_label.position = Vector2(col * 0.4, 6)
 	essence_label.size = Vector2(col * 0.6 - 14, 34)
 	head.add_child(essence_label)
@@ -436,6 +461,7 @@ func _stage_offers(ctx: Dictionary) -> void:
 			b.add_child(up)
 			upgrade_label = up
 			bottom = up.position.y + up.get_minimum_size().y
+			_pulse_later = b
 		var row_h := maxf(OFFER_ICON + 20.0 if oic != null else 88.0, maxf(88.0, bottom + 6.0))
 		b.size.y = row_h
 		var cost := _label(26, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
@@ -449,6 +475,9 @@ func _stage_offers(ctx: Dictionary) -> void:
 			for k in [nm, tx, cost]:
 				k.modulate.a = 0.45
 		offer_buttons[ch.id] = b
+		if _pulse_later == b:
+			_pulse(b)
+			_pulse_later = null
 		y += row_h + 8
 	if full:
 		var fl := _label(16, RED)
@@ -558,3 +587,85 @@ func _stage_bottom(ctx: Dictionary) -> void:
 ## Height the content needs, to check it fits without scrolling.
 func content_height() -> float:
 	return _content.custom_minimum_size.y
+
+
+# ------------------------------------------------------------------ motion (pass 21)
+var _pulse_later = null
+
+
+## The upgrade mark: a soft 1.5 s pulse on the marked offer's border, while it
+## shows. At rest (no motion, Reduce Motion) the border is simply on.
+func _pulse(b: Control) -> void:
+	var p := Panel.new()
+	p.name = "upgrade_pulse"
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0)
+	sb.border_color = GREEN
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(8)
+	p.add_theme_stylebox_override("panel", sb)
+	p.size = b.size
+	b.add_child(p)
+	upgrade_pulse = p
+	if Motion.on() and not Motion.reduced():
+		var tw := p.create_tween().set_loops()
+		tw.tween_property(p, "modulate:a", 0.3, 0.75).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(p, "modulate:a", 1.0, 0.75).set_trans(Tween.TRANS_SINE)
+
+
+## After an action's redraw: the Glim ticks to its new value; a bought charm
+## flies from its row to its chip, and the chip settles. Reduce Motion: a fade.
+func _animate_after(kind: String, glim_before: int) -> void:
+	if not Motion.on():
+		return
+	if glim_before >= 0 and glim_before != run.essence and not Motion.reduced():
+		motion.count(essence_label, "%d Glim", glim_before, run.essence, 0.3)
+	if kind != "charm" or _flight_id == "":
+		return
+	var id := _flight_id
+	_flight_id = ""
+	var icon: TextureRect = null
+	var chip: Control = null
+	for t in _content.find_children("*", "TextureRect", true, false):
+		if t.get_meta("charm_icon", "") == id:
+			icon = t
+	var ch := CribData.charm_by_id(id)
+	if icon != null:
+		chip = icon.get_parent()
+	else:
+		for l in _content.find_children("*", "Label", true, false):
+			if l.text == ch.name and l.get_parent() is Panel:
+				chip = l.get_parent()
+	if chip == null:
+		return
+	if Motion.reduced():
+		motion.fade_in(chip)
+		return
+	if icon != null and _flight_from != null:
+		var fly := CharmIcon.make(id, _flight_from.size.x)
+		add_child(fly)
+		fly.global_position = _flight_from.position
+		var to := icon.get_global_rect()
+		icon.modulate.a = 0.0
+		chip.pivot_offset = chip.size / 2.0
+		var tw := fly.create_tween()
+		tw.tween_property(fly, "global_position", to.position, Motion.SPRING).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(fly, "size", to.size, Motion.SPRING)
+		tw.tween_callback(func():
+			if is_instance_valid(icon):
+				icon.modulate.a = 1.0
+			if is_instance_valid(fly):
+				fly.visible = false
+			if is_instance_valid(chip):
+				chip.scale = Vector2.ONE * 1.12)
+		tw.tween_property(chip, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		motion.add(tw, func():
+			if is_instance_valid(icon):
+				icon.modulate.a = 1.0
+			if is_instance_valid(chip):
+				chip.scale = Vector2.ONE
+			if is_instance_valid(fly):
+				fly.queue_free())
+	else:
+		motion.settle(chip)
