@@ -39,7 +39,7 @@ import numpy as np
 from scipy.signal import lfilter, butter
 
 SR = 44100
-OUT = sys.argv[1] if len(sys.argv) > 1 else "/tmp/audio2"
+OUT = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "/tmp/audio2"
 os.makedirs(f"{OUT}/sfx", exist_ok=True)
 os.makedirs(f"{OUT}/music", exist_ok=True)
 RNG = np.random.default_rng(16)
@@ -302,6 +302,15 @@ def line_gild(m): voice(m, 1245, 0.16, gain=0.09, type="square", detune=12, send
 def line_cut(m): voice(m, 660, 0.14, gain=0.09, type="square", detune=9, send=0.35)
 def line_level(m): voice(m, 1046, 0.18, gain=0.1, type="square", detune=10, send=0.35)
 def charm_fire(m): voice(m, 880, 0.1, gain=0.07, type="square", send=0.3)
+# pass 19/20: a charm's first purchase ever (a quick rising shimmer over a sparkle,
+# lighter than a deed's three squares) and the Gallery's tab change (a paper flick)
+def charm_new(m):
+    for i, f in enumerate([988, 1319, 1568, 1976]):
+        voice(m, f, 0.16, gain=0.075, type="triangle", delay=i * 0.045, send=0.45, detune=8)
+    noise(m, 0.22, freq=5200, filter="highpass", gain=0.05, delay=0.12, send=0.3)
+def tab(m):
+    noise(m, 0.035, freq=3600, gain=0.07)
+    voice(m, 520, 0.04, gain=0.05, type="triangle", delay=0.01)
 
 
 SFX = {
@@ -312,6 +321,7 @@ SFX = {
     "slam_3": lambda m: slam(m, 3), "ramp_burst": ramp_burst, "cut_roll": cut_roll,
     "spoiler_peg": spoiler_peg, "deed": deed, "boss_intro": boss_intro, "guide": guide,
     "line_gild": line_gild, "line_cut": line_cut, "line_level": line_level, "charm_fire": charm_fire,
+    "charm_new": charm_new, "tab": tab,
 }
 for k in ["fifteen", "pair", "run", "flush", "nobs", "charm"]:
     SFX["tick_" + k] = (lambda kk: lambda m: tick(m, kk))(k)
@@ -430,6 +440,17 @@ def write_wav(path, x):
 
 def main():
     peaks = {}
+    # --only a,b : write just these sfx (no music, nothing else touched)
+    only = sys.argv[sys.argv.index("--only") + 1].split(",") if "--only" in sys.argv else None
+    if only:
+        os.makedirs(f"{OUT}/sfx", exist_ok=True)
+        for k in only:
+            m = Mix(4)
+            SFX[k](m)
+            x = m.render()
+            write_wav(f"{OUT}/sfx/{k}.wav", x)
+            print(f"{k}: {len(x) / SR:.2f} s, peak {float(np.max(np.abs(x))):.2f}")
+        return
     for k, fn in SFX.items():
         m = Mix(4)
         fn(m)

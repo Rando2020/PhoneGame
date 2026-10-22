@@ -53,6 +53,14 @@ The game is free to try; one non-consumable unlocks it (`docs/MONETIZATION.md`).
    Account on the iPhone): buy, delete the app, reinstall, Restore.
 6. Submit the in-app purchase together with the build for review.
 
+## 3c. The share sheet (30 min to 1 h, guess)
+
+Optional. Without it, Share on a run's end saves the run card and says so.
+With it, Share opens the iOS share sheet. Build `ios_plugin/meld_share/`
+(README there), and add `NSPhotoLibraryAddUsageDescription` to the Info.plist
+so "Save Image" appears. Check it on an iPhone and, if you can, an iPad (the
+sheet must anchor there).
+
 ## 4. Export and open in Xcode (15 min, guess)
 
 ```

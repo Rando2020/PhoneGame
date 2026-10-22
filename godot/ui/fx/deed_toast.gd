@@ -87,7 +87,7 @@ func pump() -> void:
 	_card.position = rest + (Vector2.ZERO if MeldSprite.reduce_motion else Vector2(0, 40))
 	_card.modulate.a = 0.0
 	if a.has("first"):
-		Sound.play("chord_t-max")
+		Sound.play("charm_new" if a.has("icon") else "chord_t-max")   # a new charm has its own cue
 		Haptics.pulse(30)
 		burst_wanted.emit(rest + Vector2(w / 2.0, 0))
 	else:

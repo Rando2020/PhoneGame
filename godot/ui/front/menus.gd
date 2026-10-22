@@ -177,6 +177,7 @@ static func gallery(fd: FrontDoor) -> void:
 		var id: String = tab[0]
 		b.pressed.connect(func():
 			gal_tab = id
+			Sound.play("tab")
 			_gal_switch(fd))
 		fd._page.add_child(b)
 		fd.buttons["tab_" + id] = b
