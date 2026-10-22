@@ -5,7 +5,7 @@ from the repo root. "Today" is 2026-10-21 (pass 17), on the Linux build machine.
 
 | # | gate | command | pass when | today |
 |---|---|---|---|---|
-| 1 | all test suites (37) | `cd godot && for t in $(grep -l "^extends SceneTree" tests/*_test*.gd \| grep -v soak_test); do godot --headless --path . --script res://$t >/dev/null 2>&1 \|\| echo "FAIL $t"; done` | no FAIL lines | **pass** (38 of 38, pass 18) |
+| 1 | all test suites (37) | `cd godot && for t in $(grep -l "^extends SceneTree" tests/*_test*.gd \| grep -v soak_test); do godot --headless --path . --script res://$t >/dev/null 2>&1 \|\| echo "FAIL $t"; done` | no FAIL lines | **pass** (39 of 39, pass 19) |
 | 2 | web parity (inside 1) | `godot --headless --path godot --script res://tests/parity_test.gd` | exit 0 | **pass** (78 runs, 564 rounds, 262 with a twist) |
 | 3 | soak, 200 runs | `tools/soak.sh 200` | `0 fails`, `errors: 0` | **pass** (pass 15: 1,919 checks, 0 errors; 178 Spoiler rounds; furthest act 4) |
 | 4 | deep soak, 50 strong runs | `SOAK_STRONG=1 tools/soak.sh 50` | `0 fails`, `errors: 0`, half the runs reach act 3 | **pass** (pass 15: 25 of 50 reached act 3+, 6 reached act 5, 0 won; 168 Spoiler rounds; 1,123 checks, 0 errors) |
