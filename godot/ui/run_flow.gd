@@ -642,7 +642,12 @@ func show_intro() -> void:
 		y = _line(y, "TARGET %d" % run.target(), 52, INK)
 		y = _meld_at(y, 220.0, "eager")
 	var tw = run.twist() if boss == null and not run.is_wager() else null
-	if tw != null:
+	var short = run.shortage() if boss == null else null
+	if short != null:
+		# the Shortage (pass 20): the run's best category is short this round
+		y = _line(y + 4.0, "SHORTAGE: %s score half this round, your best so far. %d deals." % [
+			CribData.SHORTAGE_NAMES[short], CribData.DEALS + m.dealBonus], 22, RED)
+	elif tw != null:
 		# the plain round's twist (LOOP_AUDIT 5), its price, and the deals, in
 		# the place of "Score N in D deals" (the target is just above)
 		y = _line(y + 4.0, "%s: %s  Target +%d%%, %d deals." % [String(tw.name).to_upper(), tw.text,
@@ -829,7 +834,9 @@ func _render_round_end() -> void:
 			var nxt := "Act %d" % (run.act + 1) if run.round == CribData.ROUNDS else (
 				"the Spoiler" if run.round + 1 == CribData.ROUNDS else "Round %d" % (run.round + 1))
 			var nt = run.next_twist()
-			y = _line(y + 4.0, "Next: %s, target %d%s" % [nxt, run.next_target(), "  ·  " + String(nt.name) if nt != null else ""], 22, INK)
+			var ns = run.next_shortage()
+			var tag := ("  ·  Shortage: %s" % CribData.SHORTAGE_NAMES[ns]) if ns != null else ("  ·  " + String(nt.name) if nt != null else "")
+			y = _line(y + 4.0, "Next: %s, target %d%s" % [nxt, run.next_target(), tag], 22, INK)
 	if rd.won and Entitlement.capped(run, true):
 		# free to try: the first Spoiler is beaten; what's next is the end card
 		_button("free_next", "WHAT'S NEXT", true, show_free_end)

@@ -92,7 +92,8 @@ function play(deck, seed, mode) {
     // pass 20 designs: on a plain twist round from PB_FROM on, replace the twist
     r._extra = null; r._tmul = 1; r._chase = null;
     let benched = null, contract = null;
-    const plainTw = !boss && r.twist() && i + 1 >= PB_FROM;
+    const SH_WHERE = E.SH_WHERE || "all";      // "all" plain twist rounds, or "r2": round 2 of each act only
+    const plainTw = !boss && r.twist() && i + 1 >= PB_FROM && (SH_WHERE === "all" || r.round === 2);
     if (plainTw && (mode === "shortage" || mode === "contract" || mode === "bench")) {
       r.twistPlan[`${r.act}-${r.round}`] = null;        // no twist this round
       let hi = null, lo = null;

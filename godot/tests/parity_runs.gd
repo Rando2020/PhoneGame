@@ -92,7 +92,7 @@ func play_run(cfg) -> Dictionary:
 		var bs = run.boss()
 		var rt := {"idx": run.round_index(), "target": rd.target, "boss": bs.id if bs != null else null,
 			"deadSuit": rd.mods.deadSuit, "stock": rd.stock.size(), "wager": rd.wager != null,
-			"twist": run.twist().id if run.twist() != null else null, "deals": []}
+			"twist": run.twist().id if run.twist() != null else null, "short": run.shortage(), "deals": []}
 		var guard := 0
 		while not rd.over and guard < 30:
 			guard += 1

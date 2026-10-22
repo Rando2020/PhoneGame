@@ -592,7 +592,10 @@ func _show_round_end() -> void:
 func _update_status() -> void:
 	var second := "Deals left %d" % rd.deals_left
 	var tw = run.twist() if run != null else null
-	if tw != null and not rd.over:
+	var sh = run.shortage() if run != null else null
+	if sh != null and not rd.over:
+		second += "  |  Short: " + CribData.SHORTAGE_NAMES[sh]   # the Shortage, kept in sight
+	elif tw != null and not rd.over:
 		second += "  |  " + String(tw.name)     # the round's twist, kept in sight
 	if rd.over:
 		var crib: int = rd.crib_result.total if rd.crib_result != null else 0

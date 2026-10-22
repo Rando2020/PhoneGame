@@ -701,7 +701,9 @@ function cribRoundIntro() {
   }
   /* the plain round's twist (LOOP_AUDIT 5), in the place of the Score line */
   const tw = !run.isBoss() && !run.isWager() ? run.twist() : null;
-  if (tw) c.append(el("p", "gold", `${tw.name.toUpperCase()}: ${tw.text}  Target +${Math.round((TWIST_TARGET - 1) * 100)}%, ${CRIB_DEALS + m.dealBonus} deals.`));
+  const short = !run.isBoss() ? run.shortage() : null;
+  if (short) c.append(el("p", "bad", `SHORTAGE: ${SHORTAGE_NAMES[short]} score half this round, your best so far. ${CRIB_DEALS + m.dealBonus} deals.`));
+  else if (tw) c.append(el("p", "gold", `${tw.name.toUpperCase()}: ${tw.text}  Target +${Math.round((TWIST_TARGET - 1) * 100)}%, ${CRIB_DEALS + m.dealBonus} deals.`));
   else c.append(el("p", "gold", `Score ${run.target()} in ${CRIB_DEALS + m.dealBonus} deals`));
   c.append(cribCharmRow(run));
   c.append(cribLevelRow(run));

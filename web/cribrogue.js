@@ -456,6 +456,14 @@ function twistSeed(seed) {
   x = ((x >>> 16) ^ x) >>> 0;
   return x || 1;
 }
+/* The Shortage (pass 20, LOOP_AUDIT): on round 2 of each act (not the run's
+   first round, never a Spoiler, a Wager or the Long Count), the category the
+   run has scored most with so far scores half, and that round has no twist.
+   No draw: it follows from how the run has played (ties: fifteen, pair, run,
+   flush). Simulated: tools/sim/twist_feel.js MODES=shortage SH_WHERE=r2. */
+const SHORTAGE_ROUND = 2, SHORTAGE_SCALE = 0.5;
+const SHORTAGE_CATS = ["fifteen", "pair", "run", "flush"];
+const SHORTAGE_NAMES = { fifteen: "Fifteens", pair: "Pairs", run: "Runs", flush: "Flushes" };
 const TWIST_TARGET = 1.10;   /* a twist round's target: the better rule has a price (cribsim gate 4) */
 
 class CribRun {
@@ -497,6 +505,7 @@ class CribRun {
     this.bossPlan = planBosses(this.rng);
     this.planWagers();
     this.planTwists();
+    this.catPoints = { fifteen: 0, pair: 0, run: 0, flush: 0 };   // the run's hands, by category (Shortage)
   }
 
   /* Its own stream when seeded (seed + 7919), so the deals, cuts and shop
@@ -514,8 +523,20 @@ class CribRun {
       }
   }
 
+  /* The category short this round, or null (see SHORTAGE_ROUND). */
+  shortage() {
+    if (this.endless || this.isBoss() || this.isWager()) return null;
+    if (this.round !== SHORTAGE_ROUND || this.roundIndex() < 2) return null;
+    if (!(this.twistPlan || {})[`${this.act}-${this.round}`]) return null;
+    const c = this.catPoints || {};
+    let hi = null;
+    for (const k of SHORTAGE_CATS) if (hi === null || (c[k] || 0) > (c[hi] || 0)) hi = k;
+    return hi;
+  }
+
   twist() {
     if (this.endless || this.isBoss() || this.isWager()) return null;
+    if (this.shortage()) return null;
     const id = (this.twistPlan || {})[`${this.act}-${this.round}`];
     return CRIB_TWISTS.find((t) => t.id === id) || null;
   }
@@ -643,6 +664,8 @@ class CribRun {
       if (ex[k] !== undefined) r[k] = ex[k];
     const b = this.boss();
     if (b) merge(b.rule);
+    const short = this.shortage();
+    if (short) r.catScale = Object.assign({}, r.catScale || {}, { [short]: SHORTAGE_SCALE });
     /* a twist only ever helps: the better of it and what's already there */
     const tw = this.twist();
     if (tw) for (const k in tw.rule) {
@@ -1136,6 +1159,9 @@ class CribRound {
     const thrown = this.dealt.filter((_, i) => !keepIdx.includes(i));
     const luck = this.rollLuck(hand.concat([this.liveStarter(hand)]));
     const res = this.runCount(hand, false, null, { luck });
+    /* the Shortage's tally: what the run's kept hands score, by category */
+    if (this.run.catPoints) for (const e of res.events || [])
+      if (e.kind in this.run.catPoints) this.run.catPoints[e.kind] += e.points;
 
     /* Counterfactual attribution — the "I'd have lost without this" engine.
        Re-score the same hand with each charm removed, and with no cut at all. */
@@ -1312,7 +1338,7 @@ class CribRound {
 }
 
 if (typeof module !== "undefined")
-  module.exports = { CCHARMS, CRIB_TWISTS, CRIB_DECKS, CribRun, CribRound,
+  module.exports = { CCHARMS, CRIB_TWISTS, SHORTAGE_NAMES, SHORTAGE_SCALE, CRIB_DECKS, CribRun, CribRound,
     CRIB_ACTS, CRIB_ROUNDS, CRIB_LADDER, CRIB_DEALS, CRIB_DEALT, CRIB_KEEP, CHARM_SLOTS,
     LEVEL_CATS, LEVEL_GAIN, levelCost, BASE_MULLIGANS, CRIB_SIZE, SKIP_COST,
     RARITY, RARITY_ORDER, rollRarity,

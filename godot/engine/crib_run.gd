@@ -23,6 +23,7 @@ var cards: Array = []
 var boss_plan: Array = []
 var wager_at := {}
 var twist_plan := {}
+var cat_points := {"fifteen": 0, "pair": 0, "run": 0, "flush": 0}   ## the run's hands by category (the Shortage, pass 20)
 ## The run's latest hand counts (hand, cut, rules, luck), newest last, for the
 ## shop's Upgrade mark. Presentation only.
 const COUNT_LOG_MAX := 24
@@ -135,6 +136,21 @@ func round_index() -> int:
 
 
 ## The next round's target, read only (the round end's "Next" line).
+## The next slot's Shortage category (read only), or null. Its category is
+## the run's best so far: the round still to come can't change that.
+func next_shortage() -> Variant:
+	var keep := [act, round]
+	if round == CribData.ROUNDS:
+		act += 1
+		round = 1
+	else:
+		round += 1
+	var sh = shortage()
+	act = keep[0]
+	round = keep[1]
+	return sh
+
+
 ## The next slot's twist (read only, as next_target), or null.
 func next_twist() -> Variant:
 	var keep := [act, round]
@@ -217,8 +233,25 @@ func twist_sig() -> Array:
 	return ks.map(func(k): return "%s=%s" % [k, twist_plan[k]])
 
 
+## The category short this round, or null: the web's shortage().
+func shortage() -> Variant:
+	if endless or is_boss() or is_wager():
+		return null
+	if round != CribData.SHORTAGE_ROUND or round_index() < 2:
+		return null
+	if not JS.truthy(twist_plan.get("%d-%d" % [act, round])):
+		return null
+	var hi = null
+	for k in CribData.SHORTAGE_CATS:
+		if hi == null or cat_points.get(k, 0) > cat_points.get(hi, 0):
+			hi = k
+	return hi
+
+
 func twist() -> Variant:
 	if endless or is_boss() or is_wager():
+		return null
+	if shortage() != null:
 		return null
 	return CribData.twist_by_id(twist_plan.get("%d-%d" % [act, round]))
 
@@ -304,6 +337,11 @@ func rules() -> Dictionary:
 	var b = boss()
 	if b != null:
 		merge.call(b.rule)
+	var short = shortage()
+	if short != null:
+		var cs: Dictionary = r.get("catScale", {}).duplicate() if r.get("catScale") != null else {}
+		cs[short] = CribData.SHORTAGE_SCALE
+		r["catScale"] = cs
 	# a twist only ever helps: the better of it and what's already there
 	var tw = twist()
 	if tw != null:

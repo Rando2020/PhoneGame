@@ -19,6 +19,11 @@ const TWISTS := [
 	{"id": "cribfull", "name": "Open Crib", "text": "Your Crib scores in full.", "rule": {"cribFull": true}},
 	{"id": "mull1", "name": "Second Look", "text": "One extra mulligan.", "rule": {"mulliganBonus": 1}},
 ]
+## The Shortage (pass 20): the web's SHORTAGE_* word for word.
+const SHORTAGE_ROUND := 2
+const SHORTAGE_SCALE := 0.5
+const SHORTAGE_CATS := ["fifteen", "pair", "run", "flush"]
+const SHORTAGE_NAMES := {"fifteen": "Fifteens", "pair": "Pairs", "run": "Runs", "flush": "Flushes"}
 const TWIST_SEED_STEP := 7919
 const TWIST_TARGET := 1.10   ## a twist round's target: the better rule has a price
 

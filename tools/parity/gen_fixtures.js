@@ -132,7 +132,7 @@ function playRun(cfg) {
     const rd = new CribRound(run);
     const RT = { idx: run.roundIndex(), target: rd.target, boss: pad(run.boss() && run.boss().id),
                  deadSuit: pad(rd.mods.deadSuit), stock: rd.stock.length, wager: !!rd.wager,
-                 twist: pad(run.twist() && run.twist().id), deals: [] };
+                 twist: pad(run.twist() && run.twist().id), short: pad(run.shortage()), deals: [] };
     let guard = 0;
     while (!rd.over && guard++ < 30) {
       if (!rd.newDeal()) break;
