@@ -446,6 +446,16 @@ const CRIB_TWISTS = [
   { id: "mull1", name: "Second Look", text: "One extra mulligan.", rule: { mulliganBonus: 1 } },
 ];
 const TWIST_SEED_STEP = 7919;
+/* seed + 7919, then a 32-bit integer mix (pass 18): xorshift's first draws
+   from nearby seeds were nearly equal, so seeds 40000..40799 all opened act 1
+   on the same twist. The mix spreads them (tools/sim twist draw check). */
+function twistSeed(seed) {
+  let x = (seed + TWIST_SEED_STEP) >>> 0;
+  x = Math.imul((x >>> 16) ^ x, 0x45d9f3b) >>> 0;
+  x = Math.imul((x >>> 16) ^ x, 0x45d9f3b) >>> 0;
+  x = ((x >>> 16) ^ x) >>> 0;
+  return x || 1;
+}
 const TWIST_TARGET = 1.10;   /* a twist round's target: the better rule has a price (cribsim gate 4) */
 
 class CribRun {
@@ -492,7 +502,7 @@ class CribRun {
   /* Its own stream when seeded (seed + 7919), so the deals, cuts and shop
      draw exactly what they did before twists existed. Unseeded: the run's. */
   planTwists() {
-    const g = this.seed !== undefined ? makeRng((this.seed + TWIST_SEED_STEP) >>> 0) : this.rng;
+    const g = this.seed !== undefined ? makeRng(twistSeed(this.seed)) : this.rng;
     this.twistPlan = {};
     let last = -1;
     for (let a = 1; a <= CRIB_ACTS; a++)

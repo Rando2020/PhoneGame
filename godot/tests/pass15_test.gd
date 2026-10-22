@@ -53,6 +53,15 @@ func _go() -> void:
 		ok(r.rng.s == s0, "seed %d: planning twists drew from the run's rng" % sd)
 		ok(r.twist_plan == again, "seed %d: the plan isn't the seed's" % sd)
 	ok(seen.size() == CribData.TWISTS.size(), "all %d twists turn up: %s" % [CribData.TWISTS.size(), seen.keys()])
+	# a fair draw from consecutive seeds (pass 18: without the seed mix,
+	# seeds 40000..40799 all opened act 1 on the same twist)
+	var first := {}
+	for sd in range(40000, 40600):
+		var id: String = CribRun.new("pip", null, null, sd).twist_plan["1-1"]
+		first[id] = first.get(id, 0) + 1
+	for id in ids:
+		ok(first.get(id, 0) >= 60 and first.get(id, 0) <= 140, "consecutive seeds open act 1 on %s %d of 600 times: %s" % [id, first.get(id, 0), first])
+	ok(CribRun.twist_seed(40000) != CribRun.twist_seed(40001) and CribRun.twist_seed(0) != 0, "twist_seed mixes")
 	var p1 := CribRun.new("pip", null, null, 11).twist_plan
 	var p2 := CribRun.new("pip", null, null, 12).twist_plan
 	ok(p1 != p2, "two seeds, one plan")

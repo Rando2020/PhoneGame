@@ -187,7 +187,7 @@ func plan_wagers() -> void:
 ## Its own stream when seeded (seed + 7919), so deals, cuts and the shop draw
 ## what they did before twists; unseeded, the run's (JS.unseeded), as the web.
 func plan_twists() -> void:
-	var g: JsRng = JsRng.new(seed + CribData.TWIST_SEED_STEP) if seed != null else rng
+	var g: JsRng = JsRng.new(CribRun.twist_seed(seed)) if seed != null else rng
 	twist_plan = {}
 	var last := -1
 	for a in range(1, CribData.ACTS + 1):
@@ -200,6 +200,16 @@ func plan_twists() -> void:
 
 
 ## The plan as sorted "act-round=id" strings (the parity fixtures' form).
+## The web's twistSeed: seed + 7919, then a 32-bit integer mix (pass 18;
+## nearby seeds opened act 1 on the same twist without it).
+static func twist_seed(sd: int) -> int:
+	var x := (sd + CribData.TWIST_SEED_STEP) & 0xFFFFFFFF
+	x = (((x >> 16) ^ x) * 0x45D9F3B) & 0xFFFFFFFF
+	x = (((x >> 16) ^ x) * 0x45D9F3B) & 0xFFFFFFFF
+	x = ((x >> 16) ^ x) & 0xFFFFFFFF
+	return x if x != 0 else 1
+
+
 func twist_sig() -> Array:
 	var ks: Array = twist_plan.keys()
 	ks.sort()
