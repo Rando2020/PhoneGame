@@ -383,3 +383,19 @@ draw). Both engines now mix the twist seed; parity OK; the Daily was never
 affected. The new fair-draw test catches the old formula (1 of 1 mutant).
 Open: charm art and a Charms tab (next), build-aware twists, a playtest, the
 in-app purchase (Mac).
+
+# Re-check, 2026-10-22 (after pass 19)
+
+Charms have art: 53 generated icons, plus category silhouettes, shown
+wherever a charm appears (LOOP_AUDIT "Pass 19"). A Gallery Charms tab tracks
+each charm as unseen, seen, owned or won with, saved and only rising, with a
+once-per-charm first-purchase card. A run card (1080x1350 PNG) on both run
+ends; iOS sharing needs a plugin (unverified). Build-aware twists were
+simulated and rejected: the autopilot number went from 40.9% to 40.7%.
+Store: the "Collect them all" shot now shows the Charms tab. Tests:
+`pass19_test` checks:
+- art for every id in both engines
+- icons in every UI and their fallbacks
+- collection states, a real disk round trip, and the Gallery cells
+- the round-end icons
+- run card bounds and texts

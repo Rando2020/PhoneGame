@@ -53,7 +53,7 @@ WHAT'S IN IT
 - 17 Spoilers, five drawn per run, so no two runs meet the same set.
 - 6 card marks: Sunlit, Brittle, Mimic, Offering, Minted and Fickle.
 - 8 streets, 8 trials and 17 deeds to earn.
-- A Gallery of every card, mark, back, Meldling and Spoiler.
+- A Gallery of every card, mark, back, Meldling and Spoiler, and a charm collection to fill: each charm moves from unseen to seen, owned and won with.
 
 MADE FOR A PHONE
 - Drag or tap. Flick a card up to throw it to your Crib, down to keep it.

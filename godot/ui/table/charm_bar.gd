@@ -45,6 +45,7 @@ func build(run) -> void:
 
 
 const ICON := 36.0              ## a chip's charm icon (pass 19), left of the name
+const ICON_ALONE := 42.0        ## an icon-only chip's icon (a phone's 6-slot bar)
 
 
 func _add_chip(name: String, tint: Color, empty: bool, id := "") -> void:
@@ -96,7 +97,8 @@ func per_row(n: int) -> int:
 var row_h := H                 ## grows when a name wraps to two lines
 
 
-var icons_on := true          ## off when the icons would cost the bar a row
+var icons_on := true          ## icon beside the name (when it costs no height)
+var icon_only := false        ## else: a charm chip is its icon alone
 
 
 ## Room a chip's icon takes from its name (0 when no chip shows one).
@@ -141,11 +143,17 @@ func _layout() -> void:
 	icons_on = true
 	var per := per_row(n)
 	icons_on = per >= per_bare and _rows_height(per) <= h_bare + 0.5
+	# no room for an icon beside its name (a phone's 6-slot bar): a charm chip
+	# shows its icon alone, the genre's way; names stay in the shop, the round
+	# end and the Gallery. The knack (no icon) keeps its name. Same height.
+	icon_only = not icons_on and chips.any(func(c): return c.get("icon") != null)
 	if not icons_on:
 		per = per_bare
 	for c in chips:
 		if c.get("icon") != null:
-			c.icon.visible = icons_on
+			c.icon.visible = icons_on or icon_only
+			c.label.visible = not icon_only
+			c.panel.tooltip_text = c.name if icon_only else ""
 	var w := (size.x - GAP * (per - 1)) / per
 	row_h = H
 	var room := _icon_room()
@@ -162,7 +170,12 @@ func _layout() -> void:
 		l.size = Vector2(w - 8.0 - room, row_h)
 		var icon = chips[i].get("icon")
 		if icon != null:
-			icon.position = Vector2(4, (row_h - ICON) / 2.0)
+			var px: float = ICON_ALONE if icon_only else ICON
+			icon.size = Vector2(px, px)
+			if icon_only:
+				icon.position = Vector2((w - px) / 2.0, (row_h - px) / 2.0)
+			else:
+				icon.position = Vector2(4, (row_h - px) / 2.0)
 		p.pivot_offset = p.size / 2.0
 
 

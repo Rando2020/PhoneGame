@@ -26,7 +26,7 @@ SHOTS = [
     ("peg_busy", "The Play.", "Peg to 31 against the Spoiler, then add it to your score."),
     ("flow_boss", "Beat the Spoilers.", "Every third round a Spoiler breaks a rule. Build for it."),
     ("shop", "Build your run.", "Charms, marked cards and Reckonings at the Peg House."),
-    ("menu_gallery_meld", "Collect them all.", "Every Meldling, every pose, in the Gallery."),
+    ("gallery_charms", "Collect them all.", "53 charms to find, own and win a run with."),
 ]
 
 

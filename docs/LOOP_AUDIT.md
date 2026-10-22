@@ -383,3 +383,64 @@ every other asset here. The icons then go everywhere charms appear (shop,
 bar, round end, the upgrade mark, synergy lines). The tab shows each charm
 as seen, bought, or won a run with. That gives the meta loop a "collect them
 all" target that the run loop already feeds.
+
+## Pass 19: charms get a face, collecting them is the meta loop
+
+**Art.** `tools/make_charms.py` draws all 53 charm icons, 32x32 plus a 2x,
+in the Meldlings' style: a dark tinted outline, three-tone shading, a soft
+highlight. Each icon reads in three layers:
+- **Category first:** a silhouette and colour per category. Fifteens are a
+  gold coin, pairs two red cards, runs blue steps, flushes a violet fan,
+  multipliers an orange burst, rules a teal scroll, the deck a tan box.
+- **Then the charm:** a 9x9 cream motif with an ink shadow.
+- **Then rarity:** the plaque frame in the UI's rarity colour.
+
+The script stops if two charms share a silhouette and motif. It also draws a
+silhouette per category for unseen charms: shape only, no motif, no rarity.
+Checked by eye on a contact sheet at 1x and 3x; Bloodline, Fifteen Fever,
+Ballast and the overlapping card shapes were redrawn after the first sheet.
+
+**Where icons show:**
+- The shop's offer rows and owned chips.
+- The upgrade line, which also shows the charm it would replace.
+- The round end's MVP panel and synergy line, with both charms.
+- The first-purchase card.
+- The charm bar: on a phone's 6-slot bar there's no room for an icon beside a
+  name, so a charm chip shows its icon alone. The name moves to a tooltip and
+  the bar keeps its height. A bar with room shows both. An icon never splits
+  a word: "Quartermaster" stays whole on a shop chip, with no icon.
+
+**The collection.** Each charm's best state is saved: unseen, seen (offered
+in a shop), owned (bought), won with (owned on a cleared run). States only
+rise. The Gallery's new Charms tab (first of 7) shows all 53 by category:
+- unseen charms as a silhouette and "???"
+- seen ones dimmed
+- owned ones in full
+- won-with names in gold with a ★
+
+The header counts are real: "Charms 12 / 53" counts owned and better. A
+charm's first purchase ever plays a celebration card with its icon, once per
+charm.
+
+**The run card.** SHARE on both run ends draws one 1080x1350 PNG in Godot: the
+Meldling, how far the run got, the run's best single count (now tracked), up
+to 6 charm icons with names, the street and the date. It's saved to user://.
+On iOS it goes to the share sheet if the build has the MeldShare plugin; that
+plugin isn't written yet (unverified without a Mac).
+
+**Build-aware twists: tried, not shipped.** Each plain round's twist was aimed
+at the category the run had scored least in so far (runs have no twist, so
+Seventh Card), and clearing it paid +3 Glim. 800 runs, strong player:
+
+| | leading category changes | strong clears |
+|---|---|---|
+| twists as shipped | 40.9% | 14.8% |
+| build-aware twists | 40.7% | 16.6% |
+
+It needed +5 points on the autopilot number and clears in 14.5 to 15.5%. It
+got -0.2 and 16.6%, so it stays out of the game (the sim mode is kept in
+`tools/sim/twist_feel.js`, MODES=on,aware). Aiming a twist at a weak
+category doesn't change what a strong build scores with; the charms decide.
+Breaking autopilot will take something the build has to *answer*, not a
+nudge: for example a round rule that blocks the build's best category.
+That's a design question for Ziah and a playtest, not more tuning.
