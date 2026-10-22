@@ -28,6 +28,7 @@ var juice: Juice = null    ## set by RunFlow: a legendary purchase bursts
 var sell_buttons := {}
 var offer_buttons := {}
 var upgrade = null              ## Upgrade.best() for this render, or null
+const OFFER_ICON := 64.0        ## an offer row's charm icon (pass 19)
 var upgrade_label: Label = null
 var card_buttons := {}
 var level_buttons := {}
@@ -323,8 +324,24 @@ func _stage_top(ctx: Dictionary) -> void:
 		nm.text = ch.name
 		nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		nm.position = Vector2(4, 2)
-		nm.size = Vector2(cw - 8.0 - xw, ch_h - 4.0)
+		# the charm's icon (pass 19) on the left; the Meldling's knack has none
+		var iw := 0.0
+		var ic := CharmIcon.make(ch.id, 40.0) if ch.tier != 0 else null
+		# an icon never splits a word: a name's longest word must still fit beside it
+		if ic != null:
+			var f := nm.get_theme_font("font")
+			var fsz := nm.get_theme_font_size("font_size")
+			for word in String(ch.name).split(" "):
+				if f.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x > cw - 8.0 - xw - 42.0:
+					ic.free()
+					ic = null
+					break
+		if ic != null:
+			ic.position = Vector2(4, (ch_h - 40.0) / 2.0)
+			p.add_child(ic)
+			iw = 42.0
+		nm.position = Vector2(4 + iw, 2)
+		nm.size = Vector2(cw - 8.0 - xw - iw, ch_h - 4.0)
 		p.add_child(nm)
 		if ch.tier != 0:
 			var x := _button("×", 22)
@@ -370,10 +387,17 @@ func _stage_offers(ctx: Dictionary) -> void:
 		b.add_theme_stylebox_override("disabled", _box(PANEL, Color(tint, 0.35)))
 		b.disabled = ch.cost > run.essence or full
 		b.pressed.connect(buy_charm.bind(ch))
+		# the charm's icon (pass 19), then its name, rarity and text beside it
+		var lx := 14.0
+		var oic := CharmIcon.make(ch.id, OFFER_ICON)
+		if oic != null:
+			oic.position = Vector2(10, 10)
+			b.add_child(oic)
+			lx = 10.0 + OFFER_ICON + 10.0
 		var nm := _label(28, INK)
 		nm.text = ch.name
-		nm.position = Vector2(14, 6)
-		nm.size = Vector2(col * 0.55, 28)
+		nm.position = Vector2(lx, 6)
+		nm.size = Vector2(col * 0.55 - lx + 14.0, 28)
 		b.add_child(nm)
 		var rt := _label(15, tint)
 		rt.text = CribData.RARITY[ch.rarity].name
@@ -383,20 +407,27 @@ func _stage_offers(ctx: Dictionary) -> void:
 		var tx := _label(TypeScale.BODY, DIM)
 		tx.text = ch.text
 		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tx.position = Vector2(14, nm.position.y + nm.get_minimum_size().y - 2.0)
-		tx.size = Vector2(col - 110, 0)
+		tx.position = Vector2(lx, nm.position.y + nm.get_minimum_size().y - 2.0)
+		tx.size = Vector2(col - 96 - lx, 0)
 		b.add_child(tx)
 		var bottom := tx.position.y + tx.get_minimum_size().y
 		if upgrade != null and upgrade.offer == ch:
 			var up := _label(TypeScale.BODY, GREEN)
 			up.text = "UPGRADE over %s: +%d on your last %d counts" % [upgrade.over.name, upgrade.gain, upgrade.counts]
 			up.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			up.position = Vector2(14, bottom)
-			up.size = Vector2(col - 110, 0)
+			# the charm it would replace, as a small icon before the line
+			var ux := lx
+			var over_ic := CharmIcon.make(upgrade.over.id, 28.0)
+			if over_ic != null:
+				over_ic.position = Vector2(lx, bottom + 2.0)
+				b.add_child(over_ic)
+				ux = lx + 32.0
+			up.position = Vector2(ux, bottom)
+			up.size = Vector2(col - 96 - ux, 0)
 			b.add_child(up)
 			upgrade_label = up
 			bottom = up.position.y + up.get_minimum_size().y
-		var row_h := maxf(88.0, bottom + 6.0)
+		var row_h := maxf(OFFER_ICON + 20.0 if oic != null else 88.0, maxf(88.0, bottom + 6.0))
 		b.size.y = row_h
 		var cost := _label(26, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
 		cost.text = str(ch.cost)

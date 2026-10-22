@@ -225,6 +225,8 @@ var surface: Surface = null
 
 func _clear() -> void:
 	buttons.clear()
+	mvp_icon = null
+	synergy_icons = []
 	var animate: bool = _page != null and not _no_slide and not MeldSprite.reduce_motion and size.x > 0.0
 	var from_x: float = _page.position.x if _page != null else 0.0
 	if _outgoing != null:
@@ -482,6 +484,28 @@ func _meld_at(y: float, px: float, pose: String, quiet := false) -> float:
 	_page.add_child(meld_view)
 	meld_view.react(pose, quiet)
 	return y + px
+
+
+var mvp_icon: TextureRect = null   ## the round end's MVP icon (tests)
+var synergy_icons: Array = []        ## the round end's synergy icons (tests)
+
+
+## Charm icons in a row ending just left of a centred label's first line.
+func _icons_before(l: Label, names: Array, px: float) -> void:
+	synergy_icons.clear()
+	var font := l.get_theme_font("font")
+	var fs := l.get_theme_font_size("font_size")
+	var first_w := minf(l.size.x, font.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	var x := l.position.x + (l.size.x - first_w) / 2.0 - 4.0
+	var y := l.position.y + (font.get_height(fs) - px) / 2.0
+	for i in range(names.size() - 1, -1, -1):
+		var ic := CharmIcon.make(CharmIcon.id_for(String(names[i]).strip_edges()), px)
+		if ic == null:
+			continue
+		x -= px + 2.0
+		ic.position = Vector2(maxf(0.0, x), y)
+		_page.add_child(ic)
+		synergy_icons.push_front(ic)
 
 
 func _line(y: float, text: String, fs: int, colr: Color) -> float:
@@ -745,11 +769,21 @@ func _render_round_end() -> void:
 			[str(m.name), 30, INK], ["+%d points" % JS.round_(m.points), 18, GOLD]]
 		if m.decisive:
 			lines.append(["Without it you'd have finished on %d. You needed %d." % [JS.round_(m.without), rd.target], 17, RED])
-		y = _panel(y + 4.0, lines)
+		var top := y + 4.0
+		y = _panel(top, lines)
+		# the MVP's charm icon (pass 19) at the panel's left, when it's a charm
+		var mic := CharmIcon.make(CharmIcon.id_for(str(m.name)), 56.0)
+		if mic != null:
+			mic.position = Vector2(_col().x + 12.0, top + (y - top - 56.0) / 2.0 - 3.0)
+			_page.add_child(mic)
+			mvp_icon = mic
 	var syn = rd.best_synergy()
 	if syn != null:
-		# two charms that fed each other (LOOP_AUDIT 7): the build, named
+		# two charms that fed each other (LOOP_AUDIT 7): the build, named, with
+		# both icons (pass 19) just before the line's text
 		y = _line(y + 4.0, "%s fed each other  +%d" % [syn.pair, syn.points], 20, GOLD)
+		var sl: Label = _page.get_child(_page.get_child_count() - 1)
+		_icons_before(sl, String(syn.pair).split(" + "), 30.0)
 	var box := []
 	if not rd.shattered_all.is_empty():
 		box.append(["Shattered: " + ", ".join(rd.shattered_all.map(func(c): return Cribbage.card_str(c))), 17, Color(0.45, 0.88, 0.82)])

@@ -38,13 +38,16 @@ func build(run) -> void:
 	var empties: int = maxi(0, run.slots() - run.charms.size())
 	for ch in list:
 		var tint: Color = DECK_TINT if ch.tier == 0 else Color(CribData.RARITY.get(ch.rarity, CribData.RARITY.common).tint)
-		_add_chip(ch.name, tint, false)
+		_add_chip(ch.name, tint, false, ch.id if ch.tier != 0 else "")
 	for i in empties:
 		_add_chip("", Color(INK, 0.15), true)
 	_layout()
 
 
-func _add_chip(name: String, tint: Color, empty: bool) -> void:
+const ICON := 36.0              ## a chip's charm icon (pass 19), left of the name
+
+
+func _add_chip(name: String, tint: Color, empty: bool, id := "") -> void:
 	var p := Panel.new()
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_theme_stylebox_override("panel", _style(tint, false, empty))
@@ -57,8 +60,11 @@ func _add_chip(name: String, tint: Color, empty: bool) -> void:
 	l.add_theme_color_override("font_color", INK)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(l)
+	var icon := CharmIcon.make(id, ICON)
+	if icon != null:
+		p.add_child(icon)
 	add_child(p)
-	chips.append({"name": name, "panel": p, "label": l, "tint": tint, "empty": empty})
+	chips.append({"name": name, "panel": p, "label": l, "tint": tint, "empty": empty, "icon": icon})
 
 
 func _notification(what: int) -> void:
@@ -72,7 +78,7 @@ func _notification(what: int) -> void:
 func per_row(n: int) -> int:
 	if n <= 3:
 		return maxi(1, n)
-	var w := (size.x - GAP * (n - 1)) / n - 8.0
+	var w := (size.x - GAP * (n - 1)) / n - 8.0 - _icon_room()
 	for c in chips:
 		var l: Label = c.label
 		if l.text == "":
@@ -90,30 +96,73 @@ func per_row(n: int) -> int:
 var row_h := H                 ## grows when a name wraps to two lines
 
 
+var icons_on := true          ## off when the icons would cost the bar a row
+
+
+## Room a chip's icon takes from its name (0 when no chip shows one).
+func _icon_room() -> float:
+	if not icons_on:
+		return 0.0
+	for c in chips:
+		if c.get("icon") != null:
+			return ICON + 4.0
+	return 0.0
+
+
 func height() -> float:
 	var n := chips.size()
 	var rows := ceili(float(maxi(1, n)) / per_row(n))
 	return rows * row_h + (rows - 1) * GAP
 
 
+## The bar's height laid out `per` to a row, with the current icon room.
+func _rows_height(per: int) -> float:
+	var n := chips.size()
+	var w := (size.x - GAP * (per - 1)) / per
+	var room := _icon_room()
+	var rh := H
+	for c in chips:
+		var l: Label = c.label
+		l.size = Vector2(w - 8.0 - room, 0)
+		rh = maxf(rh, l.get_minimum_size().y + 6.0)
+	var rows := ceili(float(maxi(1, n)) / per)
+	return rows * rh + (rows - 1) * GAP
+
+
 func _layout() -> void:
 	var n := chips.size()
 	if n == 0:
 		return
+	# icons only when they cost no extra row (Larger text on a short phone: the
+	# names win; the shop and the round end still show every icon)
+	icons_on = false
+	var per_bare := per_row(n)
+	var h_bare := _rows_height(per_bare)
+	icons_on = true
 	var per := per_row(n)
+	icons_on = per >= per_bare and _rows_height(per) <= h_bare + 0.5
+	if not icons_on:
+		per = per_bare
+	for c in chips:
+		if c.get("icon") != null:
+			c.icon.visible = icons_on
 	var w := (size.x - GAP * (per - 1)) / per
 	row_h = H
+	var room := _icon_room()
 	for c in chips:
 		var l: Label = c.label
-		l.size = Vector2(w - 8.0, 0)
+		l.size = Vector2(w - 8.0 - room, 0)
 		row_h = maxf(row_h, l.get_minimum_size().y + 6.0)
 	for i in n:
 		var p: Panel = chips[i].panel
 		p.position = Vector2((i % per) * (w + GAP), (i / per) * (row_h + GAP))
 		p.size = Vector2(w, row_h)
 		var l: Label = chips[i].label
-		l.position = Vector2(4, 0)
-		l.size = Vector2(w - 8.0, row_h)
+		l.position = Vector2(4 + room, 0)
+		l.size = Vector2(w - 8.0 - room, row_h)
+		var icon = chips[i].get("icon")
+		if icon != null:
+			icon.position = Vector2(4, (row_h - ICON) / 2.0)
 		p.pivot_offset = p.size / 2.0
 
 
