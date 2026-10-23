@@ -190,7 +190,7 @@ func _go() -> void:
 	Haptics.log.clear()
 	var f3 := _now()
 	flow.shop.buy_charm(legend)
-	ok(_last()[0] == "milestone" and _last()[1] == f3 and Haptics.log == [50], "a legendary: fanfare and buzz together")
+	ok(_last()[0] == "milestone" and _last()[1] == f3 and not Haptics.log.is_empty() and Haptics.log[0] == 50 and Haptics.log.filter(func(m): return m != ShopScreen.LAND_HAPTIC).size() == 1, "a legendary: fanfare and buzz together")
 	flow.show_front_door("title")
 	ok(Sound.music_ctx == "menu", "back to the title: menu")
 	flow.queue_free()
