@@ -759,3 +759,65 @@ static func settings(fd: FrontDoor) -> void:
 	_lab(fd, fd._page, "Reduce Motion turns off shake, particles, slides and bounces.", 16, fd.DIM, c.x, y + 6.0, c.y)
 	fd._button("back", "Back", false, func(): fd.go("title"))
 	fd._stack_bottom(["back"])
+
+
+
+# ------------------------------------------------------------------ playtest (pass 22)
+## The hidden playtest menu (playtest builds only): four jumps that build real
+## states through the engine, the session's numbers, and the log's switch.
+static func playtest(fd: FrontDoor) -> void:
+	fd._clear()
+	if not Playtest.enabled():
+		fd.go("title")        # never in a release build, whatever asks
+		return
+	var y := fd._line(fd._top(), "PLAYTEST", 34, fd.INK)
+	var inner := _scroll(fd, y)
+	var c := fd._col()
+	var yy := _note(fd, inner, 0.0, "Jumps build a real game state through the engine. The log stays on this machine (user://playtest.log).")
+	var jumps := [["shortage", "Act 1, round 2: a Shortage"], ["upgrade", "Shop: a full bar with an upgrade mark"],
+		["gallery", "Gallery: a few charms just rose"], ["run_end", "A run's end, with Share"]]
+	for j in jumps:
+		var b := Button.new()
+		b.text = j[1]
+		TypeScale.set_size(b, 20)
+		b.size = Vector2(c.y, Press.MIN_H)
+		b.position = Vector2(c.x, yy)
+		var kind: String = j[0]
+		b.pressed.connect(func(): fd.playtest_jump.emit(kind))
+		inner.add_child(b)
+		fd.buttons["pt_" + kind] = b
+		yy += Press.MIN_H + 8.0
+	yy += 8.0
+	var s := Playtest.summary(Playtest.session_entries())
+	var lines := ["THIS SESSION", "Rounds %d  ·  cleared %s%%  ·  %s s a round  ·  %s mulligans a round" % [s.rounds, s.cleared_pct, s.avg_secs, s.mulligans_per_round]]
+	for k in ["twist", "shortage", "plain", "spoiler"]:
+		if s.by_kind.has(k):
+			var b2: Dictionary = s.by_kind[k]
+			lines.append("%s rounds: %d, cleared %s%%, %s s" % [k.capitalize(), b2.rounds, b2.cleared_pct, b2.avg_secs])
+	lines.append("Leading category changed in %s%% of %d round-to-round moves" % [s.lead_changes_pct, s.transitions])
+	for i in lines.size():
+		yy = _lab(fd, inner, lines[i], 18 if i > 0 else 20, fd.GOLD if i == 0 else fd.INK, c.x, yy, c.y).size.y + yy + 6.0
+	yy += 8.0
+	var lb := Button.new()
+	lb.text = "Session log: %s" % ("On" if Playtest.log_on() else "Off")
+	TypeScale.set_size(lb, 20)
+	lb.size = Vector2(c.y, Press.MIN_H)
+	lb.position = Vector2(c.x, yy)
+	lb.pressed.connect(func():
+		Playtest.set_log(not Playtest.log_on())
+		fd.render())
+	inner.add_child(lb)
+	fd.buttons["pt_log"] = lb
+	yy += Press.MIN_H + 8.0
+	var cb := Button.new()
+	cb.text = "Clear the log"
+	TypeScale.set_size(cb, 20)
+	cb.size = Vector2(c.y, Press.MIN_H)
+	cb.position = Vector2(c.x, yy)
+	cb.pressed.connect(func():
+		Playtest.clear_log()
+		fd.render())
+	inner.add_child(cb)
+	fd.buttons["pt_clear"] = cb
+	yy += Press.MIN_H + 8.0
+	_done(inner, fd, yy)

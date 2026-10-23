@@ -14,6 +14,7 @@ signal guided
 ## CONTINUE on the title: pick the saved run back up.
 signal resume_run
 signal first(id: String)    ## a first-time celebration (Firsts) for RunFlow's toast
+signal playtest_jump(kind: String)   ## playtest builds: build a real state (RunFlow)
 var can_resume := false     ## set by the owner before open(): a saved run exists
 
 const BG := Color(0.102, 0.094, 0.149)
@@ -74,12 +75,13 @@ func render() -> void:
 		"gallery": Menus.gallery(self)
 		"howto": Menus.howto(self)
 		"settings": Menus.settings(self)
+		"playtest": Menus.playtest(self)
 		_: _title()
 
 
 ## How deep each step sits: going deeper slides in from the right, back from the left.
 const DEPTH := {"title": 0, "road": 1, "peddler": 1, "deeds": 1, "record": 1, "gallery": 1,
-	"howto": 1, "settings": 1, "street": 2, "trial": 3, "meld": 3}
+	"howto": 1, "settings": 1, "playtest": 1, "street": 2, "trial": 3, "meld": 3}
 var _outgoing: Control = null
 var _slide_v := 0.0
 var _slide_dir := 0.0         ## +1 in from the right, -1 from the left, 0 none
@@ -311,8 +313,21 @@ func _day() -> String:
 
 
 # ------------------------------------------------------------------ title
+var version_taps: Array = []    ## tap times on the version label (the playtest menu)
+
+
 func _title() -> void:
 	_clear()
+	# the version, small, top right; five quick taps open the playtest menu in a
+	# playtest build (Playtest.enabled); anywhere else it is only a label
+	var c_v := _col()
+	var ver := _label(_page, "v" + str(ProjectSettings.get_setting("application/config/version", "2.0.0")), 16, DIM, Vector2(c_v.x + c_v.y - 140.0, _top() + 6.0), 140.0)
+	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ver.name = "version"
+	ver.mouse_filter = Control.MOUSE_FILTER_STOP
+	ver.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed:
+			version_tap(Time.get_ticks_msec()))
 	var y := _line(_top() + size.y * 0.12, "MELDLINGS", 56, GOLD)
 	y = _line(y, "Count it. Cut it. Break it.", 22, DIM)
 	var parade_top := y
@@ -664,3 +679,16 @@ func _tap_back(id: String) -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and Menus.gal_motion.running():
 		Menus.gal_motion.skip()
+
+
+
+## Five taps within 2.5 s on the version label: the playtest menu, in a
+## playtest build only. Returns whether it opened (tests).
+func version_tap(now_ms: int) -> bool:
+	version_taps.append(now_ms)
+	version_taps = version_taps.filter(func(t): return now_ms - t <= 2500)
+	if version_taps.size() >= 5 and Playtest.enabled():
+		version_taps.clear()
+		go("playtest")
+		return true
+	return false

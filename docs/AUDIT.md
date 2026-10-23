@@ -425,3 +425,17 @@ slide, the Gallery reveals, the Shortage stamp, and the upgrade pulse. Every
 animation is drawn at rest first, lands exactly on that by a tap, uses a
 cross-fade under Reduce Motion, and keeps its tweens on its node. Gallery
 cells went to 4 a row (a mid-word break at 5).
+
+# Re-check, 2026-10-23 (after pass 22)
+
+A playtest build (docs/PLAYTEST.md): `tools/playtest_build.sh` exports Linux
+(77 MB), Windows (95 MB) and macOS (61 MB zip). The Linux build runs under
+xvfb with no script errors; Windows and macOS are unverified on hardware. A
+hidden menu (5 taps on the title's version label) has 4 jumps, each built by
+playing real rounds. There is also a private log, user://playtest.log, with
+one line a round, and a summary. All of it is gated by the `playtest` feature
+tag, which the iOS preset lacks. Haptics: 10 ms when a bought charm lands and
+35 ms on the Shortage stamp.
+
+`pass22_test`: 50 checks, 16 of 16 mutants caught after two checks were added
+(a lost round; a run that restarts on the same act and round).

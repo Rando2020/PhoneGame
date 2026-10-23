@@ -626,6 +626,7 @@ func _half_stamp(show: bool) -> void:
 		return
 	_stamped_rd = rd
 	Sound.play("spoiler_peg")
+	Haptics.pulse(RunFlow.STAMP_HAPTIC)
 	if Motion.reduced():
 		keep_motion.fade_in(half_stamp)
 		return

@@ -264,6 +264,7 @@ var _glim_drawn := -1             ## the Glim the header last showed (for the ti
 var _flight_from = null           ## a bought charm's icon rect, before the redraw
 var _flight_id := ""
 var upgrade_pulse: Panel = null   ## the upgrade mark's pulsing border (pass 21)
+const LAND_HAPTIC := 10           ## ms: a bought charm landing in its chip (pass 22)
 
 
 ## A tap anywhere finishes whatever is in flight (it lands on the at-rest draw).
@@ -641,6 +642,7 @@ func _animate_after(kind: String, glim_before: int) -> void:
 		return
 	if Motion.reduced():
 		motion.fade_in(chip)
+		Haptics.pulse(LAND_HAPTIC)
 		return
 	if icon != null and _flight_from != null:
 		var fly := CharmIcon.make(id, _flight_from.size.x)
@@ -658,7 +660,8 @@ func _animate_after(kind: String, glim_before: int) -> void:
 			if is_instance_valid(fly):
 				fly.visible = false
 			if is_instance_valid(chip):
-				chip.scale = Vector2.ONE * 1.12)
+				chip.scale = Vector2.ONE * 1.12
+			Haptics.pulse(LAND_HAPTIC))     # the charm lands: a light tap
 		tw.tween_property(chip, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		motion.add(tw, func():
 			if is_instance_valid(icon):
@@ -669,6 +672,7 @@ func _animate_after(kind: String, glim_before: int) -> void:
 				fly.queue_free())
 	else:
 		motion.settle(chip)
+		Haptics.pulse(LAND_HAPTIC)
 
 
 ## Pass 21: no animation outlives its screen (a running job would keep a

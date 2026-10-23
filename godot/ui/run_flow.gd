@@ -80,6 +80,7 @@ func show_front_door(step := "") -> void:
 	front.begin.connect(start_run, CONNECT_ONE_SHOT)
 	front.guided.connect(start_guided, CONNECT_ONE_SHOT)
 	front.resume_run.connect(resume, CONNECT_ONE_SHOT)
+	front.playtest_jump.connect(playtest_jump)
 	front.first.connect(func(id: String):
 		if deed_toast != null:
 			move_child(deed_toast, -1)
@@ -517,6 +518,7 @@ func _meld_at(y: float, px: float, pose: String, quiet := false) -> float:
 var mvp_icon: TextureRect = null   ## the round end's MVP icon (tests)
 var new_dot: Panel = null          ## the act track's dot this round filled
 var short_line: Label = null       ## the intro's Shortage line (the stamp lands on it)
+const STAMP_HAPTIC := 35           ## ms: the Shortage stamp (pass 22)
 var round_motion := Motion.new()   ## the round end's count-up, dot pop, Next slide (pass 21)
 
 
@@ -533,6 +535,7 @@ func _stamp(l: Label) -> void:
 	if not Motion.on():
 		return
 	Sound.play("spoiler_peg")
+	Haptics.pulse(STAMP_HAPTIC)       # the Shortage lands: a heavier buzz (pass 22)
 	if Motion.reduced():
 		round_motion.fade_in(l)
 		return
@@ -753,6 +756,7 @@ func show_intro() -> void:
 
 
 func _on_deal() -> void:
+	Playtest.round_start(run)      # playtest builds only: the private session log
 	_clear()
 	_set_screen("round")
 	keep = Warm.keep.instantiate()
@@ -806,6 +810,7 @@ func _celebrate_round() -> void:
 
 func _round_end_effects() -> void:
 	rd.settle()   # settles the Crib once if needed (web cribend.patch)
+	Playtest.round_end(run, rd)
 	if rd.wager != null and rd.wager_won:
 		var locked := Achv.locked_systems()
 		if not locked.is_empty():
@@ -1156,3 +1161,91 @@ func show_run_won() -> void:
 ## reference cycle alive: screen_leak_test).
 func _exit_tree() -> void:
 	round_motion.skip()
+
+
+
+# ------------------------------------------------------------------ playtest jumps (pass 22)
+## Build a real state through the engine and show it (playtest builds only).
+## Returns whether it got there (tests). Rounds are played by the engine's own
+## best keeps; nothing is drawn that a real game couldn't reach.
+func playtest_jump(kind: String) -> bool:
+	if not Playtest.enabled():
+		return false
+	match kind:
+		"shortage":
+			for sd in range(2201, 2300):
+				var r := CribRun.new(CribData.DECKS.keys()[sd % 4], Meta.STREETS[0], null, sd)
+				var r1 := _play_round(r, true)
+				if not r1.won:
+					continue
+				r.essence += r1.essence_earned
+				r.advance()
+				if r.shortage() == null:
+					continue
+				start_run(r)
+				return true
+		"upgrade":
+			for sd in range(2301, 2400):
+				var r := CribRun.new("thump", Meta.STREETS[0], null, sd)
+				for id in ["twinner", "rambler", "peacock", "streak", "keystone2"]:
+					if not r.is_full():
+						r.charms.append(CribData.charm_by_id(id))
+				_play_round(r, true)
+				r.open_shop()
+				var pool := CribData.CHARMS.filter(func(ch): return ch.rule == null and not r.charms.has(ch) and ch.tier != 0)
+				for i in range(0, pool.size() - 2, 3):
+					var offer: Array = pool.slice(i, i + 3)
+					if Upgrade.best(r, offer) != null:
+						r.shop_state.offer = offer
+						r.essence = maxi(r.essence, 30)
+						run = r
+						show_shop()
+						return true
+		"gallery":
+			var ids := ["fifteener", "fever", "keystone2", "peacock"]
+			var m := Achv.load_store().duplicate(true)
+			var shown: Dictionary = m.get("charms_shown", {}).duplicate()
+			for ch in CribData.CHARMS:
+				if not shown.has(ch.id):
+					shown[ch.id] = Collection.level(ch.id)
+			for id in ids:
+				shown[id] = mini(int(shown.get(id, 0)), Collection.SEEN if id != "peacock" else Collection.UNSEEN)
+			m["charms_shown"] = shown
+			Achv.save_store(m)
+			Collection.mark("fifteener", Collection.WON)
+			Collection.mark("fever", Collection.OWNED)
+			Collection.mark("keystone2", Collection.OWNED)
+			Collection.mark("peacock", Collection.SEEN)
+			Menus.gal_tab = "charms"
+			show_front_door("title")
+			front.go("gallery")
+			return true
+		"run_end":
+			for sd in range(2401, 2500):
+				var r := CribRun.new("pip", Meta.STREETS[0], null, sd)
+				for id in ["keystone2", "ballast", "fifteener"]:
+					r.charms.append(CribData.charm_by_id(id))
+				r.act = 2
+				r.round = 2
+				var d := _play_round(r, false)
+				if d.won:
+					continue
+				run = r
+				rd = d
+				_paid = false
+				_round_end_effects()
+				_render_round_end()
+				return true
+	return false
+
+
+## One round played to its end by the engine: best keeps, or highest cards.
+func _play_round(r: CribRun, best: bool) -> CribRound:
+	var d := CribRound.new(r)
+	while d.new_deal() != null:
+		var idx: Array = d.best_keep_ev().idx if best else range(d.keep_count())
+		d.commit(idx)
+		if d.score >= d.target or d.deals_left <= 0:
+			break
+	d.settle()
+	return d

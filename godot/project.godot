@@ -4,6 +4,7 @@ config_version=5
 [application]
 
 config/name="Meldlings"
+config/version="2.0.0"
 run/main_scene="res://scenes/run_flow.tscn"
 config/features=PackedStringArray("4.3", "Mobile")
 config/icon="res://ios/icons/icon_180.png"
@@ -19,6 +20,8 @@ window/size/viewport_height=1280
 window/handheld/orientation=1
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+window/size/window_width_override.playtest=432
+window/size/window_height_override.playtest=936
 
 [input_devices]
 

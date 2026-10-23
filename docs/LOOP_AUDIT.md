@@ -540,3 +540,12 @@ Found by the suite after the motion went in:
   the Glim was ticking or the Next line was still sliding in. They check the
   resting draw, so they now run with motion off; pass21_test covers the
   motion.
+
+## Pass 22: playtest with a real person
+
+The loop's numbers so far are from sims. Pass 22 adds a way to get them from
+play: per round, the log records the twist or Shortage, the category mix, the
+seconds, the mulligans and whether the round cleared. The summary turns those
+into the sims' own measures, e.g. lead changes % (autopilot predicted 66.8%).
+PLAYTEST.md ties 6 questions to those numbers. No real session has been run
+yet: every claim about feel is still unverified.
