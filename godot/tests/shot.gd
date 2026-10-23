@@ -30,6 +30,28 @@ func _go() -> void:
 		s._on_mulligan()
 		while not ready[0]:
 			await process_frame
+	# the store shot: searched from the keep screen's seed for a deal whose best
+	# keep clears the round in one count, on a twist round (so the header shows
+	# one). Engine changes move deals; this keeps the shot a real, strong count.
+	if OS.get_environment("SHOT_BUILD") == "":
+		var pick := -1
+		for sd in range(s.seed, s.seed + 3000):
+			var tr := CribRun.new(s.meldling, null, null, sd)
+			if tr.twist() == null:
+				continue
+			var td := CribRound.new(tr)
+			if td.new_deal() == null:
+				continue
+			var res = td.commit(td.best_keep_ev().idx)
+			if res.total >= td.target and res.total < td.target * 2.2:
+				pick = sd
+				break
+		print("shot seed ", pick)
+		if pick >= 0:
+			ready[0] = false
+			s.start_round(CribRun.new(s.meldling, null, null, pick))
+			while not ready[0]:
+				await process_frame
 	s.hand.select_indices(s.rd.best_keep_ev().idx)
 	for i in 30: await process_frame
 	root.get_texture().get_image().save_png("/tmp/shot_keep_%s.png" % tag)

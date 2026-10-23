@@ -22,13 +22,144 @@ const Meta = {
   line() {
     const m = this.load();
     if (!m.runs) return "No runs yet.";
-    const act = Math.ceil((m.bestRound || 1) / CRIB_ROUNDS);
-    const rd = ((m.bestRound - 1) % CRIB_ROUNDS) + 1;
-    return `Runs ${m.runs}  ·  Best Act ${act}-${rd}  ·  Cleared ${m.clears || 0}  ·  Best hand ${m.bestScore || 0}`;
+    const best = m.bestRound || 0;
+    const act = Math.ceil(Math.max(best, 1) / CRIB_ROUNDS);
+    const rd = ((Math.max(best, 1) - 1) % CRIB_ROUNDS) + 1;
+    const bestTxt = best > 0 ? `Best Act ${act}-${rd}` : "Best: no round cleared";
+    return `Runs ${m.runs}  ·  ${bestTxt}  ·  Cleared ${m.clears || 0}  ·  Best hand ${m.bestScore || 0}`;
   },
 };
 
 const Cb = { run: null, round: null, keep: [], busy: false };
+
+/* ---------------------------------------------------------------- save */
+/* Save and resume a run exactly, mid-round included (Godot: engine/save_game.gd).
+   The engine compares cards and charms by IDENTITY, so the whole state is saved
+   as one object graph: every object is written once and referenced after
+   ({$r: id}); shared catalog objects (charms, Spoilers, Streets, Trials,
+   Meldlings) by name; class instances are rebuilt without running their
+   constructors, so nothing draws from the rng on load. A seeded run's rng is
+   saved as its state; an unseeded one is Math.random, which stays unseeded. */
+const RunSave = {
+  KEY: "meldlings.run.v1",
+  VERSION: 1,
+  CLASSES: () => ({ CribRun, CribRound, PegPlay }),
+  CATALOGS() {
+    if (this._cats) return this._cats;
+    const lists = [["charm", CCHARMS], ["boss", BOSS_POOL], ["street", STREETS], ["trial", TRIALS],
+                   ["meld", Object.values(CRIB_DECKS)]];
+    // functions copied out of those (the Meldling's charm is a copy of its deck's)
+    const fns = [];
+    const scan = (o, depth) => {
+      if (!o || typeof o !== "object" || depth > 3) return;
+      for (const k of Object.keys(o)) {
+        const v = o[k];
+        if (typeof v === "function") { if (!fns.includes(v)) fns.push(v); }
+        else scan(v, depth + 1);
+      }
+    };
+    for (const [, list] of lists) list.forEach((o) => scan(o, 0));
+    lists.push(["fn", fns]);
+    return (this._cats = lists);
+  },
+
+  dump(state) {
+    const seen = new Map();
+    let n = 0;
+    const cats = this.CATALOGS(), classes = this.CLASSES();
+    const enc = (v) => {
+      if (v === undefined) return { $u: 1 };
+      if (typeof v === "number" && !Number.isFinite(v)) return { $num: String(v) };
+      if (v === null || typeof v !== "object" && typeof v !== "function") return v;
+      for (const [name, list] of cats) {
+        const i = list.indexOf(v);
+        if (i >= 0) return { $cat: name, i };
+      }
+      if (seen.has(v)) return { $r: seen.get(v) };
+      const id = n++;
+      seen.set(v, id);
+      if (typeof v === "function") {
+        if (v === Math.random) return { $math: id };
+        if (typeof v.state === "function") return { $rng: id, s: v.state() };
+        throw new Error("RunSave: can't save a function");
+      }
+      if (Array.isArray(v)) return { $a: id, v: v.map(enc) };
+      const proto = Object.getPrototypeOf(v);
+      let cls = null;
+      for (const k in classes) if (classes[k].prototype === proto) cls = k;
+      // a plain object (by shape, so it also holds across realms)
+      if (!cls && proto !== null && !(proto.constructor && proto.constructor.name === "Object"
+          && Object.getPrototypeOf(proto) === null))
+        throw new Error("RunSave: can't save " + (proto.constructor && proto.constructor.name));
+      const o = {};
+      for (const k of Object.keys(v)) o[k] = enc(v[k]);
+      return cls ? { $cls: cls, id, v: o } : { $o: id, v: o };
+    };
+    return JSON.stringify({ v: this.VERSION, s: enc(state) });
+  },
+
+  load(text) {
+    const d = JSON.parse(text);
+    if (!d || d.v !== this.VERSION) return null;
+    const byId = new Map();
+    const cats = Object.fromEntries(this.CATALOGS()), classes = this.CLASSES();
+    const dec = (v) => {
+      if (v === null || typeof v !== "object") return v;
+      if (Array.isArray(v)) return v.map(dec);        // never written bare; kept for safety
+      if ("$u" in v) return undefined;
+      if ("$num" in v) return Number(v.$num);
+      if ("$cat" in v) return cats[v.$cat][v.i];
+      if ("$r" in v) return byId.get(v.$r);
+      if ("$math" in v) { byId.set(v.$math, Math.random); return Math.random; }
+      if ("$rng" in v) { const r = makeRng(v.s); byId.set(v.$rng, r); return r; }
+      if ("$a" in v) { const a = []; byId.set(v.$a, a); for (const x of v.v) a.push(dec(x)); return a; }
+      const o = "$cls" in v ? Object.create(classes[v.$cls].prototype) : {};
+      byId.set("$cls" in v ? v.id : v.$o, o);
+      for (const k of Object.keys(v.v)) o[k] = dec(v.v[k]);
+      return o;
+    };
+    return dec(d.s);
+  },
+
+  /* Save at a step. Not during the guided first round. */
+  write(screenName, extra = {}) {
+    if (typeof Guide !== "undefined" && Guide.on) return;
+    if (!Cb.run) return;
+    try {
+      const text = this.dump(Object.assign({ screen: screenName, run: Cb.run,
+        round: screenName === "intro" || screenName === "shop" ? null : Cb.round,
+        peg: screenName === "peg" ? Cb.peg : null, pegMult: Cb.pegMult || 1 }, extra));
+      localStorage.setItem(this.KEY, text);
+      this.saves = (this.saves || 0) + 1;
+    } catch (e) { console.log("RunSave.write", e && e.message); }
+  },
+  has() { try { return !!localStorage.getItem(this.KEY); } catch (e) { return false; } },
+  clear() { try { localStorage.removeItem(this.KEY); } catch (e) {} },
+
+  /* Pick the run up where it was saved. */
+  resume() {
+    let st = null;
+    try { st = this.load(localStorage.getItem(this.KEY)); } catch (e) { st = null; }
+    if (!st || !st.run) { this.clear(); return false; }
+    Cb.run = st.run; Cb.round = st.round; Cb.peg = st.peg; Cb.pegMult = st.pegMult;
+    Cb.keep = (st.keep || []).slice(); Cb.street = st.run.street;
+    switch (st.screen) {
+      case "intro": cribRoundIntro(); break;
+      case "crib": renderCrib(); break;
+      case "counted": cribAfterCount(st.kept); break;
+      case "peg": {
+        const p = Cb.peg;
+        // killed between your lay and the Spoiler's answer: play the answer
+        if (!p.over && p.turn === "them") p.step();
+        renderPegging(cribAfterPlay);
+        break;
+      }
+      case "roundwon": Cb.run.openShop(); showCribShop(); break;
+      default: showCribShop();
+    }
+    return true;
+  },
+};
 
 const cbCard = (card, scale = 1.45) => cardEl(card, scale);
 
@@ -285,12 +416,14 @@ function showHistory() {
   if (!h.length) c.append(el("p", "small dim", "No runs recorded yet."));
   for (const r of h) {
     const row = el("div", "row between histrow" + (r.cleared ? " cleared" : ""));
-    const act = Math.max(1, Math.ceil(r.reached / CRIB_ROUNDS));
-    const rd = ((Math.max(1, r.reached) - 1) % CRIB_ROUNDS) + 1;
+    // a lost run shows the round it fell on (reached counts rounds cleared)
+    const at = r.cleared ? r.reached : r.reached + 1;
+    const act = Math.max(1, Math.ceil(at / CRIB_ROUNDS));
+    const rd = ((Math.max(1, at) - 1) % CRIB_ROUNDS) + 1;
     row.append(el("span", "small", CRIB_DECKS[r.deck] ? CRIB_DECKS[r.deck].name : r.deck));
     row.append(el("span", "small dim", STREETS[r.street - 1].name));
     row.append(el("span", r.cleared ? "small gold" : "small",
-      r.cleared ? "CLEARED" : `Act ${act}-${rd}`));
+      r.cleared ? "CLEARED" : `Fell ${act}-${rd}`));
     c.append(row);
   }
   c.append(btn("Back", showCribSelect, "small"));
@@ -327,6 +460,7 @@ function showPegging(hand, done) {
 
 function renderPegging(done) {
   const p = Cb.peg;
+  RunSave.write("peg");
   const rd = Cb.round;
   const run = Cb.run;
   const boss = run.boss();
@@ -565,7 +699,12 @@ function cribRoundIntro() {
     c.append(el("h2", "title", `TARGET ${run.target()}`));
     c.append(creatureEl(run.meldling, "idle", 4));
   }
-  c.append(el("p", "gold", `Score ${run.target()} in ${CRIB_DEALS + m.dealBonus} deals`));
+  /* the plain round's twist (LOOP_AUDIT 5), in the place of the Score line */
+  const tw = !run.isBoss() && !run.isWager() ? run.twist() : null;
+  const short = !run.isBoss() ? run.shortage() : null;
+  if (short) c.append(el("p", "bad", `SHORTAGE: ${SHORTAGE_NAMES[short]} score half this round, your best so far. ${CRIB_DEALS + m.dealBonus} deals.`));
+  else if (tw) c.append(el("p", "gold", `${tw.name.toUpperCase()}: ${tw.text}  Target +${Math.round((TWIST_TARGET - 1) * 100)}%, ${CRIB_DEALS + m.dealBonus} deals.`));
+  else c.append(el("p", "gold", `Score ${run.target()} in ${CRIB_DEALS + m.dealBonus} deals`));
   c.append(cribCharmRow(run));
   c.append(cribLevelRow(run));
   c.append(el("p", "small dim", `${run.street.name}  ·  deck ${run.deckSize()}  ·  charms ${run.charms.length}/${run.slots()}`));
@@ -589,6 +728,7 @@ function cribRoundIntro() {
       cribRoundIntro();
     }, "small"));
   }
+  RunSave.write("intro");
   c.append(btn("DEAL", () => {
     Cb.round = new CribRound(run);
     Cb.round.newDeal();
@@ -745,6 +885,7 @@ function cribLevelRow(run) {
 /* ---------------------------------------------------------------- play */
 function renderCrib() {
   const rd = Cb.round, run = Cb.run;
+  if (!rd.over) RunSave.write("crib", { keep: Cb.keep.slice() });
   screen("crib");
   const c = el("div", "col tight");
 
@@ -1008,30 +1149,32 @@ function doCribCount() {
   const quality = rd.cutQuality(keptCards, starter);
   rd.stock = liveStock;
 
-  const afterCount = () => {
-    if (typeof Achv !== "undefined" && Achv.hasSystem("the_play") && rd.stock.length >= 4)
-      return showPegging(keptCards, () => {
-        if (rd.dealsLeft > 0 && rd.score < rd.target) {
-          const before = rd.cycle;
-    rd.newDeal();
-    Cb.dealAnim = true;
-    Cb.shuffled = rd.cycle > before;
-    renderCrib();
-        } else cribRoundEnd();
-      });
-    if (rd.dealsLeft > 0 && rd.score < rd.target) {
-      const before = rd.cycle;
-    rd.newDeal();
-    Cb.dealAnim = true;
-    Cb.shuffled = rd.cycle > before;
-    renderCrib();
-    } else cribRoundEnd();
-  };
+  // the count is settled: a kill from here on resumes after it (no replayed cascade)
+  RunSave.write("counted", { kept: keptCards });
+  const afterCount = () => cribAfterCount(keptCards);
   const go = () => cribCascade(res, rank, keptCards, starter, scoreBefore, afterCount);
 
   if (typeof Guide !== "undefined" && Guide.on) setTimeout(() => guideShow("cut"), 200);
   if (knew) return go();
   cutCeremony(starter, quality, go);
+}
+
+/* After a count: The Play if it's owed, then the next deal or the round end. */
+function cribAfterCount(keptCards) {
+  const rd = Cb.round;
+  if (typeof Achv !== "undefined" && Achv.hasSystem("the_play") && rd.stock.length >= 4)
+    return showPegging(keptCards, cribAfterPlay);
+  cribAfterPlay();
+}
+function cribAfterPlay() {
+  const rd = Cb.round;
+  if (rd.dealsLeft > 0 && rd.score < rd.target) {
+    const before = rd.cycle;
+    rd.newDeal();
+    Cb.dealAnim = true;
+    Cb.shuffled = rd.cycle > before;
+    renderCrib();
+  } else cribRoundEnd();
 }
 
 /* The reveal, tiered by how lucky the cut actually was.
@@ -1215,7 +1358,11 @@ function cribRoundEnd() {
   c.append(box);
 
   if (!rd.won) {
+    RunSave.clear();
     const m = Meta.record(run, run.roundIndex() - 1, rd.score);
+    // lost runs go in the Record too, not only wins
+    Achv.logRun({ deck: run.meldling, reached: run.roundIndex() - 1,
+                  street: run.street.id, score: rd.score, cleared: false, when: Date.now() });
     // the Daily is one attempt; the Long Count keeps its best (both were never saved)
     if (run.daily) Achv.recordDaily(run.daily, { reached: run.roundIndex() - 1, score: rd.score });
     if (run.endless) Achv.setEndless(run.roundIndex() - 1);
@@ -1225,6 +1372,7 @@ function cribRoundEnd() {
     c.append(btn("Title", showTitle, "small"));
   } else {
     run.essence += rd.essenceEarned;
+    RunSave.write("roundwon");
     c.append(btn("SHOP", () => { run.openShop(); showCribShop(); }, "big"));
   }
   root().append(c);
@@ -1283,6 +1431,7 @@ function showCribShop() {
   Audio16.playMusic("shop");
   const run = Cb.run;
   if (!run.shopState) run.openShop();
+  RunSave.write("shop");
   setSurface("felt_shop");
   screen("cribShop");
   const c = el("div", "col");
@@ -1424,6 +1573,7 @@ function flash(msg) {
 
 function cribRunWon() {
   const run = Cb.run;
+  RunSave.clear();
   const c = el("div", "col center");
   c.append(el("h2", "title", "TWENTY-NINE"));
   c.append(creatureEl(run.meldling, "idle", 5));
@@ -1442,7 +1592,6 @@ function cribRunWon() {
   c.append(el("p", "gold", `All ${CRIB_ACTS * CRIB_ROUNDS} rounds cleared on ${run.street.name}.`));
   if (run.street.id < STREETS.length)
     c.append(el("p", "small gold", `${STREETS[run.street.id].name} is open.`));
-  c.append(el("p", "small gold", Meta.line()));
   c.append(el("p", "small gold", Meta.line()));
   c.append(cribCharmRow(run));
   c.append(cribLevelRow(run));

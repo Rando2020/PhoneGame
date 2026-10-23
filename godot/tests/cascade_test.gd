@@ -41,7 +41,7 @@ func results(n: int) -> Array:
 			run.levels[cat] = int(g.next() * 3)
 		if g.next() < 0.4:
 			run.gilded[1 + int(g.next() * 13)] = 1
-		run.round = 5 if g.next() < 0.4 else 1 + int(g.next() * 4)   # Spoiler rounds too
+		run.round = CribData.ROUNDS if g.next() < 0.4 else 1 + int(g.next() * (CribData.ROUNDS - 1))   # Spoiler rounds too
 		run.act = 1 + int(g.next() * 5)
 		var rd := CribRound.new(run)
 		for d in 3:

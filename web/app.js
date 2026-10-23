@@ -294,12 +294,20 @@ function showTitle() {
   // --- one action
   let firstTime = false;
   try { firstTime = !Achv.load().guided && !(Achv.load().runs); } catch (e) {}
-  const play = btn(firstTime ? "PLAY  ·  first round" : "PLAY", () => {
+  // a run in progress: CONTINUE leads, and PLAY becomes NEW RUN
+  const saved = typeof RunSave !== "undefined" && RunSave.has();
+  if (saved) {
+    const cont = btn("CONTINUE", () => { sfx16("buy"); if (!RunSave.resume()) showTitle(); }, "big");
+    cont.classList.add("playbtn");
+    c.append(cont);
+    firstTime = false;
+  }
+  const play = btn(saved ? "NEW RUN" : firstTime ? "PLAY  ·  first round" : "PLAY", () => {
     sfx16("buy");
     if (firstTime && typeof guideStart === "function") guideStart();
     else showCribSelect();
   }, "big");
-  play.classList.add("playbtn");
+  if (!saved) play.classList.add("playbtn");
   c.append(play);
 
   // --- everything else, as icons

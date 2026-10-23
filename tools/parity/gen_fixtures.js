@@ -127,11 +127,12 @@ function playRun(cfg) {
   const run = new CribRun(cfg.meld, street, trial, cfg.seed === null ? undefined : cfg.seed);
   if (cfg.endless) { run.enterEndless(); run.endlessRound = 0; }
   const T = { cards: run.cards.map(cardOut), bosses: run.bossPlan.map((b) => b.id),
-              wagers: Object.keys(run.wagerAt).sort(), rounds: [] };
+              wagers: Object.keys(run.wagerAt).sort(), twists: Object.keys(run.twistPlan).sort().map((k) => k + "=" + run.twistPlan[k]), rounds: [] };
   for (let r = 0; r < cfg.maxRounds; r++) {
     const rd = new CribRound(run);
     const RT = { idx: run.roundIndex(), target: rd.target, boss: pad(run.boss() && run.boss().id),
-                 deadSuit: pad(rd.mods.deadSuit), stock: rd.stock.length, wager: !!rd.wager, deals: [] };
+                 deadSuit: pad(rd.mods.deadSuit), stock: rd.stock.length, wager: !!rd.wager,
+                 twist: pad(run.twist() && run.twist().id), short: pad(run.shortage()), deals: [] };
     let guard = 0;
     while (!rd.over && guard++ < 30) {
       if (!rd.newDeal()) break;
@@ -378,7 +379,7 @@ fx.selectui = [];
     { read: () => Achv.load(), write: (o) => Achv.save(o) }, "k", CRIB_ACTS, CRIB_ROUNDS);
   const sig = (run) => ({ meld: run.meldling, street: run.street.id, trial: run.trial ? run.trial.id : null,
     endless: !!run.endless, seed: run.seed === undefined ? null : run.seed,
-    cards: run.cards.map(cardOut), bosses: run.bossPlan.map((b) => b.id), wagers: Object.keys(run.wagerAt).sort() });
+    cards: run.cards.map(cardOut), bosses: run.bossPlan.map((b) => b.id), wagers: Object.keys(run.wagerAt).sort(), twists: Object.keys(run.twistPlan).sort().map((k) => k + "=" + run.twistPlan[k]) });
   const builders = [
     () => {},
     () => { Achv.unlockStreet(3); Achv.grant("long_road"); Achv.markTrial("pauper"); Achv.markTrial("court");
@@ -457,9 +458,28 @@ fx.pedui = [];
   Date.now = realNow;
 }
 
+/* ---- recuts2: a blind cut that adds nothing is re-cut. Whole rounds with Recut
+   and/or Steady Hand owned (and with Foresight, where nothing re-cuts blind),
+   best-EV keeps; every deal's starter, auto re-cuts, score and stock. Appended last. */
+fx.recut = [];
+for (let i = 0; i < 48; i++) {
+  const seed = 9000 + i, meld = ["pip", "thump", "clover", "facet"][i % 4];
+  const ids = [["recut"], ["steadyhand"], ["recut", "steadyhand"], ["recut", "foresight"]][i % 4];
+  const run = new CribRun(meld, STREETS[0], null, seed);
+  for (const id of ids) run.charms.push(CCHARMS.find((c) => c.id === id));
+  const rd = new CribRound(run), deals = [];
+  while (!rd.over && rd.dealsLeft > 0 && deals.length < 6) {
+    if (!rd.newDeal()) break;
+    const res = rd.commit(rd.bestKeepEV().idx);
+    deals.push({ starter: rd.starter.rank + rd.starter.suit, auto: rd.autoRecuts, total: res.total,
+                 score: rd.score, stock: rd.stock.length });
+  }
+  fx.recut.push({ seed, meld, ids, deals });
+}
+
 if (require.main === module) {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(fx));
-  console.log(`wrote ${OUT}: count ${fx.count.length}, keep ${fx.keep.length}, peg ${fx.peg.length}, pegplay ${fx.pegplay.length}, runs ${fx.runs.length}, playui ${fx.playui.length}, selectui ${fx.selectui.length}, pedui ${fx.pedui.length}`);
+  console.log(`wrote ${OUT}: count ${fx.count.length}, keep ${fx.keep.length}, peg ${fx.peg.length}, pegplay ${fx.pegplay.length}, runs ${fx.runs.length}, playui ${fx.playui.length}, selectui ${fx.selectui.length}, pedui ${fx.pedui.length}, recut ${fx.recut.length}`);
 }
 module.exports = { fx };

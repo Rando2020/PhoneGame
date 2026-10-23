@@ -22,7 +22,7 @@ func _ready() -> void:
 
 func _lab(fs: int, col: Color) -> Label:
 	var l := Label.new()
-	l.add_theme_font_size_override("font_size", fs)
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
@@ -58,13 +58,14 @@ func _notification(what: int) -> void:
 
 func _layout() -> void:
 	title.position = Vector2(0, 0)
-	title.size = Vector2(size.x, 24)
-	note.position = Vector2(0, 22)
-	note.size = Vector2(size.x, 20)
+	title.size = Vector2(size.x, 0)
+	note.position = Vector2(0, title.get_minimum_size().y - 2.0)
+	note.size = Vector2(size.x, 0)
+	var cards_y := note.position.y + note.get_minimum_size().y + 2.0
 	var cw := CardArt.BASE_W * CardView.PIXEL_SCALE * MINI
 	var step := minf(cw + 4.0, (size.x - cw) / maxf(1.0, CribData.CRIB_SIZE - 1))
 	for i in views.size():
 		# CardView scales about its centre, so offset by the shrink to keep the
 		# card's visible top-left where the layout says.
 		var v: CardView = views[i]
-		v.position = Vector2(i * step, 46) - v.size * (1.0 - MINI) / 2.0
+		v.position = Vector2(i * step, cards_y) - v.size * (1.0 - MINI) / 2.0

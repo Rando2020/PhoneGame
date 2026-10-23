@@ -32,7 +32,7 @@ const STREETS = [
   { id: 1, name: "First Street",   text: "The road as it comes.", mods: {} },
   { id: 2, name: "Second Street",  text: "Targets +25%. The Crib scores at half.",
     mods: { targetMul: 1.25, cribHalf: true } },
-  { id: 3, name: "Third Street",   text: "Spoilers hold rounds 3 and 5.",
+  { id: 3, name: "Third Street",   text: "Spoilers hold rounds 2 and 3.",
     mods: { targetMul: 1.25, extraSpoiler: true } },
   { id: 4, name: "Fourth Street",  text: "One fewer charm slot. Marks cost double.",
     mods: { targetMul: 1.3, slots: -1, extraSpoiler: true, markCostMul: 2 } },
@@ -88,16 +88,19 @@ function dailySeed(key) {
 /* A seeded generator, so the same day deals the same cards for everybody. */
 function makeRng(seed) {
   let s = seed >>> 0;
-  return function () {
+  const rand = function () {
     s ^= s << 13; s >>>= 0;
     s ^= s >> 17;
     s ^= s << 5; s >>>= 0;
     return s / 4294967296;
   };
+  // the state, so a saved run resumes the same stream (makeRng(state) continues it)
+  rand.state = () => s;
+  return rand;
 }
 
 /* THE LONG COUNT — past Act 5, the ladder just keeps going. */
-const ENDLESS_FROM = 26;
+const ENDLESS_FROM = 16;   // past the last round (5 acts x 3 rounds)
 
 /* Meldlings you start with, and the ones you earn. */
 const MELDLING_UNLOCKS = {

@@ -4,9 +4,35 @@ extends RefCounted
 ## Meldlings (decks), Spoilers (bosses) and the shop rollers.
 
 const ACTS := 5
-const ROUNDS := 5
+const ROUNDS := 3   ## 3 rounds an act (2026-10-20, Ziah; tools/sim/run_length.sh)
 const LADDER_BASE := 36
-const LADDER_GROWTH := 1.19
+const LADDER_GROWTH := 1.29   ## was 1.19 at 5 rounds an act; 1.29 matches its clear rate
+
+## Plain-round twists (pass 15, LOOP_AUDIT 5), the web's CRIB_TWISTS word for
+## word: one small rule on each plain round, drawn at run start, shown ahead.
+const TWISTS := [
+	{"id": "pairs4", "name": "Doubled Pairs", "text": "Pairs score 4.", "rule": {"pairDouble": true}},
+	{"id": "fifteen3", "name": "Rich Fifteens", "text": "Fifteens score 3.", "rule": {"fifteenPoints": 3}},
+	{"id": "flush3", "name": "Short Suits", "text": "A flush needs only 3 cards.", "rule": {"flushNeed": 3}},
+	# replaced Nobs for Three in pass 17: it changed the best keep in 1.7% of deals
+	{"id": "deal7", "name": "Seventh Card", "text": "You are dealt 7 cards, not 6.", "rule": {"dealtBonus": 1}},
+	{"id": "cribfull", "name": "Open Crib", "text": "Your Crib scores in full.", "rule": {"cribFull": true}},
+	{"id": "mull1", "name": "Second Look", "text": "One extra mulligan.", "rule": {"mulliganBonus": 1}},
+]
+## The Shortage (pass 20): the web's SHORTAGE_* word for word.
+const SHORTAGE_ROUND := 2
+const SHORTAGE_SCALE := 0.5
+const SHORTAGE_CATS := ["fifteen", "pair", "run", "flush"]
+const SHORTAGE_NAMES := {"fifteen": "Fifteens", "pair": "Pairs", "run": "Runs", "flush": "Flushes"}
+const TWIST_SEED_STEP := 7919
+const TWIST_TARGET := 1.10   ## a twist round's target: the better rule has a price
+
+
+static func twist_by_id(id) -> Variant:
+	for t in TWISTS:
+		if t.id == id:
+			return t
+	return null
 const DEALS := 4
 const DEALT := 6
 const KEEP := 4
@@ -304,7 +330,7 @@ static func _build_charms() -> Array:
 			"rule": {"wrapRuns": true}}),
 		C.call({"id": "shortflush", "name": "Half a Flush", "tier": 3, "cost": 9, "rarity": "uncommon", "cat": "flush", "text": "Three-card flushes count.",
 			"rule": {"flushNeed": 3}}),
-		C.call({"id": "recut", "name": "Recut", "tier": 3, "cost": 9, "rarity": "uncommon", "cat": "rule", "text": "Re-cut the starter once per deal.",
+		C.call({"id": "recut", "name": "Recut", "tier": 3, "cost": 9, "rarity": "uncommon", "cat": "rule", "text": "A cut that adds nothing to your hand is re-cut, once per deal.",
 			"rule": {"recuts": 1}}),
 		C.call({"id": "cribmaster", "name": "Crib Master", "tier": 3, "cost": 10, "rarity": "rare", "cat": "rule", "text": "The Crib scores at full mult.",
 			"rule": {"cribFull": true}}),
@@ -387,7 +413,7 @@ static func _build_charms() -> Array:
 		C.call({"id": "cutpurse", "name": "Cutpurse", "tier": 3, "cost": 9, "rarity": "rare", "cat": "rule",
 			"text": "+2 Glim every time you count a hand.", "on_count": func(ctx): return _cutpurse(ctx)}),
 		C.call({"id": "steadyhand", "name": "Steady Hand", "tier": 3, "cost": 10, "rarity": "rare", "cat": "rule",
-			"text": "+1 mulligan and +1 recut each round.", "rule": {"mulliganBonus": 1, "recuts": 1}}),
+			"text": "+1 mulligan. A cut that adds nothing to your hand is re-cut, once per deal.", "rule": {"mulliganBonus": 1, "recuts": 1}}),
 
 		# ---- additive-mult charms: these are what make ORDER matter
 		C.call({"id": "ballast", "name": "Ballast", "tier": 2, "cost": 8, "rarity": "uncommon", "cat": "mult",

@@ -27,7 +27,7 @@ const BEATS := [
 	{"at": "target", "title": "NEED tells you the truth.",
 		"body": "The bar shows the target. NEED is how far you are, and the number beside it is what each remaining deal must average. When that gets implausible, it turns red."},
 	{"at": "done", "title": "That's the loop.",
-		"body": "Clear the target before your deals run out. Spend Glim between rounds on charms and cards. Every fifth round is a Spoiler that breaks a rule. Everything else you'll pick up as you go."},
+		"body": "Clear the target before your deals run out. Spend Glim between rounds on charms and cards. Every third round is a Spoiler that breaks a rule. Everything else you'll pick up as you go."},
 ]
 
 const PANEL := Color(0.14, 0.13, 0.20)
@@ -108,7 +108,7 @@ func _render(i: int) -> void:
 		var l := Label.new()
 		l.text = part[0]
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.add_theme_font_size_override("font_size", part[1])
+		TypeScale.set_size(l, part[1])
 		l.add_theme_color_override("font_color", part[2])
 		l.position = Vector2(16, y)
 		l.size = Vector2(w - 32.0, 0)
@@ -133,7 +133,7 @@ func _render(i: int) -> void:
 func _btn(text: String, at: Vector2) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", 20)
+	TypeScale.set_size(b, 20)
 	box.add_child(b)
 	b.size = Vector2(maxf(140.0, b.get_combined_minimum_size().x + 28.0), 56)
 	b.position = at

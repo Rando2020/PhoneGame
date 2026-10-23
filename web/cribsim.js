@@ -4,7 +4,8 @@ Object.assign(global, { countHand: C.countHand, countPoints: C.countPoints,
   keepOptions: C.keepOptions, keepEVFast: C.keepEVFast, keepOptionsEV: C.keepOptionsEV,
   cDeck: C.cDeck, cShuf: C.cShuf });
 const R = require("./cribrogue.js");
-const { CribRun, CribRound, CRIB_LADDER, CCHARMS, CRIB_DEALS } = R;
+const { CribRun, CribRound, CRIB_LADDER, CCHARMS, CRIB_DEALS, CRIB_ACTS, CRIB_ROUNDS } = R;
+const TOTAL = CRIB_ACTS * CRIB_ROUNDS;
 const NRUNS = +(process.env.NRUNS || 80);
 const M = require('./meta.js');
 const STREET = M.STREETS[(+(process.env.STREET || 1)) - 1];
@@ -98,7 +99,7 @@ function shop(run) {
 function fullRun(deck, skill = "best") {
   const run = new CribRun(deck, (typeof STREET !== 'undefined' ? STREET : null));
   let reached = 0;
-  for (let i = 0; i < 25; i++) {
+  for (let i = 0; i < TOTAL; i++) {
     const rd = playRound(run, skill);
     if (!rd.won) return { reached, charms: run.charms.length };
     reached = run.roundIndex();
@@ -107,7 +108,7 @@ function fullRun(deck, skill = "best") {
     run.shopState = null;
     if (run.advance()) break;
   }
-  return { reached: 25, charms: run.charms.length };
+  return { reached: TOTAL, charms: run.charms.length };
 }
 
 if (require.main !== module) { module.exports = { playRound, shop, fullRun }; }
@@ -123,7 +124,7 @@ for (const d of ["pip","thump","clover","facet"]) {
 console.log("\n=== GATE 4: full-run clear rate (300 runs/deck) ===");
 for (const d of ["pip","thump","clover","facet"]) {
   let sum=0, cl=0, ch=0, N=NRUNS;
-  for (let i=0;i<N;i++){ const r=fullRun(d); sum+=r.reached; ch+=r.charms; if(r.reached>=25)cl++; }
+  for (let i=0;i<N;i++){ const r=fullRun(d); sum+=r.reached; ch+=r.charms; if(r.reached>=TOTAL)cl++; }
   console.log(`  ${d.padEnd(7)} avg round ${(sum/N).toFixed(1).padStart(5)}   clears ${(100*cl/N).toFixed(1).padStart(5)}%   avg charms ${(ch/N).toFixed(1)}`);
 }
 
@@ -135,10 +136,10 @@ for (const skill of ["best","naive"]) {
 }
 
 console.log("\n=== GATE 5: growth sensitivity (facet) ===");
-for (const g of [1.13,1.145,1.155,1.17]) {
+for (const g of [1.25,1.27,1.29,1.31,1.33]) {
   CRIB_LADDER.growth = g;
   let sum=0,cl=0,N=Math.max(20,Math.floor(NRUNS/3));
-  for(let i=0;i<N;i++){const r=fullRun("facet"); sum+=r.reached; if(r.reached>=25)cl++;}
+  for(let i=0;i<N;i++){const r=fullRun("facet"); sum+=r.reached; if(r.reached>=TOTAL)cl++;}
   console.log(`  growth x${g}   avg round ${(sum/N).toFixed(1).padStart(5)}   clears ${(100*cl/N).toFixed(1)}%`);
 }
 }

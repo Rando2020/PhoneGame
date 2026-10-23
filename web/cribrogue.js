@@ -3,8 +3,8 @@
    deal  = draw 6 -> keep 4 -> cut starter -> COUNT (cascade x mult)
    round end = the Crib pays out as a banked bonus */
 
-const CRIB_ACTS = 5, CRIB_ROUNDS = 5;
-const CRIB_LADDER = { baseTarget: 36, growth: 1.19 };
+const CRIB_ACTS = 5, CRIB_ROUNDS = 3;   // 3 rounds an act (2026-10-20, Ziah; tools/sim/run_length.sh)
+const CRIB_LADDER = { baseTarget: 36, growth: 1.29 };   // was 1.19 at 5 rounds an act; 1.29 matches its clear rate (tools/sim/run_length.sh)
 const CRIB_DEALS = 4, CRIB_DEALT = 6, CRIB_KEEP = 4;
 /* The single most important balance constraint: a hard cap on charms.
    Without it the AI hoarded 18 charms and cleared 90% of runs. With 5 slots you
@@ -143,7 +143,7 @@ const CCHARMS = [
     rule: { wrapRuns: true } },
   { id: "shortflush", name: "Half a Flush", tier: 3, cost: 9, rarity: "uncommon", cat: "flush", text: "Three-card flushes count.",
     rule: { flushNeed: 3 } },
-  { id: "recut",     name: "Recut",      tier: 3, cost: 9, rarity: "uncommon", cat: "rule", text: "Re-cut the starter once per deal.",
+  { id: "recut",     name: "Recut",      tier: 3, cost: 9, rarity: "uncommon", cat: "rule", text: "A cut that adds nothing to your hand is re-cut, once per deal.",
     rule: { recuts: 1 } },
   { id: "cribmaster", name: "Crib Master", tier: 3, cost: 10, rarity: "rare", cat: "rule", text: "The Crib scores at full mult.",
     rule: { cribFull: true } },
@@ -232,7 +232,7 @@ const CCHARMS = [
     text: "+2 Glim every time you count a hand.",
     onCount: (ctx) => { ctx.essence += 2; return true; } },
   { id: "steadyhand", name: "Steady Hand", tier: 3, cost: 10, rarity: "rare", cat: "rule",
-    text: "+1 mulligan and +1 recut each round.",
+    text: "+1 mulligan. A cut that adds nothing to your hand is re-cut, once per deal.",
     rule: { mulliganBonus: 1, recuts: 1 } },
   /* ---- additive-mult charms. These are what make ORDER matter: an additive
      charm placed before a multiplier is worth far more than after it. ---- */
@@ -432,6 +432,40 @@ function planBosses(rng) {
 }
 
 /* ---------------------------------------------------------------- run */
+/* Plain-round twists (pass 15, LOOP_AUDIT 5): one small rule on each plain
+   round, drawn once at run start and shown in advance like the Spoilers. Each
+   only helps, and each points at a different keep. Not on Spoiler rounds,
+   Wagers or the Long Count. */
+const CRIB_TWISTS = [
+  { id: "pairs4", name: "Doubled Pairs", text: "Pairs score 4.", rule: { pairDouble: true } },
+  { id: "fifteen3", name: "Rich Fifteens", text: "Fifteens score 3.", rule: { fifteenPoints: 3 } },
+  { id: "flush3", name: "Short Suits", text: "A flush needs only 3 cards.", rule: { flushNeed: 3 } },
+  /* replaced Nobs for Three in pass 17: it changed the best keep in 1.7% of deals */
+  { id: "deal7", name: "Seventh Card", text: "You are dealt 7 cards, not 6.", rule: { dealtBonus: 1 } },
+  { id: "cribfull", name: "Open Crib", text: "Your Crib scores in full.", rule: { cribFull: true } },
+  { id: "mull1", name: "Second Look", text: "One extra mulligan.", rule: { mulliganBonus: 1 } },
+];
+const TWIST_SEED_STEP = 7919;
+/* seed + 7919, then a 32-bit integer mix (pass 18): xorshift's first draws
+   from nearby seeds were nearly equal, so seeds 40000..40799 all opened act 1
+   on the same twist. The mix spreads them (tools/sim twist draw check). */
+function twistSeed(seed) {
+  let x = (seed + TWIST_SEED_STEP) >>> 0;
+  x = Math.imul((x >>> 16) ^ x, 0x45d9f3b) >>> 0;
+  x = Math.imul((x >>> 16) ^ x, 0x45d9f3b) >>> 0;
+  x = ((x >>> 16) ^ x) >>> 0;
+  return x || 1;
+}
+/* The Shortage (pass 20, LOOP_AUDIT): on round 2 of each act (not the run's
+   first round, never a Spoiler, a Wager or the Long Count), the category the
+   run has scored most with so far scores half, and that round has no twist.
+   No draw: it follows from how the run has played (ties: fifteen, pair, run,
+   flush). Simulated: tools/sim/twist_feel.js MODES=shortage SH_WHERE=r2. */
+const SHORTAGE_ROUND = 2, SHORTAGE_SCALE = 0.5;
+const SHORTAGE_CATS = ["fifteen", "pair", "run", "flush"];
+const SHORTAGE_NAMES = { fifteen: "Fifteens", pair: "Pairs", run: "Runs", flush: "Flushes" };
+const TWIST_TARGET = 1.10;   /* a twist round's target: the better rule has a price (cribsim gate 4) */
+
 class CribRun {
   constructor(meldling, street, trial, seed) {
     /* With a seed the whole run is deterministic — same deck, same Spoilers,
@@ -470,6 +504,41 @@ class CribRun {
     if (ex.deckCap) this.cards = cShuf(this.cards, this.rng).slice(0, ex.deckCap);
     this.bossPlan = planBosses(this.rng);
     this.planWagers();
+    this.planTwists();
+    this.catPoints = { fifteen: 0, pair: 0, run: 0, flush: 0 };   // the run's hands, by category (Shortage)
+  }
+
+  /* Its own stream when seeded (seed + 7919), so the deals, cuts and shop
+     draw exactly what they did before twists existed. Unseeded: the run's. */
+  planTwists() {
+    const g = this.seed !== undefined ? makeRng(twistSeed(this.seed)) : this.rng;
+    this.twistPlan = {};
+    let last = -1;
+    for (let a = 1; a <= CRIB_ACTS; a++)
+      for (let r = 1; r < CRIB_ROUNDS; r++) {
+        let i = Math.floor(g() * CRIB_TWISTS.length);
+        if (i === last) i = (i + 1) % CRIB_TWISTS.length;
+        this.twistPlan[`${a}-${r}`] = CRIB_TWISTS[i].id;
+        last = i;
+      }
+  }
+
+  /* The category short this round, or null (see SHORTAGE_ROUND). */
+  shortage() {
+    if (this.endless || this.isBoss() || this.isWager()) return null;
+    if (this.round !== SHORTAGE_ROUND || this.roundIndex() < 2) return null;
+    if (!(this.twistPlan || {})[`${this.act}-${this.round}`]) return null;
+    const c = this.catPoints || {};
+    let hi = null;
+    for (const k of SHORTAGE_CATS) if (hi === null || (c[k] || 0) > (c[hi] || 0)) hi = k;
+    return hi;
+  }
+
+  twist() {
+    if (this.endless || this.isBoss() || this.isWager()) return null;
+    if (this.shortage()) return null;
+    const id = (this.twistPlan || {})[`${this.act}-${this.round}`];
+    return CRIB_TWISTS.find((t) => t.id === id) || null;
   }
 
   deckSize() { return this.cards.length; }
@@ -520,8 +589,8 @@ class CribRun {
   }
   target() {
     const mul = ((this.street && this.street.mods.targetMul) || 1) *
-                ((this.trial && this.trial.mods.targetMul) || 1);
-
+                ((this.trial && this.trial.mods.targetMul) || 1) *
+                (this.twist() ? TWIST_TARGET : 1);
     return Math.round(CRIB_LADDER.baseTarget *
       Math.pow(CRIB_LADDER.growth, this.roundIndex() - 1) * mul);
   }
@@ -543,7 +612,7 @@ class CribRun {
   isBoss() {
     if (this.endless) return ((this.endlessRound || 0) % 3) === 2;
     if (this.round === CRIB_ROUNDS) return true;
-    return !!(this.street && this.street.mods.extraSpoiler) && this.round === 3;
+    return !!(this.street && this.street.mods.extraSpoiler) && this.round === CRIB_ROUNDS - 1;   // the round before the act's Spoiler
   }
   slots() {
     const bonus = (typeof Achv !== "undefined" && Achv.hasSystem("sixth_slot")) ? 1 : 0;
@@ -555,7 +624,7 @@ class CribRun {
       const ruin = BOSS_POOL.filter((b) => b.sev === 3);
       return ruin[(this.act * 3 + this.round) % ruin.length];
     }
-    if (this.round === 3) return BOSS_POOL[(this.act * 7 + 3) % BOSS_POOL.length];
+    if (this.round === CRIB_ROUNDS - 1) return BOSS_POOL[(this.act * 7 + 3) % BOSS_POOL.length];   // the extra Spoiler
     return this.bossPlan[this.act - 1];
   }
 
@@ -595,6 +664,17 @@ class CribRun {
       if (ex[k] !== undefined) r[k] = ex[k];
     const b = this.boss();
     if (b) merge(b.rule);
+    const short = this.shortage();
+    if (short) r.catScale = Object.assign({}, r.catScale || {}, { [short]: SHORTAGE_SCALE });
+    /* a twist only ever helps: the better of it and what's already there */
+    const tw = this.twist();
+    if (tw) for (const k in tw.rule) {
+      const v = tw.rule[k];
+      if (k === "flushNeed") r[k] = Math.min(r[k], v);
+      else if (k === "fifteenPoints" || k === "nobsPoints") r[k] = Math.max(r[k], v);
+      else if (k === "mulliganBonus" || k === "dealtBonus") r[k] += v;
+      else r[k] = v;
+    }
     return r;
   }
 
@@ -1057,6 +1137,7 @@ class CribRound {
 
   commit(keepIdx) {
     if (this.phase !== "keep") return null;
+    const blind = !this.starter;
     this.cutStarter();                       // the reveal happens here
     let hand = keepIdx.map((i) => this.dealt[i]);
     if (this.mods.swapCrib && this.crib.length >= hand.length) {
@@ -1064,9 +1145,23 @@ class CribRound {
       this.crib = this.crib.slice(hand.length).concat(hand);
       hand = swap;
     }
+    /* recuts2: a recut could only be used while the cut was face up before the
+       keep (Foresight), so Recut and Steady Hand did nothing for most players.
+       A blind cut that adds nothing to the kept hand is now re-cut, once per recut
+       (simulated: Recut 13 -> 21.5% clears on Pip, 13.5 -> 23.8% on Thump). */
+    this.autoRecuts = 0;
+    if (blind) {
+      while (this.recutsLeft > 0 && this.stock.length &&
+             countHand(hand, this.starter, false, this.mods).base === countHand(hand, null, false, this.mods).base) {
+        this.recut(); this.autoRecuts++;
+      }
+    }
     const thrown = this.dealt.filter((_, i) => !keepIdx.includes(i));
     const luck = this.rollLuck(hand.concat([this.liveStarter(hand)]));
     const res = this.runCount(hand, false, null, { luck });
+    /* the Shortage's tally: what the run's kept hands score, by category */
+    if (this.run.catPoints) for (const e of res.events || [])
+      if (e.kind in this.run.catPoints) this.run.catPoints[e.kind] += e.points;
 
     /* Counterfactual attribution — the "I'd have lost without this" engine.
        Re-score the same hand with each charm removed, and with no cut at all. */
@@ -1243,7 +1338,7 @@ class CribRound {
 }
 
 if (typeof module !== "undefined")
-  module.exports = { CCHARMS, CRIB_DECKS, CribRun, CribRound,
+  module.exports = { CCHARMS, CRIB_TWISTS, SHORTAGE_NAMES, SHORTAGE_SCALE, CRIB_DECKS, CribRun, CribRound,
     CRIB_ACTS, CRIB_ROUNDS, CRIB_LADDER, CRIB_DEALS, CRIB_DEALT, CRIB_KEEP, CHARM_SLOTS,
     LEVEL_CATS, LEVEL_GAIN, levelCost, BASE_MULLIGANS, CRIB_SIZE, SKIP_COST,
     RARITY, RARITY_ORDER, rollRarity,

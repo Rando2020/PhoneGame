@@ -69,11 +69,12 @@ func sig(run: CribRun) -> Dictionary:
 	w.sort()
 	return {"meld": run.meldling, "street": run.street.id, "trial": run.trial.id if run.trial != null else null,
 		"endless": run.endless, "seed": run.seed, "cards": run.cards.map(card_out),
-		"bosses": run.boss_plan.map(func(b): return b.id), "wagers": w}
+		"bosses": run.boss_plan.map(func(b): return b.id), "wagers": w, "twists": run.twist_sig()}
 
 
 ## Every button on screen; action buttons centred; nothing above overlaps them.
 func check_page(f: RunFlow, shape: Vector2i, where: String) -> void:
+	f.settle()     # measure at rest, not mid-slide
 	pages += 1
 	var screen := Rect2(Vector2.ZERO, Vector2(shape))
 	for k in f.front.buttons:
@@ -102,6 +103,7 @@ func check_page(f: RunFlow, shape: Vector2i, where: String) -> void:
 
 func to_road(f: RunFlow) -> void:
 	f.show_front_door("road")
+	f.settle()
 	await process_frame
 
 
@@ -139,6 +141,7 @@ func _go() -> void:
 		if first:
 			ok(f.screen == "round" and f.coach != null and f.run.meldling == "thump" and int(f.run.street.id) == 1, "%s: fresh PLAY didn't start the guided round" % where)
 			f.show_front_door("road")
+			f.settle()        # measure the page at rest, not mid-slide
 			await process_frame
 		ok(f.cb.step == "road", "%s: PLAY didn't open the roads" % where)
 		check_page(f, shape, where + " road")

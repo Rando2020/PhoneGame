@@ -22,6 +22,13 @@ var gilded := {}
 var cards: Array = []
 var boss_plan: Array = []
 var wager_at := {}
+var twist_plan := {}
+var cat_points := {"fifteen": 0, "pair": 0, "run": 0, "flush": 0}   ## the run's hands by category (the Shortage, pass 20)
+## The run's latest hand counts (hand, cut, rules, luck), newest last, for the
+## shop's Upgrade mark. Presentation only.
+const COUNT_LOG_MAX := 24
+var best_count := 0       ## the run's best single hand count (the run card; presentation)
+var count_log: Array = []      ## "act-round" -> twist id (CribData.TWISTS)
 var shop_state = null
 var contrib_run = null
 var daily = null
@@ -56,6 +63,7 @@ func _init(meldling_id: String, street_ = null, trial_ = null, seed_ = null) -> 
 		cards = JS.shuffle(cards, rng).slice(0, ex.deckCap)
 	boss_plan = CribData.plan_bosses(rng)
 	plan_wagers()
+	plan_twists()
 
 
 func deck_size() -> int:
@@ -127,9 +135,54 @@ func round_index() -> int:
 	return (act - 1) * CribData.ROUNDS + round
 
 
+## The next round's target, read only (the round end's "Next" line).
+## The next slot's Shortage category (read only), or null. Its category is
+## the run's best so far: the round still to come can't change that.
+func next_shortage() -> Variant:
+	var keep := [act, round]
+	if round == CribData.ROUNDS:
+		act += 1
+		round = 1
+	else:
+		round += 1
+	var sh = shortage()
+	act = keep[0]
+	round = keep[1]
+	return sh
+
+
+## The next slot's twist (read only, as next_target), or null.
+func next_twist() -> Variant:
+	var keep := [act, round]
+	if round == CribData.ROUNDS:
+		act += 1
+		round = 1
+	else:
+		round += 1
+	var t = twist()
+	act = keep[0]
+	round = keep[1]
+	return t
+
+
+func next_target() -> int:
+	# the next slot's real target (its twist included); read only: put back at once
+	var keep := [act, round]
+	if round == CribData.ROUNDS:
+		act += 1
+		round = 1
+	else:
+		round += 1
+	var t := target()
+	act = keep[0]
+	round = keep[1]
+	return t
+
+
 func target() -> int:
 	var mul: float = JS.or_(street.get("mods", {}), "targetMul", 1)
 	mul *= JS.or_(trial.mods, "targetMul", 1) if trial != null else 1
+	mul *= CribData.TWIST_TARGET if twist() != null else 1.0
 	return JS.round_(CribData.LADDER_BASE * pow(CribData.LADDER_GROWTH, round_index() - 1) * mul)
 
 
@@ -148,6 +201,61 @@ func plan_wagers() -> void:
 		wager_at[slots_[i]] = true
 
 
+## Its own stream when seeded (seed + 7919), so deals, cuts and the shop draw
+## what they did before twists; unseeded, the run's (JS.unseeded), as the web.
+func plan_twists() -> void:
+	var g: JsRng = JsRng.new(CribRun.twist_seed(seed)) if seed != null else rng
+	twist_plan = {}
+	var last := -1
+	for a in range(1, CribData.ACTS + 1):
+		for r in range(1, CribData.ROUNDS):
+			var i := int(floor(g.next() * CribData.TWISTS.size()))
+			if i == last:
+				i = (i + 1) % CribData.TWISTS.size()
+			twist_plan["%d-%d" % [a, r]] = CribData.TWISTS[i].id
+			last = i
+
+
+## The plan as sorted "act-round=id" strings (the parity fixtures' form).
+## The web's twistSeed: seed + 7919, then a 32-bit integer mix (pass 18;
+## nearby seeds opened act 1 on the same twist without it).
+static func twist_seed(sd: int) -> int:
+	var x := (sd + CribData.TWIST_SEED_STEP) & 0xFFFFFFFF
+	x = (((x >> 16) ^ x) * 0x45D9F3B) & 0xFFFFFFFF
+	x = (((x >> 16) ^ x) * 0x45D9F3B) & 0xFFFFFFFF
+	x = ((x >> 16) ^ x) & 0xFFFFFFFF
+	return x if x != 0 else 1
+
+
+func twist_sig() -> Array:
+	var ks: Array = twist_plan.keys()
+	ks.sort()
+	return ks.map(func(k): return "%s=%s" % [k, twist_plan[k]])
+
+
+## The category short this round, or null: the web's shortage().
+func shortage() -> Variant:
+	if endless or is_boss() or is_wager():
+		return null
+	if round != CribData.SHORTAGE_ROUND or round_index() < 2:
+		return null
+	if not JS.truthy(twist_plan.get("%d-%d" % [act, round])):
+		return null
+	var hi = null
+	for k in CribData.SHORTAGE_CATS:
+		if hi == null or cat_points.get(k, 0) > cat_points.get(hi, 0):
+			hi = k
+	return hi
+
+
+func twist() -> Variant:
+	if endless or is_boss() or is_wager():
+		return null
+	if shortage() != null:
+		return null
+	return CribData.twist_by_id(twist_plan.get("%d-%d" % [act, round]))
+
+
 func is_wager() -> bool:
 	return not is_boss() and JS.truthy(wager_at.get("%d-%d" % [act, round]))
 
@@ -157,7 +265,7 @@ func is_boss() -> bool:
 		return (endless_round % 3) == 2
 	if round == CribData.ROUNDS:
 		return true
-	return JS.truthy(street.get("mods", {}).get("extraSpoiler")) and round == 3
+	return JS.truthy(street.get("mods", {}).get("extraSpoiler")) and round == CribData.ROUNDS - 1   # the round before the act's Spoiler
 
 
 func slots() -> int:
@@ -171,7 +279,7 @@ func boss():
 	if JS.truthy(extra_mods().get("allRuinous")):
 		var ruin := CribData.BOSS_POOL.filter(func(b): return b.sev == 3)
 		return ruin[(act * 3 + round) % ruin.size()]
-	if round == 3:
+	if round == CribData.ROUNDS - 1:   # the extra Spoiler
 		return CribData.BOSS_POOL[(act * 7 + 3) % CribData.BOSS_POOL.size()]
 	return boss_plan[act - 1]
 
@@ -229,6 +337,24 @@ func rules() -> Dictionary:
 	var b = boss()
 	if b != null:
 		merge.call(b.rule)
+	var short = shortage()
+	if short != null:
+		var cs: Dictionary = r.get("catScale", {}).duplicate() if r.get("catScale") != null else {}
+		cs[short] = CribData.SHORTAGE_SCALE
+		r["catScale"] = cs
+	# a twist only ever helps: the better of it and what's already there
+	var tw = twist()
+	if tw != null:
+		for k in tw.rule:
+			var v = tw.rule[k]
+			if k == "flushNeed":
+				r[k] = mini(r[k], v)
+			elif k in ["fifteenPoints", "nobsPoints"]:
+				r[k] = maxi(r[k], v)
+			elif k in ["mulliganBonus", "dealtBonus"]:
+				r[k] += v
+			else:
+				r[k] = v
 	return r
 
 

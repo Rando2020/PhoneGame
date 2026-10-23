@@ -50,7 +50,7 @@ static func ms(t: float) -> float:
 func _lab(fs: int, col: Color, align := HORIZONTAL_ALIGNMENT_CENTER) -> Label:
 	var l := Label.new()
 	l.horizontal_alignment = align
-	l.add_theme_font_size_override("font_size", fs)
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
@@ -74,9 +74,10 @@ func _ready() -> void:
 	lines_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(lines_box)
 	speed_button = Button.new()
-	speed_button.add_theme_font_size_override("font_size", 22)
+	TypeScale.set_size(speed_button, 22)
 	speed_button.pressed.connect(func():
 		speed_i = (speed_i + 1) % SPEEDS.size()
+		Menus._save("cascade_speed", speed_i)   # a choice here is the setting too
 		_speed_text())
 	add_child(speed_button)
 	_speed_text()
@@ -177,6 +178,9 @@ func _add_row(b: Dictionary) -> void:
 	var val := _lab(24, KIND_COLOR.get(b.kind, INK), HORIZONTAL_ALIGNMENT_RIGHT)
 	val.text = b.value
 	row.add_child(val)
+	if b.kind == "fifteen":       # a 15 lights up
+		Glow.apply(name_l)
+		Glow.apply(val)
 	list.add_child(row)
 	_rows.append(row)
 	_trim()
@@ -191,6 +195,10 @@ func _trim() -> void:
 
 
 func _finish_display() -> void:
+	# the end state wins: a count tween still stepping (a long frame under
+	# load) must not write an older number over it (cascade_test, pass 16)
+	if _tween and _tween.is_valid():
+		_tween.kill()
 	shown = plan.final
 	number.text = str(shown)
 	var slam: Dictionary = plan.beats[plan.beats.size() - 1]
@@ -236,6 +244,7 @@ func play(p: Dictionary, light_cb := Callable(), charm_cb := Callable()) -> void
 	charm_light = charm_cb
 	speed_button.visible = true
 	done = false
+	_tick_i = 0
 	_set_shown(0)
 	_seq = create_tween()
 	for i in plan.beats.size():
@@ -255,10 +264,17 @@ func play(p: Dictionary, light_cb := Callable(), charm_cb := Callable()) -> void
 
 
 var _seq: Tween
+var _tick_i := 0      ## the count's line index: each tick climbs the pentatonic ladder
+const LINE_SOUND := {"gild": "line_gild", "cut": "line_cut", "level": "line_level", "block": "deselect", "zero": "deselect"}
 
 
 func _begin_beat(b: Dictionary) -> void:
 	_add_row(b)
+	if b.kind in ["fifteen", "pair", "run", "flush", "nobs", "charm"]:
+		Sound.tick(b.kind, _tick_i)
+		_tick_i += 1
+	elif LINE_SOUND.has(b.kind):
+		Sound.play(LINE_SOUND[b.kind], Sound.semi(int(b.get("step", 0))))
 	if b.kind == "charm" and charm_light.is_valid():
 		charm_light.call([b.label])
 	if not b.cards.is_empty() and light.is_valid():
@@ -272,6 +288,11 @@ func _begin_beat(b: Dictionary) -> void:
 
 func _slam() -> void:
 	var slam: Dictionary = plan.beats[plan.beats.size() - 1]
+	# web: rampBurst, slam(1 + min(2, ratio)), then the tier's chord
+	Sound.play("ramp_burst")
+	Sound.play("slam_%d" % clampi(int(round(1.0 + minf(2.0, plan.ratio))), 1, 3))
+	var cls: String = plan.tier.cls if plan.tier.cls != "" else "t-none"
+	Sound.play("chord_" + cls)
 	mult_label.text = slam.mult_line
 	if light.is_valid():
 		light.call(null)

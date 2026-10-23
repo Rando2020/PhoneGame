@@ -194,6 +194,10 @@ function countHandCore(hand, starter, isCrib = false, mods = {}) {
     if (j) events.push({ kind: "nobs", label: "Nobs", points: mods.nobsPoints ?? 1, cards: [j] });
   }
 
+  /* catScale (pass 20 spike): a category's points scaled this round, e.g.
+     { run: 0.5 }. Absent everywhere unless a round sets it. */
+  if (mods.catScale) for (const e of events)
+    if (mods.catScale[e.kind] !== undefined) e.points = e.points * mods.catScale[e.kind];
   const base = events.reduce((t, e) => t + e.points, 0);
   return { events, base };
 }

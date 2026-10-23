@@ -14,6 +14,7 @@ signal committed
 ## The round's state just changed in a way a resume must reproduce (a deal, a
 ## mulligan, a recut, a count, a lay in The Play). RunFlow saves the game here.
 signal save_point
+signal deeds_earned(ids: Array)   ## the count's deeds (web doCribCount's Achv.check)
 ## In a run (RunFlow), the finished round is handed back instead of restarting.
 signal round_finished
 
@@ -46,7 +47,12 @@ var peg_pending := false
 var peg_kept: Array = []
 var peg_view: PegView
 var peg_session: PegSession
-var last_kr := {}          ## the last keep's rank (the cascade's coaching line needs it)
+var last_kr := {}
+var optimal_streak := 0      ## web Cb.optimalStreak: best-possible keeps in a row
+var meld_sprite: MeldSprite   ## your Meldling, reacting to the round
+var spoiler_sprite: SpoilerSprite  ## the Spoiler across from it, on Spoiler rounds
+var surface: Surface            ## the felt (darker on a Spoiler round)
+var juice: Juice                ## bursts and shake, over everything          ## the last keep's rank (the cascade's coaching line needs it)
 
 const BG := Color(0.102, 0.094, 0.149)
 ## Widest the content column grows: six cards side by side with no overlap.
@@ -93,15 +99,16 @@ func _layout() -> void:
 	status_label.position = Vector2(x0, ins.top + MARGIN * 2.0)
 	status_label.size = Vector2(col, 80)
 
-	charm_bar.position = Vector2(x0, status_label.position.y + 84.0)
-	charm_bar.size = Vector2(col, CharmBar.H)
+	charm_bar.position = Vector2(x0, status_label.position.y + maxf(84.0, status_label.get_minimum_size().y + 4.0))
+	charm_bar.size = Vector2(col, charm_bar.size.y)    # width first: the row height depends on it
+	charm_bar.size = Vector2(col, charm_bar.height())
 
 	# Mulligan sits left of Keep in the thumb row, only while it can be used.
 	mulligan_button.size = Vector2(minf(170.0, keep_button.position.x - x0 - 12.0), 64)
 	mulligan_button.position = Vector2(x0, keep_button.position.y + 8.0)
 
 	# starter before the count; the counted row takes the same band after it
-	var band_y := charm_bar.position.y + CharmBar.H + 12.0
+	var band_y := charm_bar.position.y + charm_bar.height() + 12.0
 	var band_h := card.y + counted_row.lift_amount + 12.0
 	starter_view.position = Vector2((size.x - card.x) / 2.0, band_y + band_h - card.y)
 	counted_row.position = Vector2(x0, band_y)
@@ -118,27 +125,43 @@ func _layout() -> void:
 	var top := band_y + band_h + 16.0
 	cascade.position = Vector2(x0, top)
 	cascade.size = Vector2(col, maxf(0.0, hand.position.y - 16.0 - top))
+	drag_hint.position = Vector2(x0, top)
+	drag_hint.size = Vector2(col, 0)
+	drag_hint.size = Vector2(col, drag_hint.get_minimum_size().y)   # height at this width
+	# your Meldling stands in the open space right of the count, above the hand
+	var ms := clampf(cascade.size.y * 0.42, 110.0, 200.0)
+	meld_sprite.size = Vector2(ms, ms)
+	meld_sprite.position = Vector2(x0 + col - ms, hand.position.y - ms - 4.0)
+	spoiler_sprite.size = Vector2(ms, ms)
+	spoiler_sprite.position = Vector2(x0, hand.position.y - ms - 4.0)
 
 
 func _label(font_size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", font_size)
+	TypeScale.set_size(l, font_size)
 	l.add_theme_color_override("font_color", color)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
 
 
 func _build() -> void:
-	var bg := ColorRect.new()
-	bg.color = BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	surface = Surface.make("round")
+	add_child(surface)
+	Press.watch(self)
 
 	status_label = _label(28, INK)
 	add_child(status_label)
+
+	meld_sprite = MeldSprite.new("pip")
+	add_child(meld_sprite)
+	spoiler_sprite = SpoilerSprite.new()
+	spoiler_sprite.hide()
+	add_child(spoiler_sprite)
+	juice = Juice.new()
+	juice.target = self
+	add_child(juice)          # in the tree from the start, so it's freed with the screen
 
 	cut_view = CutView.new()
 	cut_view.hide()
@@ -153,12 +176,20 @@ func _build() -> void:
 	charm_bar = CharmBar.new()
 	add_child(charm_bar)
 
+	# first deal ever: one line on dragging, until the first Keep (saved)
+	drag_hint = _label(20, Color(0.96, 0.93, 0.88, 0.7))
+	drag_hint.text = DRAG_HINT
+	drag_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	drag_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	drag_hint.hide()
+	add_child(drag_hint)
+
 	crib_strip = CribStrip.new()
 	add_child(crib_strip)
 
 	recut_button = Button.new()
 	recut_button.text = "Recut"
-	recut_button.add_theme_font_size_override("font_size", 24)
+	TypeScale.set_size(recut_button, 24)
 	recut_button.pressed.connect(_on_recut)
 	add_child(recut_button)
 
@@ -178,12 +209,12 @@ func _build() -> void:
 	hand.selection_changed.connect(_on_selection)
 
 	keep_button = Button.new()
-	keep_button.add_theme_font_size_override("font_size", 30)
+	TypeScale.set_size(keep_button, 30)
 	keep_button.pressed.connect(_on_button)
 	add_child(keep_button)
 
 	mulligan_button = Button.new()
-	mulligan_button.add_theme_font_size_override("font_size", 22)
+	TypeScale.set_size(mulligan_button, 22)
 	mulligan_button.pressed.connect(_on_mulligan)
 	add_child(mulligan_button)
 
@@ -200,7 +231,16 @@ func start_round(run_: CribRun = null) -> void:
 		peg_view.queue_free()
 		peg_view = null
 	charm_bar.build(run)
+	_layout()
 	next_deal()
+
+
+const DRAG_HINT := "Tip: flick a card up to throw it to the Crib, or down to keep it."
+var drag_hint: Label
+
+
+static func drag_hint_seen() -> bool:
+	return JS.truthy(Achv.load_store().get("drag_hint"))
 
 
 func next_deal() -> void:
@@ -215,6 +255,8 @@ func next_deal() -> void:
 
 ## Draw rd.dealt as a fresh deal (also used to resume a saved one).
 func _show_deal() -> void:
+	peg_kept = []                # a new deal: the last deal's Play is done with
+	drag_hint.visible = not drag_hint_seen()
 	# Foresight cuts before the keep: show the starter face up from the deal.
 	if rd.starter != null:
 		starter_view.setup_card(rd.starter, true)
@@ -229,6 +271,21 @@ func _show_deal() -> void:
 	crib_strip.refresh(rd)
 	crib_strip.show()
 	hand.max_select = rd.keep_count()
+	if run != null and meld_sprite.meld != MeldReact.art_id(run.meldling):
+		meld_sprite.set_meld(run.meldling)
+	Sound.play("deal")
+	meld_sprite.on_event("deal", rd)
+	var boss = run.boss() if run != null else null
+	spoiler_sprite.visible = boss != null
+	var want := "spoiler" if boss != null else "round"
+	if surface.kind != want:
+		var s2 := Surface.make(want)
+		add_child(s2)
+		move_child(s2, surface.get_index())
+		surface.queue_free()
+		surface = s2
+	if boss != null and spoiler_sprite.art != String(boss.art):
+		spoiler_sprite.set_boss(boss)
 	_update_status()
 	keep_button.disabled = true
 	keep_button.text = "Keep 0/%d" % rd.keep_count()
@@ -267,6 +324,7 @@ func _on_mulligan() -> void:
 	if not mulligan_button.visible or rd.mulligan() == null:
 		return
 	crib_strip.refresh(rd)
+	Sound.play("toCrib")
 	keep_button.disabled = true
 	keep_button.text = "Keep 0/%d" % rd.keep_count()
 	_deal_hand()
@@ -293,6 +351,7 @@ func _on_selection(_cards: Array, verdict: Dictionary) -> void:
 		return
 	keep_button.disabled = not verdict.valid
 	keep_button.text = "Keep %d/%d" % [verdict.count, verdict.need]
+	Sound.play("select")
 
 
 func _on_button() -> void:
@@ -316,12 +375,28 @@ func _commit() -> void:
 	var idx := selected_keep()
 	if idx.size() != rd.keep_count():
 		return
+	if drag_hint.visible:
+		drag_hint.hide()
+		var m := Achv.load_store()
+		m["drag_hint"] = 1
+		Achv.save_store(m)
 	var kr := rd.keep_rank(idx)        # rank the DECISION, before the cut is known
 	last_kr = kr
 	var knew_starter: bool = rd.starter != null
 	var kept: Array = idx.map(func(i): return rd.dealt[i])
 	var pre_stock: Array = rd.stock.duplicate()   # the web scores the cut against this
 	var res = rd.commit(idx)
+	Sound.play("toCrib")
+	# web doCribCount: the count's deeds, checked on the real commit
+	optimal_streak = optimal_streak + 1 if (kr != null and int(kr.get("rank", 0)) == 1) else 0
+	var got := Achv.check("count", {
+		"total": res.total, "base": res.base,
+		"perfect": int(res.base) >= 29 and not JS.truthy(res.get("levelBonus")) and not JS.truthy(res.get("enhBase")),
+		"cutJack": rd.starter != null and int(rd.starter.rank) == 11,
+		"cutSaved": JS.truthy(res.get("crossedTarget")) and int(res.scoreBefore) + int(res.handOnly) < rd.target,
+		"optimalStreak": optimal_streak})
+	if not got.is_empty():
+		deeds_earned.emit(got)
 	committed.emit()
 	# the cut's tier, before round end can touch the stock (Foresight: no ceremony)
 	last_cut_plan = null if knew_starter else CutPlan.build(CutPlan.quality_like_web(rd, kept, pre_stock))
@@ -388,6 +463,12 @@ func _after_flip(res: Dictionary, kr: Dictionary) -> void:
 
 func _on_cascade_finished() -> void:
 	cascading = false
+	# the reaction lands with the total
+	if last_result != null:
+		meld_sprite.on_event("count", rd, last_result)
+		juice_count()
+		if spoiler_sprite.visible:
+			spoiler_sprite.on_event("count", rd, last_result)
 	_update_status()
 	if peg_pending:
 		keep_button.text = "The Play"
@@ -426,10 +507,11 @@ func resume_round(run_: CribRun, rd_: CribRound, ui: Dictionary, peg = null) -> 
 	run = run_
 	rd = rd_
 	charm_bar.build(run)
+	_layout()
 	last_result = rd.last_count
 	last_kr = ui.get("kr", {})
 	peg_pending = ui.get("peg_pending", false)
-	peg_kept = ui.get("peg_kept", []).map(func(i): return rd.dealt[i])
+	peg_kept = ui.get("peg_kept", []).filter(func(i): return i >= 0 and i < rd.dealt.size()).map(func(i): return rd.dealt[i])
 	if rd.phase == "keep":
 		_show_deal()
 		return
@@ -487,22 +569,104 @@ func _light(cards) -> void:
 
 ## Round-end facts go to the status bar and the button, not under the count:
 ## the cascade footer stays about the hand that was just counted.
+## A big count (the cheer threshold): a burst from the counted hand and a shake.
+func juice_count() -> void:
+	if last_result == null or rd == null:
+		return
+	if int(last_result.get("total", 0)) >= MeldReact.big_count(rd):
+		move_child(juice, -1)
+		var at := counted_row.position + counted_row.size / 2.0
+		juice.burst(at, 34, ["gold", "white"])
+		juice.shake(8.0, 260.0)
+
+
 func _show_round_end() -> void:
+	meld_sprite.on_event("round_won" if rd.won else "run_lost", rd)
+	if spoiler_sprite.visible:
+		spoiler_sprite.on_event("round_won" if rd.won else "run_lost", rd)
 	_update_status()
 	keep_button.text = "Continue" if in_run else "New round"
 	keep_button.disabled = false
 
 
+## The Shortage's HALF stamp (pass 21): a small red tag just after the status
+## line's text, landing once per round (1.4 to 1.0, a short shake, a heavy
+## note). Only where it fits on the screen; gone when the round is over.
+var half_stamp: Label = null
+var keep_motion := Motion.new()
+var _stamped_rd = null
+
+
+func _half_stamp(show: bool) -> void:
+	if not show:
+		if half_stamp != null and is_instance_valid(half_stamp):
+			half_stamp.queue_free()
+		half_stamp = null
+		return
+	var font := status_label.get_theme_font("font")
+	var fs := status_label.get_theme_font_size("font_size")
+	var lines := status_label.text.split("\n")
+	var w := font.get_string_size(lines[lines.size() - 1], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var x := status_label.position.x + (status_label.size.x + w) / 2.0 + 10.0
+	var y := status_label.position.y + font.get_height(fs) * (lines.size() - 1)
+	var fresh := half_stamp == null or not is_instance_valid(half_stamp)
+	if fresh:
+		half_stamp = _label(20, Color(0.93, 0.38, 0.38))
+		half_stamp.text = "HALF"
+		half_stamp.name = "half_stamp"
+		add_child(half_stamp)
+	var sw := font.get_string_size("HALF", HORIZONTAL_ALIGNMENT_LEFT, -1, half_stamp.get_theme_font_size("font_size")).x + 4.0
+	if x + sw > size.x - 4.0:
+		half_stamp.queue_free()      # no room beside the text: the status already names it
+		half_stamp = null
+		return
+	half_stamp.size = Vector2(sw, font.get_height(fs))
+	half_stamp.position = Vector2(x, y + (font.get_height(fs) - half_stamp.get_combined_minimum_size().y) / 2.0)
+	if _stamped_rd == rd or not Motion.on():
+		return
+	_stamped_rd = rd
+	Sound.play("spoiler_peg")
+	Haptics.pulse(RunFlow.STAMP_HAPTIC)
+	if Motion.reduced():
+		keep_motion.fade_in(half_stamp)
+		return
+	var st := half_stamp
+	var rest: Vector2 = st.position
+	st.pivot_offset = st.size / 2.0
+	st.scale = Vector2.ONE * 1.4
+	var tw := st.create_tween()
+	tw.tween_property(st, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	for dx in [4.0, -3.0, 2.0, 0.0]:
+		tw.tween_property(st, "position", rest + Vector2(dx, 0), 0.04)
+	keep_motion.add(tw, func():
+		if is_instance_valid(st):
+			st.scale = Vector2.ONE
+			st.position = rest)
+
+
 func _update_status() -> void:
 	var second := "Deals left %d" % rd.deals_left
+	var tw = run.twist() if run != null else null
+	var sh = run.shortage() if run != null else null
+	if sh != null and not rd.over:
+		second += "  |  Short: " + CribData.SHORTAGE_NAMES[sh]   # the Shortage, kept in sight
+	elif tw != null and not rd.over:
+		second += "  |  " + String(tw.name)     # the round's twist, kept in sight
 	if rd.over:
 		var crib: int = rd.crib_result.total if rd.crib_result != null else 0
 		second = "%s  |  Crib +%d" % ["Round cleared" if rd.won else "Round lost", crib]
 	status_label.text = "%s  |  Target %d  |  Score %d\n%s" % [run.deck.name, rd.target, rd.score, second]
+	_half_stamp(sh != null and not rd.over)
 
 
 ## During a count the whole screen is the skip button: the thumb shouldn't
 ## have to aim. Continuing still uses the button, so a stray tap can't deal.
+## A tap lands the HALF stamp (it never stops the tap).
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and keep_motion.running():
+		keep_motion.skip()
+
+
 func _gui_input(event: InputEvent) -> void:
 	if (cascading or cutting) and event is InputEventMouseButton and event.pressed \
 			and event.button_index == MOUSE_BUTTON_LEFT:
@@ -511,3 +675,9 @@ func _gui_input(event: InputEvent) -> void:
 		else:
 			cascade.skip()
 		accept_event()
+
+
+## Pass 21: no animation outlives its screen (a running job would keep a
+## reference cycle alive: screen_leak_test).
+func _exit_tree() -> void:
+	keep_motion.skip()

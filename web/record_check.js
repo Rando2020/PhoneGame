@@ -34,7 +34,15 @@ for (const key of ["2026-10-18", "2026-11-02", "2027-01-01"]) {
   const done = run(`Achv.dailyDone("${key}")`);
   ok(done && done.reached === out.idx - 1 && done.score === out.score, `daily ${key}: recorded ${JSON.stringify(done)}`);
   ok(run(`Achv.dailyDone("1999-01-01")`) === null, "another date stays open");
+  const h = run(`Achv.history()`);
+  ok(h.length === 1 && h[0].cleared === false && h[0].reached === out.idx - 1 && h[0].score === out.score,
+     `daily ${key}: lost run in the history ${JSON.stringify(h)}`);
 }
+// the title line after only a round-1 loss
+run(`Achv.save({ __v: 3 }); Meta.record(new CribRun("pip", STREETS[0]), 0, 7)`);
+ok(/Best: no round cleared/.test(run(`Meta.line()`)) && !/Act 1-0/.test(run(`Meta.line()`)), "line: " + run(`Meta.line()`));
+run(`Meta.record(new CribRun("pip", STREETS[0]), 6, 7)`);
+ok(/Best Act 2-1/.test(run(`Meta.line()`)), "line after 6 cleared: " + run(`Meta.line()`));
 for (const meld of ["pip", "facet"]) {
   const out = run(`(() => { Achv.save({ __v: 3 });
     Cb.run = new CribRun("${meld}", STREETS[0]); Cb.run.enterEndless(); Cb.run.endlessRound = 2;
@@ -44,5 +52,5 @@ for (const meld of ["pip", "facet"]) {
   ok(run(`Achv.bestEndless()`) === out.idx - 1, "a worse Long Count doesn't lower the best");
 }
 console.log(`record checks: ${checks}, failures: ${fails}`);
-console.log(fails === 0 && checks >= 13 ? "RECORD OK" : "RECORD FAILED");
-process.exit(fails === 0 && checks >= 13 ? 0 : 1);
+console.log(fails === 0 && checks >= 18 ? "RECORD OK" : "RECORD FAILED");
+process.exit(fails === 0 && checks >= 18 ? 0 : 1);

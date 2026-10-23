@@ -23,6 +23,16 @@ const TIERS := [
 ]
 
 
+## The cut's sound climbs with what the cut added (pass 14, LOOP_AUDIT 9):
+## semitones up for under 4, under 8, under 12, and 12 or more.
+const CUT_STEPS := [[4.0, 0], [8.0, 2], [12.0, 4]]
+static func cut_step(gain: float) -> int:
+	for s in CUT_STEPS:
+		if gain < s[0]:
+			return s[1]
+	return 7
+
+
 static func tier_for(ratio: float) -> Dictionary:
 	var t: Dictionary = TIERS[0]
 	for x in TIERS:
@@ -64,6 +74,7 @@ static func build(res: Dictionary, rd, keep_rank = null) -> Dictionary:
 		beats.append(_beat("gild", "Gilded cards", signed(res.gildBonus), shown, 400))
 	if JS.truthy(res.get("cutGain")):
 		beats.append(_beat("cut", "From the cut", signed(res.cutGain), shown, 420))
+		beats[beats.size() - 1]["step"] = cut_step(float(res.cutGain))
 	if JS.truthy(res.get("suppressed")):
 		beats.append(_beat("block", "%s blocked" % res.get("suppressedBy", "Spoiler"),
 			"\u2212" + JS.num_str(res.suppressed), shown, 520))
@@ -108,6 +119,11 @@ static func build(res: Dictionary, rd, keep_rank = null) -> Dictionary:
 			lines.append({"text": clutch, "cls": "clutch"})
 		else:
 			lines.append({"text": "TARGET MET", "cls": "green"})
+	else:
+		# pass 14 (LOOP_AUDIT 8): the gap, so the next deal has a number to beat
+		var need := int(rd.target - (res.get("scoreBefore", 0) + res.total))
+		if need > 0:
+			lines.append({"text": "Needs %d more" % need, "cls": "dim"})
 	return {"beats": beats, "final": int(res.total), "tier": tier_for(ratio), "ratio": ratio,
 		"perfect": res.base >= 29 and not JS.truthy(res.get("levelBonus")), "lines": lines,
 		"fired": res.get("fired", []).duplicate()}

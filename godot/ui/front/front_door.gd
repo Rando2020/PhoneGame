@@ -13,6 +13,8 @@ signal begin(run: CribRun)
 signal guided
 ## CONTINUE on the title: pick the saved run back up.
 signal resume_run
+signal first(id: String)    ## a first-time celebration (Firsts) for RunFlow's toast
+signal playtest_jump(kind: String)   ## playtest builds: build a real state (RunFlow)
 var can_resume := false     ## set by the owner before open(): a saved run exists
 
 const BG := Color(0.102, 0.094, 0.149)
@@ -41,41 +43,174 @@ func open(state: Dictionary = {}) -> void:
 	render()
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and _page != null:
+var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
+
+
+## Deferred, like RunFlow's: a resize can land mid-draw, so the size is
+## compared once the draw is done.
+func _redraw_if_moved() -> void:
+	if _page != null and TypeScale.layout_key(self) != _drawn_for:
 		render()
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and _page != null:
+		_redraw_if_moved.call_deferred()
+
+
+var parade: Array = []            ## the title's six Meldlings
+var meld_view: MeldSprite = null  ## the picker's Meldling
+
+
 func render() -> void:
+	_drawn_for = TypeScale.layout_key(self)
 	match cb.step:
 		"road": _road()
 		"street": _street()
 		"trial": _trial()
 		"meld": _meld()
 		"peddler": _peddler()
+		"deeds": Menus.deeds(self)
+		"record": Menus.record(self)
+		"gallery": Menus.gallery(self)
+		"howto": Menus.howto(self)
+		"settings": Menus.settings(self)
+		"playtest": Menus.playtest(self)
 		_: _title()
 
 
+## How deep each step sits: going deeper slides in from the right, back from the left.
+const DEPTH := {"title": 0, "road": 1, "peddler": 1, "deeds": 1, "record": 1, "gallery": 1,
+	"howto": 1, "settings": 1, "playtest": 1, "street": 2, "trial": 3, "meld": 3}
+var _outgoing: Control = null
+var _slide_v := 0.0
+var _slide_dir := 0.0         ## +1 in from the right, -1 from the left, 0 none
+var _fade: Tween = null
+
+
 func go(step: String) -> void:
+	var was: String = cb.step
 	cb.step = step
+	_slide_dir = 0.0
+	if _page != null and size.x > 0.0 and was != step:
+		_slide_dir = -1.0 if int(DEPTH.get(step, 1)) < int(DEPTH.get(was, 1)) else 1.0
 	render()
+	_slide_dir = 0.0
+
+
+## Long lists build row by row: up to ROW_BUDGET_MS of rows a frame, the rest
+## on the next frames, top to bottom. settle() (and a new screen) finishes or
+## drops them. The final layout is the same as building them all at once.
+const ROW_BUDGET_MS := 4.0
+var _rows: Array = []
+var _row_y := 0.0
+var _rows_done := Callable()
+
+
+func queue_rows(rows: Array, y0: float, done: Callable) -> void:
+	_rows = rows.duplicate()
+	_row_y = y0
+	_rows_done = done          # rows start next frame: this one builds the page
+
+
+func rows_pending() -> bool:
+	return not _rows.is_empty()
+
+
+func _pump_rows(budget_ms := ROW_BUDGET_MS) -> void:
+	var t := Time.get_ticks_usec()
+	while not _rows.is_empty():
+		var r: Callable = _rows.pop_front()
+		_row_y = r.call(_row_y)
+		if (Time.get_ticks_usec() - t) / 1000.0 >= budget_ms:
+			break
+	if _rows.is_empty() and _rows_done.is_valid():
+		var d := _rows_done
+		_rows_done = Callable()
+		d.call(_row_y)
+
+
+func _flush_rows() -> void:
+	_pump_rows(INF)
+
+
+## Snap a transition to rest (tests that measure layout).
+func settle() -> void:
+	_flush_rows()
+	if _page != null:
+		_page.position.x = 0.0
+		_page.modulate.a = 1.0
+	_slide_v = 0.0
+	if _fade != null:
+		_fade.kill()
+		_fade = null
+	if _outgoing != null:
+		_outgoing.queue_free()
+		_outgoing = null
+
+
+func _process(delta: float) -> void:
+	if not _rows.is_empty():
+		_pump_rows()
+	if _page == null or (_outgoing == null and absf(_page.position.x) < 0.01):
+		return
+	if _fade != null:
+		return
+	var w := TAU / RunFlow.SLIDE_RESPONSE
+	var left := minf(delta, 0.25)
+	while left > 0.0:
+		var h := minf(left, 1.0 / 240.0)
+		_slide_v += (-_page.position.x * w * w - _slide_v * 2.0 * w) * h
+		_page.position.x += _slide_v * h
+		left -= h
+	if _outgoing != null:
+		_outgoing.position.x = _page.position.x - signf(_page.position.x) * size.x if absf(_page.position.x) > 0.01 else -size.x
+	if absf(_page.position.x) < 0.5 and absf(_slide_v) < 20.0:
+		_page.position.x = 0.0
+		_slide_v = 0.0
+		if _outgoing != null:
+			_outgoing.queue_free()
+			_outgoing = null
 
 
 # ------------------------------------------------------------------ helpers
 func _clear() -> void:
 	buttons.clear()
+	_rows = []                        # a new screen: the old one's rows are dropped
+	_rows_done = Callable()
+	if _outgoing != null:
+		_outgoing.queue_free()
+		_outgoing = null
+	if _fade != null:
+		_fade.kill()
+		_fade = null
 	if _page != null:
-		remove_child(_page)
-		_page.queue_free()
+		if _slide_dir != 0.0:
+			# the current page leaves; nothing in it takes input
+			_outgoing = _page
+			_outgoing.propagate_call("set", ["mouse_filter", Control.MOUSE_FILTER_IGNORE])
+			for b in _outgoing.find_children("*", "BaseButton", true, false):
+				(b as BaseButton).disabled = true
+		else:
+			remove_child(_page)
+			_page.queue_free()
 	_page = Control.new()
 	_page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_page)
-	var bg := ColorRect.new()
-	bg.color = BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_page.add_child(bg)
+	_page.add_child(Surface.make("menu"))
+	Press.watch(self)
+	if _outgoing != null:
+		if MeldSprite.reduce_motion:
+			# Reduce Motion: a cross-fade in place, no travel
+			_page.modulate.a = 0.0
+			_fade = create_tween()
+			_fade.tween_property(_page, "modulate:a", 1.0, 0.2)
+			_fade.parallel().tween_property(_outgoing, "modulate:a", 0.0, 0.2)
+			_fade.tween_callback(settle)
+		else:
+			_page.position.x = _slide_dir * size.x
+			_slide_v = 0.0
 
 
 func _col() -> Vector2:
@@ -97,7 +232,7 @@ func _label(parent: Control, text: String, fs: int, col: Color, at: Vector2, w: 
 	l.text = text
 	l.horizontal_alignment = align
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", fs)
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.position = at
@@ -133,11 +268,11 @@ func _box(col: Color, border: Color) -> StyleBoxFlat:
 func _button(key: String, text: String, big: bool, cb_: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", 30 if big else 22)
+	TypeScale.set_size(b, 30 if big else 22)
 	b.pressed.connect(cb_)
 	_page.add_child(b)
 	var w := maxf(300.0 if big else 200.0, b.get_combined_minimum_size().x + 32.0)
-	b.size = Vector2(minf(w, size.x - MARGIN * 2.0), 80.0 if big else 56.0)
+	b.size = Vector2(minf(w, size.x - MARGIN * 2.0), Press.MIN_H + 6.0 if big else Press.MIN_H)   # 44 pt minimum
 	b.position.x = (size.x - b.size.x) / 2.0
 	buttons[key] = b
 	return b
@@ -178,10 +313,24 @@ func _day() -> String:
 
 
 # ------------------------------------------------------------------ title
+var version_taps: Array = []    ## tap times on the version label (the playtest menu)
+
+
 func _title() -> void:
 	_clear()
+	# the version, small, top right; five quick taps open the playtest menu in a
+	# playtest build (Playtest.enabled); anywhere else it is only a label
+	var c_v := _col()
+	var ver := _label(_page, "v" + str(ProjectSettings.get_setting("application/config/version", "2.0.0")), 16, DIM, Vector2(c_v.x + c_v.y - 140.0, _top() + 6.0), 140.0)
+	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ver.name = "version"
+	ver.mouse_filter = Control.MOUSE_FILTER_STOP
+	ver.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed:
+			version_tap(Time.get_ticks_msec()))
 	var y := _line(_top() + size.y * 0.12, "MELDLINGS", 56, GOLD)
 	y = _line(y, "Count it. Cut it. Break it.", 22, DIM)
+	var parade_top := y
 	var m := Achv.load_store()
 	var first_time := not JS.truthy(m.get("guided")) and not JS.truthy(m.get("runs"))
 	_button("play", "PLAY  \u00b7  first round" if first_time else "PLAY", true, func():
@@ -198,9 +347,55 @@ func _title() -> void:
 		stack = ["resume", "play", "peddler"]
 	var top := _stack_bottom(stack)
 	var c := _col()
+	# the web's icon bar: Deeds, Gallery, Record, How to play, and Settings
+	var icons := [["deeds", "Deeds"], ["gallery", "Gallery"], ["record", "Record"], ["howto", "How to play"], ["settings", "Settings"]]
+	# one row of five when every word fits; else icon_rows of three (Larger text)
+	var icon_per := icons.size()
+	var probe_b := Button.new()
+	TypeScale.set_size(probe_b, 16)
+	var pf := probe_b.get_theme_font("font")
+	var pfs := probe_b.get_theme_font_size("font_size")
+	probe_b.free()
+	var icon_room := (c.y - 6.0 * (icon_per - 1)) / icon_per - 16.0
+	for ic in icons:
+		for word in String(ic[1]).split(" "):
+			if pf.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, pfs).x > icon_room:
+				icon_per = 3
+	var icon_rows := ceili(float(icons.size()) / icon_per)
+	var iw := (c.y - 6.0 * (icon_per - 1)) / icon_per
+	top -= (Press.MIN_H + 6.0) * icon_rows - 2.0
+	for i in icons.size():
+		var ib := Button.new()
+		ib.text = icons[i][1]
+		TypeScale.set_size(ib, 16)
+		ib.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ib.size = Vector2(iw, Press.MIN_H)
+		ib.position = Vector2(c.x + (i % icon_per) * (iw + 6.0), top + (i / icon_per) * (Press.MIN_H + 6.0))
+		var step: String = icons[i][0]
+		ib.pressed.connect(func():
+			if step == "howto":
+				Menus.tut_step = 0
+			go(step))
+		_page.add_child(ib)
+		buttons["icon_" + step] = ib
+	top -= 8.0
 	var l := _label(_page, RunRecord.line(), 16, DIM, Vector2(c.x, 0), c.y)
 	l.position.y = minf(top - l.size.y - 8.0, _bottom())
 	l.name = "line"
+	# the parade: all six, bobbing out of step, sized to the space above the buttons
+	var c0 := _col()
+	var room := maxf(0.0, l.position.y - 16.0 - (parade_top + 24.0))
+	var per := minf(c0.y / 3.0, room / 1.92)
+	var px0 := (size.x - per * 3.0) / 2.0
+	parade.clear()
+	for k in MeldReact.SIGNATURE.size():
+		var id: String = MeldReact.SIGNATURE.keys()[k]
+		var sp := MeldSprite.new(id)
+		sp.size = Vector2(per, per)
+		sp.position = Vector2(px0 + (k % 3) * per, parade_top + 24.0 + floorf(k / 3.0) * per * 0.92)
+		sp.step(k * 0.43)                 # out of step, so they don't bob as one
+		_page.add_child(sp)
+		parade.append(sp)
 
 
 # ------------------------------------------------------------------ road
@@ -259,7 +454,7 @@ func _street() -> void:
 	# the steppers sit either side of the face, big enough for a thumb
 	var prev := Button.new()
 	prev.text = "<"
-	prev.add_theme_font_size_override("font_size", 34)
+	TypeScale.set_size(prev, 34)
 	prev.disabled = i == 0
 	prev.size = Vector2(72, 72)
 	prev.position = Vector2(c.x, face_y + 6.0)
@@ -270,7 +465,7 @@ func _street() -> void:
 	buttons["prev"] = prev
 	var next := Button.new()
 	next.text = ">"
-	next.add_theme_font_size_override("font_size", 34)
+	TypeScale.set_size(next, 34)
 	next.disabled = i >= max_street - 1
 	next.size = Vector2(72, 72)
 	next.position = Vector2(c.x + c.y - 72.0, face_y + 6.0)
@@ -341,11 +536,22 @@ func _meld() -> void:
 	var open := Achv.meldling_unlocked(id)
 	var c := _col()
 	var face_y := y
-	y = _line(y + 10.0, d.name if open else "???", 40, GOLD if open else DIM)
+	# the Meldling itself; a locked one is a silhouette
+	var px := minf(c.y - 160.0, 300.0)
+	meld_view = MeldSprite.new(id)
+	meld_view.size = Vector2(px, px)
+	meld_view.position = Vector2((size.x - px) / 2.0, y)
+	_page.add_child(meld_view)
+	meld_view.set_meld(id, not open)
+	if open:
+		meld_view.react("eager")
+	face_y = y + px / 2.0 - 36.0
+	y += px
+	y = _line(y + 4.0, d.name if open else "???", 40, GOLD if open else DIM)
 	for pair in [["prev", -1, c.x], ["next", 1, c.x + c.y - 72.0]]:
 		var b := Button.new()
 		b.text = "<" if pair[1] < 0 else ">"
-		b.add_theme_font_size_override("font_size", 34)
+		TypeScale.set_size(b, 34)
 		b.size = Vector2(72, 72)
 		b.position = Vector2(pair[2], face_y)
 		var step: int = pair[1]
@@ -369,7 +575,7 @@ func _meld() -> void:
 	pnl.add_theme_stylebox_override("panel", _box(PANEL, Color(INK, 0.12)))
 	pnl.position = Vector2(c.x, y + 8.0)
 	_page.add_child(pnl)
-	var l := _label(pnl, info, 20, INK if open else DIM, Vector2(16, 12), c.y - 32.0)
+	var l := _label(pnl, info, TypeScale.BODY, INK if open else DIM, Vector2(16, 12), c.y - 32.0)
 	pnl.size = Vector2(c.y, l.size.y + 24.0)
 	pnl.name = "info"
 	y = pnl.position.y + pnl.size.y + 14.0
@@ -461,7 +667,28 @@ func _tap_back(id: String) -> void:
 	elif Achv.buy_back(id):
 		Achv.set_back(id)
 		last_tap = "buy"
+		if Firsts.claim("peddler"):
+			first.emit("peddler")
 	else:
 		last_tap = "short"
 	_flash_pending = last_tap == "short"
 	render()
+
+
+## A tap lands the Gallery's reveals (pass 21); it never stops the tap.
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and Menus.gal_motion.running():
+		Menus.gal_motion.skip()
+
+
+
+## Five taps within 2.5 s on the version label: the playtest menu, in a
+## playtest build only. Returns whether it opened (tests).
+func version_tap(now_ms: int) -> bool:
+	version_taps.append(now_ms)
+	version_taps = version_taps.filter(func(t): return now_ms - t <= 2500)
+	if version_taps.size() >= 5 and Playtest.enabled():
+		version_taps.clear()
+		go("playtest")
+		return true
+	return false

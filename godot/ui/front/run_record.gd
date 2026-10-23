@@ -25,5 +25,6 @@ static func line() -> String:
 		return "No runs yet."
 	var best := int(m.get("bestRound", 0))
 	var act := int(ceil(float(maxi(best, 1)) / CribData.ROUNDS))
-	var rd := (best - 1) % CribData.ROUNDS + 1   # JS %: a best of 0 reads "1-0", as the web shows it
-	return "Runs %d  ·  Best Act %d-%d  ·  Cleared %d  ·  Best hand %d" % [runs, act, rd, int(m.get("clears", 0)), int(m.get("bestScore", 0))]
+	var rd := (maxi(best, 1) - 1) % CribData.ROUNDS + 1
+	var best_txt := "Best Act %d-%d" % [act, rd] if best > 0 else "Best: no round cleared"
+	return "Runs %d  ·  %s  ·  Cleared %d  ·  Best hand %d" % [runs, best_txt, int(m.get("clears", 0)), int(m.get("bestScore", 0))]

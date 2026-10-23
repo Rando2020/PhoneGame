@@ -35,7 +35,7 @@ in Godot: intro, keep and count, cut ceremony, round end, shop, next round, run 
 | front door | showTitle (PLAY, Peddler), showCribSelect, Meta.record/line | `ui/front/front_door.gd`, `run_record.gd`, in `run_flow.gd` (opens on the title) | roads, Streets, Trials, Meldling carousel; NEW RUN and Title return here |
 | Peddler | showPeddler | `front_door.gd` (step "peddler"); `CardArt.back()` draws the equipped back | buy and equip card backs for Pegs |
 | guided first round | tutorial.js Guide, guideStart/Show/Finish | `ui/front/guide_coach.gd`, `RunFlow.start_guided` | six beats at the web's moments; PLAY ON / Skip coaching |
-| rest of UI, audio | `cribrogue_ui.js`, `app.js`, `audio.js` | none | not started: Deeds, Gallery, Record, How to play, theme, beat highlights, save and resume mid-run, audio, particles, creature sprites |
+| rest of UI, audio | `cribrogue_ui.js`, `app.js`, `audio.js` | none | not started: Deeds, Gallery, Record, How to play, theme, beat highlights, audio, particles, creature sprites |
 
 ## Parity test
 
@@ -357,15 +357,252 @@ Proof:
   state. Mutations caught: no save after a purchase, round-end effects re-run on
   resume, the mid-beat answer skipped.
 
+## Record fixes (2026-10-18, both sides)
+
+Lost runs are logged in the history (`logRun` / `Achv.log_run` on the lost
+round end; the row reads "Fell A-R", the round it fell on). The title line with
+no round cleared reads "Best: no round cleared" instead of "Best Act 1-0".
+record_check.js (18 checks) and record_test.gd (24) cover both; both fail when
+either fix is reverted.
+
+## Recuts2 (2026-10-18, both sides, parity green)
+
+A recut could only be used while the cut was face up before the keep, which
+only Foresight (and Nib) allowed, so Recut and Steady Hand did nothing. Now a
+BLIND cut that adds nothing to the kept hand is re-cut automatically in
+`commit`, once per recut left (`autoRecuts` / `auto_recuts` records how many).
+No extra tap. Simulated with forced builds, 400 runs each, bot clear rate:
+
+| | nothing | Recut | Steady Hand |
+|---|---|---|---|
+| Pip, before | 13.8 | 14.0 | 11.8 |
+| Pip, "see the cut" fix | 15.0 | 17.8 | 17.3 |
+| Pip, auto re-cut (shipped) | 13.0 | 21.5 | 18.0 |
+| Thump, before | 12.8 | 16.8 | 16.5 |
+| Thump, "see the cut" fix | 14.2 | 15.0 | 16.0 |
+| Thump, auto re-cut (shipped) | 13.5 | 23.8 | 23.0 |
+
+(95% CI about ±3.5.) Fixture group `recut` (48 rounds, 51 auto re-cuts) is
+appended to parity.json; parity_test checks it. Mutation caught: re-cutting a
+cut Foresight already showed (6 of 48 fail).
+
+## Web save and resume (2026-10-18)
+
+`RunSave` in cribrogue_ui.js mirrors save_game.gd. The whole state is saved as
+one object graph: every object written once, then referenced (`$r`), so card
+and charm identity holds; catalog objects (charms, Spoilers, Streets, Trials,
+Meldlings, and functions copied out of them, e.g. the Meldling's charm) by
+name; CribRun, CribRound and PegPlay are rebuilt from their prototypes without
+running constructors (no rng draws). makeRng now exposes `state()`; a seeded
+rng resumes from it, an unseeded run stays on Math.random (deck order, shop and
+Spoilers are saved, so a reload can't reroll them). Saved to localStorage
+`meldlings.run.v1` at: intro, every deal render (keep picks included), after a
+count settles (resume skips the cascade), every The Play render (mid-beat
+resumes by playing the Spoiler's answer), a won round (resumes into the shop),
+every shop render. Cleared on a lost or won run. Not saved in the guided round.
+The title shows CONTINUE, and PLAY becomes NEW RUN.
+
+`web/save_check.js`: a bot plays 6 seeds through the real UI buttons straight
+and with the page killed every 2 and every 5 saves (910 kills, all seven save
+kinds); every decision and the end state match. Mutations caught: the mid-beat
+answer skipped, rng state off by one, identity lost, "counted" resumed as a
+fresh deal screen (that one used to hang the check; it now fails with a
+message).
+
+## Meldlings 2.0 in Godot (2026-10-18)
+
+Art: `tools/make_meldlings2.py` (the source; 42 sprites in 2.4 s) writes
+`art/meldlings2/`, copied to `godot/art/meldlings2/`. Six poses each (idle,
+eager, nervous, cheer, victory, deflated) plus a signature: pip fifteen, thump
+slam, clover lucky, facet sparkle, nib snip, muggins steal.
+
+- `ui/meld/meld_react.gd` MeldReact: event to pose, pure. deal: eager, or
+  nervous on the last deal while short; count: the signature on its own rule
+  (Pip a fifteen, Thump a pair, Clover a cut worth 4+, Facet a flush, Nib an
+  auto re-cut, Muggins any count on a Spoiler round), else cheer at a third of
+  the target (min 20), else nothing; round won: victory; run lost: deflated.
+- `ui/meld/meld_sprite.gd` MeldSprite: holds a reaction (MeldReact.HOLD), then
+  idle; victory and deflated hold. Idle bob and a per-axis spring on scale
+  (damping 1.0, response 0.35 s; 0.6 on cheer and victory), squash from the
+  feet. Fixed 1/240 s substeps: a long frame flattened the intro sprite before
+  that (caught in the renders, now tested). `reduce_motion`: no bob, no squash,
+  a 0.18 s cross-fade. Not yet wired to the iOS setting (unverified).
+- `ui/meld/haptics.gd` Haptics.pulse(ms) on the same call as the reaction:
+  25 ms on cheer and signatures, 35 on slam, 70 on victory. Phone only.
+- Placed: title parade (six, out of step), picker (locked = silhouette), round
+  intro, keep screen (right of the count, above the hand; reacts on the deal
+  and when the count's total lands), round end (victory / deflated), The Play
+  (between the pile and your hand; cheers when you peg).
+- `tests/meld_test.gd` (141 checks): every event for all six, signatures only on
+  their own rule and beating a plain cheer, art exists, hold and return to
+  idle, haptics, locked, Reduce Motion, long frames, no rng drawn, the real
+  screens. Mutations caught: nervous on any last deal, cheer beating the
+  signature (missed at first; the check was added), never returning to idle,
+  no haptic, the old spring.
+
+## Spoilers as characters (2026-10-19)
+
+Art: `make_meldlings2.py spoilers` (also part of a full run) draws every
+Spoiler art id at each severity it is used with (CribData.BOSS_POOL: 9 art ids,
+15 combinations, 5 poses, 75 sprites, 3.4 s) into `art/spoilers/`, copied to
+`godot/art/spoilers/` as `spoiler_<art>_s<sev>_<pose>.png`. Villain read: a
+heavier outline, fierce brows, a silhouette or prop per rule (The Auditor a
+ledger with spectacles, Famine gaunt with a bowl, Shortstop / Shears a jester,
+Blight a stump, Leaden / Chains / Iron Grip a block with a padlock, The Thief /
+The Levy a masked sack, Miser's Curse a crowned kingpin, The Fog / The Hush a
+cloud, Eclipse a dark disc with a corona). Severity: 2 darker and colder, 3
+darkest with red eyes and a red glow.
+
+`ui/meld/spoiler_sprite.gd` SpoilerSprite extends MeldSprite (same motion):
+count: stung when the count makes its share of the target (target over the
+round's starting deals), else smug when its rule took points (res.suppressed),
+else nothing; peg: smug; round won: defeated; run lost: gloat (both hold). No
+haptics of its own. Placed: boss intro, keep screen on Spoiler rounds only
+(left, opposite your Meldling), The Play (right, its score under it; a round
+with no Spoiler gets the table's jester, art jokester sev 1), round end beside
+your Meldling on a Spoiler round.
+
+`tests/spoiler_test.gd` (130 checks). Mutations caught: smug checked before
+stung, share off by one, end poses not holding, the Spoiler on every round, the
+Spoiler covering its score.
+
+## The juice layer (2026-10-19)
+
+Presentation only; no await; Reduce Motion (MeldSprite.reduce_motion) skips
+particles, shake, slides and the press spring.
+
+- Surfaces: `tools/make_surfaces.py` (1.5 s) writes tileable felt (round,
+  spoiler, menu), a wood rail and a vignette to `art/surfaces/` (copied to
+  `godot/art/surfaces/`). `ui/fx/surface.gd` Surface replaces every flat
+  background: menu felt on the front door, round felt elsewhere, the darker
+  spoiler felt on Spoiler rounds (keep screen, The Play, intro, round end); a
+  wood rail along the shop's top and The Play's table edge above your hand.
+- `ui/fx/juice.gd` Juice: burst(at, count, colours) draws its own particles;
+  shake(strength, ms) decays and restores the target. Own fixed-seed rng.
+  Fires: a big count (MeldReact.big_count) bursts from the counted hand and
+  shakes the keep screen; 31 in The Play bursts, shakes and buzzes 40 ms; a
+  cleared round bursts; a legendary purchase bursts and buzzes 50 ms. RunFlow's
+  page-level Juice doesn't shake (the page is what slides; a shake there would
+  fight the spring), so the round end and shop burst without a shake.
+- Glow (`ui/fx/glow.gd`): a gold outline on the cascade's fifteen lines and on
+  The Play's total at 31.
+- Press (`ui/fx/press.gd`): every button in the tree (Press.watch on the
+  SceneTree's node_added) scales to 0.97 and brightens on touch-down and
+  springs back on release, and is at least 81 px (44 pt) tall, grown about its
+  centre and kept by custom_minimum_size through re-layouts.
+- RunFlow page changes slide: the new page from the right, the old one out to
+  the left on the same path, spring damping 1.0, response 0.35 s, fixed
+  substeps. Interruptible: a change mid-slide drops the leaving page and
+  starts beyond the current one. A resize redraws in place (no slide). The
+  leaving page takes no input.
+- `tests/juice_test.gd` (88+ checks). Mutations caught: bursts ignoring Reduce
+  Motion, the big-count threshold off by one, every cascade line glowing, the
+  81 px minimum lost on re-layout (missed at first: the check now re-lays out),
+  a 40 px minimum (missed at first: the test read the threshold from the code
+  under test; now a literal 81), the leaving page never freed, any purchase
+  bursting.
+- Broke and fixed in this pass: KeepScreen's Juice was only added to the tree on
+  a big count, so it leaked on every other screen (screen_leak_test: +24
+  objects over 11 screens; now 0). The title parade overlapped the buttons at
+  720x1280 (front_door_test); it now sizes to the space left. The guide coach
+  outlived its round on the leaving page (guide_test); `_clear` frees it now.
+  front_door_test and run_flow_test measured pages mid-slide; they call the new
+  `RunFlow.settle()` before measuring.
+
+## Audio (2026-10-19)
+
+`tools/make_audio2.py` (9 s) renders the WEB synth offline: every voice(),
+noise(), kick(), snare() and hat() from web/audio.js and its call sites,
+transcribed with the same oscillator, frequency, slide, detune, vibrato,
+attack, exponential decay, gain, filter and delay send, through the web's
+shared delay (0.18 s, feedback 0.28, wet 0.30) and limiter. 44 one-shots
+(`audio2/sfx/*.wav`, 3.2 MB) and 10 seamless 8-bar loops (`audio2/music/*.ogg`,
+1.7 MB; the tail is wrapped onto the head), copied to `godot/audio/`. The
+docstring maps each web call to its id.
+
+`ui/fx/sound.gd` Sound: play(id, pitch) from a pool of 8 voices (oldest
+stolen), tick(kind, index) climbing the web's pentatonic ladder, music(ctx) with
+a 0.6 s crossfade, mute and volume saved in the Achv store (sound_muted,
+sound_volume), and everything paused while the app is backgrounded
+(NOTIFICATION_APPLICATION_PAUSED / FOCUS_OUT).
+
+Where it plays (in the same call as the haptic and juice):
+- Reactions: MeldReact.SOUND (eager select, nervous deselect, cheer level,
+  victory win, deflated lose, and each signature); Spoiler smug plays the web's
+  Spoiler voice, stung a sour note, defeated and gloat are silent (your win or
+  lose plays). The round-end page's sprites react quiet: its win / lose plays
+  once, as the web's cribRoundEnd.
+- Press: a click on every touch-down.
+- Cascade: a tick per scoring line, rising; the gild, cut and level lines'
+  notes; at the slam, ramp_burst, slam_1..3 by ratio, and the tier's chord.
+- Cut ceremony: a strike every 90 ms of the roll, climbing (280 + 34n Hz), and
+  the landing per tier.
+- Keep screen: deal, select, mulligan and the throw to the crib.
+- The Play: a lay ticks by points (or places), 31 slams, the payout plays win
+  or bad.
+- Shop: buy, a legendary's fanfare, level, reroll, sell.
+- Music: menu on the front door; the intro picks boss, endless or act 1..5 as
+  the web does (RunFlow.music_for); shop; The Play.
+
+Not ported: the web's live tension ramp that rises under a count (only its
+final burst is here), and the music's proximity filter (opens as you near the
+target). Both need live synthesis or a filter bus; unverified whether the
+count feels thinner without them. The deed and guide sounds exist but have no
+Godot screen yet.
+
+`tests/sound_test.gd` (127 checks). Mutations caught: mute ignored, the pool
+growing, ticks not climbing, boss music on every intro, the sound a frame
+after the haptic, no pause in the background, mute not saved.
+
+## The remaining screens (2026-10-19)
+
+`ui/front/menus.gd` Menus, as FrontDoor steps reached from a new icon row on
+the title (Deeds, Gallery, Record, How to play, Settings): they share the front
+door's felt, menu music, press feedback and 44 pt buttons. Front-door steps
+don't slide the page (only RunFlow page changes do).
+
+- Deeds: web showDeeds, word for word (secret deeds read "???" / "A hidden
+  deed." until earned).
+- Record: web showHistory. By Meldling sorted by average (stable on ties, as the
+  web's sort), with the Meldling's sprite; last ten with lost runs as "Fell A-R".
+  The web labels the average "average act reached" but it's rounds reached;
+  ported as the web shows it.
+- Gallery: web showGallery's six tabs. Meldlings and Spoilers now show the new
+  art: a portrait and every pose (7 per Meldling, 5 per Spoiler), locked
+  Meldlings as silhouettes. Owned backs equip on tap.
+- How to play: web showTutorial's six beats, the new art (Kingpin as the
+  Spoiler beat), the same card illustrations; PLAY marks it done and goes to
+  the roads.
+- Settings: Sound on or off, volume (25% steps), Reduce Motion, count speed
+  (1x, 2x, 4x); all saved and applied at start (`Menus.apply`). Godot 4.3
+  exposes no OS Reduce Motion setting, so it starts off until chosen
+  (unverified on iOS: a native plugin could read it).
+- Deed toasts (`ui/fx/deed_toast.gd`): web announceDeeds / pumpDeeds, queued,
+  3.4 s each, the deed sound and a 20 ms buzz; it lives on RunFlow, so a page
+  change doesn't cut it short. Found while porting: the port never checked the
+  count's deeds (web doCribCount calls Achv.check("count"): 40+ hand, 29, his
+  heels, the cut saving the round, five best keeps in a row). KeepScreen now
+  does, on the real commit, and RunFlow announces round and run deeds too.
+
+`tools/parity/gen_menus.js` renders the WEB's screens for four stores and every
+How to play step into `godot/tests/fixtures/menus.json` (twice: identical).
+`tests/menus_test.gd` (247 checks: per screen title 20, deeds 4, record 4,
+gallery 24, how to play 14, settings 7, toast 5, plus buttons and dashes)
+compares every screen's texts, in order, against them. Mutations caught: a lost
+run's round, secret names shown, the Spoiler's suit dropped, a word changed in
+How to play, Reduce Motion not saved, toasts not queuing (missed at first: the
+test now announces mid-toast).
+
 ## Found, not fixed: Ziah's call
 
 | what | where | detail |
 |---|---|---|
 | ~~Skips are dead~~ (removed 2026-10-18) | web and Godot | `skipProgress`/`skips` are never incremented, so SKIP THIS ROUND only appears if something sets `run.skips`. DEPTH.md and SUBTRACTION.md describe overshoot accrual (100 x overshoot / target toward a Skip; 100 = one Skip). The web's round-end line still reads a leftover `run.surplus`. Restoring it is a balance change: simulate first |
 | ~~`noCashOut` is dead~~ (now: no early-clear bonus, 2026-10-18) | web and Godot | merged in `rules()` but never read; the web ends a round the moment the target falls. So Stink Hole and Skunk Line's "every round runs full" does nothing. Godot now matches the web (it used to honour the rule, which was a parity break) |
-| Recut charm and Steady Hand do nothing without Foresight | web and Godot | Recut only shows while the starter is face up before the keep (Foresight). Nib had the same problem (fixed in balance2) |
-| Lost runs aren't in the history | web and Godot | `logRun` only runs on a won run |
-| "Best Act 1-0" | web and Godot | lose on round 1 only and the title line reads Act 1-0 (JS remainder of -1) |
+| ~~Recut charm and Steady Hand do nothing without Foresight~~ (fixed 2026-10-18, recuts2) | web and Godot | see "Recuts2" |
+| ~~Lost runs aren't in the history~~ (fixed 2026-10-18) | web and Godot | lost runs now logged, shown as "Fell A-R" |
+| ~~"Best Act 1-0"~~ (fixed 2026-10-18) | web and Godot | reads "Best: no round cleared"; the web's run-won screen also printed the line twice |
+| Foresight looks weak for the bot | sims | forced build, 400 runs: Foresight 9.3-11.5% vs 12.8-15% with nothing (Pip, Thump). The bot's recut policy is crude, so this is unverified for humans. Not acted on |
 
 ## Port bugs found by UI tests
 
@@ -437,3 +674,73 @@ variant (29.3%) was rejected for rivalling Usury. Checks: `web/balance_check.js`
 `web/collector_check.js` (both fail on the old engine). The GDScript Collector
 matches cards by identity (is_same), not Array.has, which compares
 Dictionaries by value and would credit duplicate cards with each other's events.
+
+## App Store readiness (pass 8)
+
+- Icon: `python3 tools/make_appicon.py godot/ios/icons` (Pip cheering on green felt, 11 sizes, opaque RGB).
+- Launch screen: `godot/tests/launch_shot.gd` renders the title's first frame to `godot/ios/launch.png`; used as the boot splash and the storyboard image.
+- Screenshots: render each state with `SHOT_SIZE=WxH`, then `python3 tools/make_store_shots.py store/screenshots`. 18 files: 6 shots at 6.9in (1320x2868), 6.5in (1284x2778) and 5.5in (1242x2208). iPhone only, so no iPad set.
+- Export (Linux, Xcode project only): `godot --headless --path godot --export-release "iOS" ../build/ios/Meldlings.ipa`. Portrait, iPhone only, iOS 14+, privacy manifest C617.1, 35F9.1, E174.1, CA92.1, no tracking (copy in `godot/ios/PrivacyInfo.xcprivacy`).
+- Needs a Mac: set the real Team ID and bundle id (placeholders ABCDE12345 and com.example.meldlings), build and sign in Xcode, run on a simulator or device, archive, upload to App Store Connect, TestFlight.
+
+## Dynamic Type and Reduce Motion (pass 9)
+
+Godot 4.3 can't read either iOS setting: its class reference (863 classes,
+`godot --doctool`) has no Reduce Motion, content size or accessibility API.
+What ships without a Mac:
+- Text: every size passes `TypeScale.px()` (20 px = 11 pt floor) times the
+  Settings "Text size" choice (Standard 1.0, Large 1.15, Larger 1.3).
+- Motion: the Settings "Reduce Motion" switch (no shake, particles, bounces;
+  menu and page moves cross-fade, cards land without travel).
+- The hook: `Menus.os_access()` looks for an engine singleton `MeldAccess`.
+  When present, the phone's settings are followed until the player picks their
+  own, and its `changed` signal re-applies at once (tests/os_access_test.gd
+  plays it with a stand-in).
+
+The plugin, to build on a Mac (Godot iOS plugin: a `.gdip` plus a static
+library, `ios/plugins/meld_access/`), registers `MeldAccess` with:
+- `reduce_motion() -> bool`: `UIAccessibility.isReduceMotionEnabled`
+- `content_size() -> String`: `UIApplication.sharedApplication.preferredContentSizeCategory`
+  (for example `UICTContentSizeCategoryXL`)
+- signal `changed`, sent on `UIAccessibilityReduceMotionStatusDidChangeNotification`
+  and `UIContentSizeCategoryDidChangeNotification`
+Then tick it under Plugins in the iOS export preset. Unverified until built.
+
+## On a Mac: build to TestFlight
+
+1. Install Xcode (current release) and sign in with the Apple Developer account.
+2. Developer account: note the Team ID (10 characters, Membership page). Create
+   an App ID with the real bundle id (replace `com.example.meldlings`).
+3. In `godot/export_presets.cfg` (or the Godot editor's iOS preset) set
+   `application/app_store_team_id` (replace `ABCDE12345`) and
+   `application/bundle_identifier`. Keep `export_project_only=true`.
+4. Export: `godot --headless --path godot --export-release "iOS" ../build/ios/Meldlings.ipa`,
+   then open `build/ios/Meldlings.xcodeproj`.
+5. Xcode, Signing & Capabilities: tick "Automatically manage signing", pick the team.
+6. Simulator check (audit #18, safe areas): run on iPhone 16 Pro Max, iPhone SE
+   (3rd gen) and an iPhone with a Dynamic Island. On every screen, nothing under
+   the island, the notch or the home bar; buttons reachable. Also turn on
+   Settings > Accessibility > Reduce Motion and Larger Text once the plugin is in.
+7. Run on a real iPhone once: haptics, sound with the ring switch, frame rate.
+8. Product > Archive, then Distribute App > App Store Connect > Upload.
+9. App Store Connect: create the app (same bundle id), add the 18 screenshots
+   from `store/screenshots/`, the privacy answers (no data collected; matches
+   `godot/ios/PrivacyInfo.xcprivacy`), then add the build to TestFlight.
+10. Install from TestFlight, play a full run, then submit for review.
+
+## Pass 10 notes
+
+- Body text: `TypeScale.BODY` (31 px, 17 pt) for every description a player
+  reads; set through `TypeScale.set_size()`, which keeps the base size on the
+  node so `TypeScale.relayout()` can restyle a live screen.
+- The MeldAccess plugin source is in `ios_plugin/meld_access/` (README has the
+  build steps). Unverified until built on a Mac.
+
+## Pass 11 notes
+
+- Listing: `store/listing.md`; check with `godot --headless --path godot --script res://tests/listing_counts.gd && python3 tools/check_listing.py --counts /tmp/listing_counts.json`.
+- App preview: `tools/make_preview.sh` (needs xvfb and ffmpeg), checked by `tools/check_preview.py`.
+- Soak: `tools/soak.sh 200` (about 20 min here).
+- Startup warm-up: `Warm.run()` in `RunFlow._ready` (assets and one hidden build of the keep screen and shop; no state).
+- Screens redraw on a resize only when their size or the text scale changed (`TypeScale.layout_key`).
+- Mac steps: `docs/MAC_HANDOFF.md`.

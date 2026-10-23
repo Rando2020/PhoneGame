@@ -237,6 +237,12 @@ static func count_hand_core(hand: Array, starter, is_crib := false, mods: Dictio
 					"points": JS.nn(mods, "nobsPoints", 1), "cards": [c]})
 				break
 
+	# catScale (pass 20): a category's points scaled this round (the Shortage)
+	var cs = mods.get("catScale")
+	if cs != null:
+		for e in events:
+			if cs.has(e.kind):
+				e.points = e.points * cs[e.kind]
 	var base = 0
 	for e in events:
 		base += e.points

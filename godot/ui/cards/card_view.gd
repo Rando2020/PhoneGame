@@ -8,6 +8,11 @@ extends Control
 
 signal pressed(card_view: CardView)
 signal drag_started(card_view: CardView)
+## A drag let go: how far the card travelled (global px) and how fast it was
+## moving (px/s). The owner decides what that means; a tap is `pressed`.
+signal drag_ended(card_view: CardView, travel: Vector2, velocity: Vector2)
+
+const DRAG_SLOP := 12.0       ## px before a touch becomes a drag (a tap below)
 
 enum State { NORMAL, SELECTED, VALID, INVALID, DIM }
 
@@ -35,6 +40,7 @@ var _base_pos: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
+	set_process(false)          # only while a spring carries the card (release_to)
 	custom_minimum_size = Vector2(CardArt.BASE_W, CardArt.BASE_H) * PIXEL_SCALE
 	size = custom_minimum_size
 	pivot_offset = size * 0.5
@@ -243,7 +249,12 @@ func settle(animate: bool = true) -> void:
 func _animate_to(target: Vector2, animate: bool) -> void:
 	if _tween and _tween.is_valid():
 		_tween.kill()
-	if not animate:
+	if _dragging:
+		return                     # the finger owns it; release_to takes over
+	if _spring_on:
+		_spring_to = target        # a moving card retargets without a jump
+		return
+	if not animate or MeldSprite.reduce_motion:
 		position = target
 		return
 	_tween = create_tween()
@@ -254,6 +265,7 @@ func _animate_to(target: Vector2, animate: bool) -> void:
 func flash_reject() -> void:
 	if _tween and _tween.is_valid():
 		_tween.kill()
+	_spring_on = false
 	_tween = create_tween()
 	_tween.tween_property(self, "position", _base_pos + Vector2(6, 0), 0.05)
 	_tween.tween_property(self, "position", _base_pos + Vector2(-6, 0), 0.05)
@@ -265,30 +277,105 @@ func _gui_input(event: InputEvent) -> void:
 	# (input_devices/pointing/emulate_mouse_from_touch, pinned in project.godot).
 	# Also handling InputEventScreenTouch fired `pressed` twice per tap
 	# (measured in tests/screen_test.gd), and the second read as a double-tap.
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		pressed.emit(self)
+	# A tap fires on release; a touch that travels DRAG_SLOP becomes a 1:1 drag.
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_down = true
+			_dragging = false
+			_down_at = event.global_position
+			_grab = get_global_transform().affine_inverse() * event.global_position   # card-local
+			_vel = Vector2.ZERO
+			_last_t = Time.get_ticks_usec()
+			_last_p = event.global_position
+			_rest_scale = scale
+			scale = _rest_scale * 0.97         # touch-down feedback, at once
+		elif _down:
+			_down = false
+			scale = _rest_scale
+			if _dragging:
+				_dragging = false
+				z_index = 0
+				if Time.get_ticks_usec() - _last_t > 50000:
+					_vel = Vector2.ZERO      # the finger stopped before it lifted
+				drag_ended.emit(self, event.global_position - _down_at, _vel)
+			else:
+				pressed.emit(self)
+		accept_event()
+	elif event is InputEventMouseMotion and _down:
+		var p: Vector2 = event.global_position
+		if not _dragging and draggable and face_up and p.distance_to(_down_at) >= DRAG_SLOP:
+			_dragging = true
+			z_index = 10
+			scale = _rest_scale
+			if _hover_tween and _hover_tween.is_valid():
+				_hover_tween.kill()          # the finger holds it still: no sway under it
+			rotation = base_rotation
+			_spring_on = false
+			if _tween and _tween.is_valid():
+				_tween.kill()
+			drag_started.emit(self)
+		if _dragging:
+			# 1:1: the point you grabbed stays under your finger
+			global_position += p - get_global_transform() * _grab
+			var now := Time.get_ticks_usec()
+			var dt := maxf(0.001, float(now - _last_t) / 1e6)
+			_vel = _vel.lerp((p - _last_p) / dt, 0.6)
+			_last_t = now
+			_last_p = p
 		accept_event()
 
 
-func _get_drag_data(_at_position: Vector2) -> Variant:
-	if not draggable or not face_up:
-		return null
+var _down := false
+var _rest_scale := Vector2.ONE  ## the scale the owner set (The Play draws cards small)
+var _dragging := false
+var _down_at := Vector2.ZERO
+var _grab := Vector2.ZERO       ## the grabbed point, in card-local coordinates
+var _vel := Vector2.ZERO        ## px/s, smoothed over the last moves
+var _last_t := 0
+var _last_p := Vector2.ZERO
+var _spring_on := false
+var _spring_v := Vector2.ZERO
+var _spring_to := Vector2.ZERO
+const SPRING_RESPONSE := 0.32   ## s; critically damped (Apple: damping 1.0)
 
-	var preview := TextureRect.new()
-	preview.texture = CardArt.face(rank, suit)
-	preview.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	preview.stretch_mode = TextureRect.STRETCH_SCALE
-	preview.size = size
-	preview.modulate.a = 0.9
 
-	var holder := Control.new()
-	holder.add_child(preview)
-	preview.position = -size * 0.5
-	set_drag_preview(holder)
+func is_dragging() -> bool:
+	return _dragging
 
-	drag_started.emit(self)
-	return {"type": "card", "source": self, "card": as_data()}
+
+## Hand the release velocity to a spring that carries the card to `target`
+## (local), so the motion continues instead of restarting.
+func release_to(target: Vector2, velocity: Vector2) -> void:
+	if _tween and _tween.is_valid():
+		_tween.kill()
+	_spring_to = target
+	_spring_v = velocity
+	_spring_on = true
+	set_process(true)
+	if MeldSprite.reduce_motion:
+		position = target
+		_spring_on = false
+
+
+func spring_velocity() -> Vector2:
+	return _spring_v if _spring_on else Vector2.ZERO
+
+
+func _process(delta: float) -> void:
+	if not _spring_on:
+		set_process(false)
+		return
+	var w := TAU / SPRING_RESPONSE
+	var left := minf(delta, 0.25)
+	while left > 0.0:
+		var h := minf(left, 1.0 / 240.0)
+		_spring_v += ((_spring_to - position) * w * w - _spring_v * 2.0 * w) * h
+		position += _spring_v * h
+		left -= h
+	if position.distance_to(_spring_to) < 0.5 and _spring_v.length() < 20.0:
+		position = _spring_to
+		_spring_on = false
+		set_process(false)
 
 
 # ------------------------------------------------------------------ flourishes

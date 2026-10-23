@@ -20,7 +20,7 @@ const TUT_STEPS = [
     body: "Charms multiply your count. Marks sit on individual cards. Buy both at the Peg House between rounds. You have five charm slots, so choose.",
     art: "clover", anchor: "shop" },
   { title: "Spoilers",
-    body: "Every fifth round is a Spoiler with a rule that breaks something. You can see all five at the start of a run. Build for them.",
+    body: "Every third round is a Spoiler with a rule that breaks something. You can see all five at the start of a run. Build for them.",
     art: "kingpin", anchor: "boss" },
 ];
 
@@ -150,7 +150,7 @@ const GUIDE_BEATS = [
   { at: "done",
     title: "That's the loop.",
     body: "Clear the target before your deals run out. Spend Glim between rounds on " +
-          "charms and cards. Every fifth round is a Spoiler that breaks a rule. " +
+          "charms and cards. Every third round is a Spoiler that breaks a rule. " +
           "Everything else you'll pick up as you go.",
     look: null },
 ];

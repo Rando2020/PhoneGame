@@ -17,14 +17,20 @@ const INK := Color(0.96, 0.93, 0.88)
 const DIM := Color(0.96, 0.93, 0.88, 0.55)
 const GOLD := Color(0.91, 0.71, 0.30)
 const RED := Color(0.93, 0.38, 0.38)
+const GREEN := Color(0.43, 0.79, 0.54)
 const DECK_TINT := Color(0.91, 0.71, 0.30)
 const MARGIN := 24.0
 const MAX_COLUMN := 920.0
 const STALL_SCALE := 0.75
 
 var run
+var juice: Juice = null    ## set by RunFlow: a legendary purchase bursts
 var sell_buttons := {}
 var offer_buttons := {}
+signal first_charm(ch: Charm)   ## a charm bought for the first time ever (pass 19)
+var upgrade = null              ## Upgrade.best() for this render, or null
+const OFFER_ICON := 64.0        ## an offer row's charm icon (pass 19)
+var upgrade_label: Label = null
 var card_buttons := {}
 var level_buttons := {}
 var reroll_button: Button
@@ -39,11 +45,9 @@ var _toast_tween: Tween
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	var bg := ColorRect.new()
-	bg.color = BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	add_child(Surface.make("round"))
+	Surface.rail(self, 0.0, 4096.0, 22.0)      # the shop counter's wood rail, along the top
+	Press.watch(self)
 	_scroll = ScrollContainer.new()
 	_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -58,17 +62,30 @@ func _ready() -> void:
 		render()
 
 
-func open(run_) -> void:
+func open(run_, staged := false) -> void:
 	run = run_
 	if run.shop_state == null:
 		run.open_shop()
 	if is_node_ready():
+		if staged:
+			render_staged()
+		else:
+			render()
+
+
+var _drawn_for := Vector3(-1, -1, -1)   ## TypeScale.layout_key at the last draw
+
+
+## Deferred, like RunFlow's: a resize can land mid-draw, so the size is
+## compared once the draw is done.
+func _redraw_if_moved() -> void:
+	if _content != null and run != null and TypeScale.layout_key(self) != _drawn_for:
 		render()
 
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED and _content != null and run != null:
-		render()
+		_redraw_if_moved.call_deferred()
 
 
 # ------------------------------------------------------------------ actions
@@ -76,11 +93,28 @@ func _notification(what: int) -> void:
 func buy_charm(ch: Charm) -> bool:
 	if ch.cost > run.essence or run.is_full():
 		return false
+	_flight_from = null
+	_flight_id = ch.id
+	var row = offer_buttons.get(ch.id)
+	if row != null:
+		for t in row.find_children("*", "TextureRect", true, false):
+			if t.get_meta("charm_icon", "") == ch.id:
+				_flight_from = t.get_global_rect()
 	run.essence -= ch.cost
 	run.charms.append(ch)
 	if ch.on_acquire.is_valid():
 		ch.on_acquire.call(run)
 	run.shop_state.offer = run.shop_state.offer.filter(func(x): return x.id != ch.id)
+	if Collection.mark(ch.id, Collection.OWNED):
+		first_charm.emit(ch)        # once per charm, ever: RunFlow's toast celebrates
+	if ch.rarity == "legendary":
+		Sound.play("milestone")
+		if juice != null:
+			juice.burst(size / 2.0, 46, ["gold", "white", "green"])
+			juice.shake(6.0, 240.0)
+		Haptics.pulse(50)
+	else:
+		Sound.play("buy")
 	_after("charm", "Bought %s" % ch.name)
 	return true
 
@@ -90,6 +124,7 @@ func buy_card(i: int) -> bool:
 	if entry.get("sold", false) or not run.buy_card(entry):
 		return false
 	entry["sold"] = true
+	Sound.play("buy")
 	_after("card", "Added %s to your deck" % Cribbage.card_str(entry.card))
 	return true
 
@@ -97,6 +132,7 @@ func buy_card(i: int) -> bool:
 func do_reroll() -> bool:
 	if not run.reroll():
 		return false
+	Sound.play("cut")
 	_after("reroll", "")
 	return true
 
@@ -104,6 +140,7 @@ func do_reroll() -> bool:
 func buy_level(cat: String) -> bool:
 	if not run.buy_level(cat):
 		return false
+	Sound.play("level")
 	_after("level", "%s Reckoning %d" % [cat.capitalize(), run.levels[cat]])
 	return true
 
@@ -116,12 +153,15 @@ func sell(id: String) -> bool:
 	var got: int = run.sell(id)
 	if got == 0:
 		return false
+	Sound.play("toCrib")
 	_after("sell", "Pawned %s for %d Glim" % [name, got])
 	return true
 
 
 func _after(kind: String, msg: String) -> void:
+	var glim_before := _glim_drawn
 	render()
+	_animate_after(kind, glim_before)
 	if msg != "":
 		_toast(msg)
 	acted.emit(kind)
@@ -141,7 +181,7 @@ func _toast(msg: String) -> void:
 func _label(fs: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var l := Label.new()
 	l.horizontal_alignment = align
-	l.add_theme_font_size_override("font_size", fs)
+	TypeScale.set_size(l, fs)
 	l.add_theme_color_override("font_color", col)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
@@ -159,7 +199,7 @@ func _box(col: Color, border: Color, radius := 8) -> StyleBoxFlat:
 func _button(text: String, fs := 22) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", fs)
+	TypeScale.set_size(b, fs)
 	return b
 
 
@@ -175,19 +215,90 @@ func _insets() -> Dictionary:
 	return SafeArea.insets(self)
 
 
+## The draw, in stages that share `c` (x0, col, ins, y). render() runs them
+## all now; open_staged() runs the first now and one per frame after (the
+## page's slide hides the rest arriving), so no frame builds the whole shop.
+func _stages() -> Array:
+	return [_stage_top, _stage_offers, _stage_stall, _stage_bottom]
+
+
 func render() -> void:
+	var c := _begin()
+	for st in _stages():
+		st.call(c)
+
+
+## Staged: the first stage now, the rest one per frame (finish() runs them all).
+func render_staged() -> void:
+	var c := _begin()
+	var st := _stages()
+	st[0].call(c)
+	_pending = st.slice(1)
+	_pending_ctx = c
+	set_process(true)
+
+
+func finish() -> void:
+	while not _pending.is_empty():
+		_pending.pop_front().call(_pending_ctx)
+	set_process(false)
+
+
+func is_building() -> bool:
+	return not _pending.is_empty()
+
+
+func _process(_delta: float) -> void:
+	if _pending.is_empty():
+		set_process(false)
+		return
+	_pending.pop_front().call(_pending_ctx)
+
+
+var _pending: Array = []
+var _pending_ctx := {}
+
+
+var motion := Motion.new()       ## pass 21: purchase flight, settle, Glim tick
+var _glim_drawn := -1             ## the Glim the header last showed (for the tick)
+var _flight_from = null           ## a bought charm's icon rect, before the redraw
+var _flight_id := ""
+var upgrade_pulse: Panel = null   ## the upgrade mark's pulsing border (pass 21)
+const LAND_HAPTIC := 10           ## ms: a bought charm landing in its chip (pass 22)
+
+
+## A tap anywhere finishes whatever is in flight (it lands on the at-rest draw).
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and motion.running():
+		motion.skip()
+
+
+func _begin() -> Dictionary:
+	motion.skip()
+	_drawn_for = TypeScale.layout_key(self)
+	_pending = []
+	set_process(false)
 	for c in _content.get_children():
 		_content.remove_child(c)
 		c.queue_free()
 	sell_buttons.clear()
 	offer_buttons.clear()
+	upgrade_label = null
+	upgrade_pulse = null
 	card_buttons.clear()
 	level_buttons.clear()
 	var ins := _insets()
 	var col := minf(size.x - MARGIN * 2.0, MAX_COLUMN)
 	var x0 := (size.x - col) / 2.0
 	var y: float = ins.top + MARGIN
+	return {"x0": x0, "col": col, "ins": ins, "y": y}
 
+
+func _stage_top(ctx: Dictionary) -> void:
+	var x0: float = ctx.x0
+	var col: float = ctx.col
+	var ins: Dictionary = ctx.ins
+	var y: float = ctx.y
 	# ---- header
 	var head := _place(Panel.new(), Vector2(x0, y), Vector2(col, 76))
 	head.add_theme_stylebox_override("panel", _box(PANEL, Color(INK, 0.12)))
@@ -199,6 +310,7 @@ func render() -> void:
 	head.add_child(title)
 	essence_label = _label(26, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
 	essence_label.text = "%d Glim" % run.essence
+	_glim_drawn = run.essence
 	essence_label.position = Vector2(col * 0.4, 6)
 	essence_label.size = Vector2(col * 0.6 - 14, 34)
 	head.add_child(essence_label)
@@ -220,9 +332,14 @@ func render() -> void:
 		chips.append(ch)
 	var empties: int = maxi(0, run.slots() - run.charms.size())
 	var n := chips.size() + empties
-	var cw := (col - 6.0 * (n - 1)) / n
+	# more than 4 chips: rows of 3, so a name gets ~215 px at 11 pt and up
+	var per := n if n <= 4 else 3
+	var cw := (col - 6.0 * (per - 1)) / per
+	var ch_h := 72.0
 	for i in n:
-		var p := _place(Panel.new(), Vector2(x0 + i * (cw + 6), y), Vector2(cw, 58))
+		var cx := x0 + (i % per) * (cw + 6)
+		var cy := y + (i / per) * (ch_h + 6)
+		var p := _place(Panel.new(), Vector2(cx, cy), Vector2(cw, ch_h))
 		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		if i >= chips.size():
 			p.add_theme_stylebox_override("panel", _box(PANEL, Color(INK, 0.12)))
@@ -230,29 +347,52 @@ func render() -> void:
 		var ch: Charm = chips[i]
 		var tint := DECK_TINT if ch.tier == 0 else Color(CribData.RARITY.get(ch.rarity, CribData.RARITY.common).tint)
 		p.add_theme_stylebox_override("panel", _box(PANEL, tint))
-		# names get the full chip width; a sellable chip keeps a strip at the
-		# top for the x so the two never overlap
-		var top: float = 18.0 if ch.tier != 0 else 2.0
-		var name_w: float = cw - 6.0
-		var name_h: float = 58.0 - top - 2.0
-		var nm := _label(_fit_size(ch.name, name_w, name_h, 14, 8), INK, HORIZONTAL_ALIGNMENT_CENTER)
+		# a sellable chip keeps the right edge for the x so the two never overlap
+		var xw: float = 30.0 if ch.tier != 0 else 0.0
+		var nm := _label(18, INK, HORIZONTAL_ALIGNMENT_CENTER)
 		nm.text = ch.name
-		nm.autowrap_mode = TextServer.AUTOWRAP_WORD
+		nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		nm.position = Vector2(3, top)
-		nm.size = Vector2(name_w, name_h)
+		# the charm's icon (pass 19) on the left; the Meldling's knack has none
+		var iw := 0.0
+		var ic := CharmIcon.make(ch.id, 40.0) if ch.tier != 0 else null
+		# an icon never splits a word: a name's longest word must still fit beside it
+		if ic != null:
+			var f := nm.get_theme_font("font")
+			var fsz := nm.get_theme_font_size("font_size")
+			var room := cw - 8.0 - xw - 42.0
+			var fits := f.get_multiline_string_size(ch.name, HORIZONTAL_ALIGNMENT_CENTER, room, fsz).y <= ch_h - 4.0
+			for word in String(ch.name).split(" "):
+				if f.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x > room:
+					fits = false
+			# and the name must still fit the chip's height beside it (Larger text)
+			if not fits:
+				ic.free()
+				ic = null
+		if ic != null:
+			ic.position = Vector2(4, (ch_h - 40.0) / 2.0)
+			p.add_child(ic)
+			iw = 42.0
+		nm.position = Vector2(4 + iw, 2)
+		nm.size = Vector2(cw - 8.0 - xw - iw, ch_h - 4.0)
 		p.add_child(nm)
 		if ch.tier != 0:
-			# visible x is small; the touch target is the whole top strip corner
-			var x := _button("×", 16)
+			var x := _button("×", 22)
 			x.flat = true
 			x.position = Vector2(cw - 34, 0)
-			x.size = Vector2(34, 26)
+			x.size = Vector2(34, 34)
 			x.pressed.connect(sell.bind(ch.id))
 			p.add_child(x)
 			sell_buttons[ch.id] = x
-	y += 58 + 16
+	y += ceili(float(n) / per) * (ch_h + 6) + 10
+	ctx.y = y
 
+
+func _stage_offers(ctx: Dictionary) -> void:
+	var x0: float = ctx.x0
+	var col: float = ctx.col
+	var ins: Dictionary = ctx.ins
+	var y: float = ctx.y
 	# ---- charm offers + reroll
 	var oh := _label(19, INK)
 	oh.text = "CHARMS ON OFFER"
@@ -266,6 +406,10 @@ func render() -> void:
 	var owned := {}
 	for c in run.charms:
 		owned[c.id] = true
+	# the collection (pass 19): every offer shown is now seen (idempotent)
+	Collection.mark_all(run.shop_state.offer.map(func(x): return x.id), Collection.SEEN)
+	# the upgrade mark (LOOP_AUDIT 3): measured on this run's counts, not guessed
+	upgrade = Upgrade.best(run, run.shop_state.offer) if full else null
 	for ch in run.shop_state.offer:
 		if owned.has(ch.id):
 			continue
@@ -278,45 +422,83 @@ func render() -> void:
 		b.add_theme_stylebox_override("disabled", _box(PANEL, Color(tint, 0.35)))
 		b.disabled = ch.cost > run.essence or full
 		b.pressed.connect(buy_charm.bind(ch))
-		var nm := _label(21, INK)
+		# the charm's icon (pass 19), then its name, rarity and text beside it
+		var lx := 14.0
+		var oic := CharmIcon.make(ch.id, OFFER_ICON)
+		if oic != null:
+			oic.position = Vector2(10, 10)
+			b.add_child(oic)
+			lx = 10.0 + OFFER_ICON + 10.0
+		var nm := _label(28, INK)
 		nm.text = ch.name
-		nm.position = Vector2(14, 6)
-		nm.size = Vector2(col * 0.55, 28)
+		nm.position = Vector2(lx, 6)
+		nm.size = Vector2(col * 0.55 - lx + 14.0, 28)
 		b.add_child(nm)
 		var rt := _label(15, tint)
 		rt.text = CribData.RARITY[ch.rarity].name
 		rt.position = Vector2(col * 0.55, 10)
 		rt.size = Vector2(col * 0.45 - 90, 24)
 		b.add_child(rt)
-		var tx := _label(15, DIM)
+		var tx := _label(TypeScale.BODY, DIM)
 		tx.text = ch.text
 		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tx.position = Vector2(14, 36)
-		tx.size = Vector2(col - 110, 48)
+		tx.position = Vector2(lx, nm.position.y + nm.get_minimum_size().y - 2.0)
+		tx.size = Vector2(col - 96 - lx, 0)
 		b.add_child(tx)
+		var bottom := tx.position.y + tx.get_minimum_size().y
+		if upgrade != null and upgrade.offer == ch:
+			var up := _label(TypeScale.BODY, GREEN)
+			up.text = "UPGRADE over %s: +%d on your last %d counts" % [upgrade.over.name, upgrade.gain, upgrade.counts]
+			up.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			# the charm it would replace, as a small icon before the line
+			var ux := lx
+			var over_ic := CharmIcon.make(upgrade.over.id, 28.0)
+			if over_ic != null:
+				over_ic.position = Vector2(lx, bottom + 2.0)
+				b.add_child(over_ic)
+				ux = lx + 32.0
+			up.position = Vector2(ux, bottom)
+			up.size = Vector2(col - 96 - ux, 0)
+			b.add_child(up)
+			upgrade_label = up
+			bottom = up.position.y + up.get_minimum_size().y
+			_pulse_later = b
+		var row_h := maxf(OFFER_ICON + 20.0 if oic != null else 88.0, maxf(88.0, bottom + 6.0))
+		b.size.y = row_h
 		var cost := _label(26, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
 		cost.text = str(ch.cost)
 		cost.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		cost.position = Vector2(col - 80, 0)
-		cost.size = Vector2(66, 88)
+		cost.size = Vector2(66, row_h)
 		b.add_child(cost)
 		if b.disabled:
+			# (the upgrade line stays bright: it's why you'd pawn a charm)
 			for k in [nm, tx, cost]:
 				k.modulate.a = 0.45
 		offer_buttons[ch.id] = b
-		y += 88 + 8
+		if _pulse_later == b:
+			_pulse(b)
+			_pulse_later = null
+		y += row_h + 8
 	if full:
 		var fl := _label(16, RED)
 		fl.text = "Every charm slot is spoken for. Pawn one first."
 		_place(fl, Vector2(x0, y), Vector2(col, 24))
 		y += 26
 	y += 10
+	ctx.y = y
 
+
+func _stage_stall(ctx: Dictionary) -> void:
+	var x0: float = ctx.x0
+	var col: float = ctx.col
+	var ins: Dictionary = ctx.ins
+	var y: float = ctx.y
 	# ---- the stall
 	var sh := _label(19, INK)
 	sh.text = "THE STALL  ·  take a card into your deck"
 	_place(sh, Vector2(x0, y), Vector2(col, 28))
-	y += 30
+	y += 38
 	var shown := []
 	for i in run.shop_state.cards.size():
 		if not run.shop_state.cards[i].get("sold", false):
@@ -352,38 +534,44 @@ func render() -> void:
 			card_buttons[i] = b
 		y += card_sz.y + 26 + 40
 	y += 16
+	ctx.y = y
 
+
+func _stage_bottom(ctx: Dictionary) -> void:
+	var x0: float = ctx.x0
+	var col: float = ctx.col
+	var ins: Dictionary = ctx.ins
+	var y: float = ctx.y
 	# ---- Reckonings
 	var rh := _label(19, INK)
 	rh.text = "RECKONINGS  ·  +%d base per scoring event, each level" % CribData.LEVEL_GAIN
+	rh.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_place(rh, Vector2(x0, y), Vector2(col, 28))
-	y += 30
+	rh.size.y = maxf(28.0, rh.get_minimum_size().y)
+	y += rh.size.y + 2.0
 	var lw := (col - 8.0 * 3) / 4.0
 	var li := 0
+	var tile_h := 84.0
 	for cat in CribData.LEVEL_CATS:
 		var cost: int = run.level_cost_for(cat)
 		var b := Button.new()
 		_place(b, Vector2(x0 + li * (lw + 8), y), Vector2(lw, 84))
 		b.disabled = run.essence < cost
 		b.pressed.connect(buy_level.bind(cat))
-		var t1 := _label(17, INK, HORIZONTAL_ALIGNMENT_CENTER)
-		t1.text = cat
-		t1.position = Vector2(0, 4)
-		t1.size = Vector2(lw, 24)
-		b.add_child(t1)
-		var t2 := _label(20, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-		t2.text = "%d → %d" % [run.levels[cat], run.levels[cat] + 1]
-		t2.position = Vector2(0, 28)
-		t2.size = Vector2(lw, 26)
-		b.add_child(t2)
-		var t3 := _label(16, DIM, HORIZONTAL_ALIGNMENT_CENTER)
-		t3.text = str(cost)
-		t3.position = Vector2(0, 56)
-		t3.size = Vector2(lw, 22)
-		b.add_child(t3)
+		var ty := 4.0
+		for part in [[cat, 17, INK], ["%d → %d" % [run.levels[cat], run.levels[cat] + 1], 20, GOLD], [str(cost), 16, DIM]]:
+			var t := _label(part[1], part[2], HORIZONTAL_ALIGNMENT_CENTER)
+			t.text = part[0]
+			t.position = Vector2(0, ty)
+			t.size = Vector2(lw, 0)
+			b.add_child(t)
+			ty += t.get_minimum_size().y - 4.0
+		tile_h = maxf(tile_h, ty + 8.0)
 		level_buttons[cat] = b
 		li += 1
-	y += 84 + 20
+	for k in level_buttons:
+		level_buttons[k].size.y = tile_h
+	y += tile_h + 20
 
 	# ---- next round: bottom of the screen if there is room, else after the content
 	var nb_y: float = maxf(y, size.y - ins.bottom - MARGIN * 1.5 - 80)
@@ -394,43 +582,100 @@ func render() -> void:
 	_content.size = _content.custom_minimum_size
 	toast.position = Vector2(x0, nb_y - 44)
 	toast.size = Vector2(col, 36)
-
-
-## Largest font size (from hi down to lo) at which `text`, word-wrapped greedily
-## the way Label wraps it, fits a width x height box without breaking a word.
-## Measured with the real font, not estimated (a width guess hid "House").
-## Two lines are preferred; three only when two can't fit at any size.
-func _fit_size(text: String, width: float, height: float, hi: int, lo: int) -> int:
-	var font := get_theme_default_font()
-	var words := text.split(" ")
-	for max_lines in [2, 3]:
-		var fs := _fit_lines(font, words, width - 4.0, height, hi, lo, max_lines)
-		if fs > 0:
-			return fs
-	return lo
-
-
-func _fit_lines(font: Font, words: PackedStringArray, avail: float, height: float, hi: int, lo: int, max_lines: int) -> int:
-	var gap := float(get_theme_constant("line_spacing", "Label"))
-	for fs in range(hi, lo - 1, -1):
-		var lines := 1
-		var cur := ""
-		var ok := true
-		for w in words:
-			if font.get_string_size(w, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > avail:
-				ok = false
-				break
-			var trial: String = w if cur == "" else cur + " " + w
-			if font.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= avail:
-				cur = trial
-			else:
-				lines += 1
-				cur = w
-		if ok and lines <= max_lines and lines * (font.get_height(fs) + gap) <= height:
-			return fs
-	return -1
+	ctx.y = y
 
 
 ## Height the content needs, to check it fits without scrolling.
 func content_height() -> float:
 	return _content.custom_minimum_size.y
+
+
+# ------------------------------------------------------------------ motion (pass 21)
+var _pulse_later = null
+
+
+## The upgrade mark: a soft 1.5 s pulse on the marked offer's border, while it
+## shows. At rest (no motion, Reduce Motion) the border is simply on.
+func _pulse(b: Control) -> void:
+	var p := Panel.new()
+	p.name = "upgrade_pulse"
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0)
+	sb.border_color = GREEN
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(8)
+	p.add_theme_stylebox_override("panel", sb)
+	p.size = b.size
+	b.add_child(p)
+	upgrade_pulse = p
+	if Motion.on() and not Motion.reduced():
+		var tw := p.create_tween().set_loops()
+		tw.tween_property(p, "modulate:a", 0.3, 0.75).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(p, "modulate:a", 1.0, 0.75).set_trans(Tween.TRANS_SINE)
+
+
+## After an action's redraw: the Glim ticks to its new value; a bought charm
+## flies from its row to its chip, and the chip settles. Reduce Motion: a fade.
+func _animate_after(kind: String, glim_before: int) -> void:
+	if not Motion.on():
+		return
+	if glim_before >= 0 and glim_before != run.essence and not Motion.reduced():
+		motion.count(essence_label, "%d Glim", glim_before, run.essence, 0.3)
+	if kind != "charm" or _flight_id == "":
+		return
+	var id := _flight_id
+	_flight_id = ""
+	var icon: TextureRect = null
+	var chip: Control = null
+	for t in _content.find_children("*", "TextureRect", true, false):
+		if t.get_meta("charm_icon", "") == id:
+			icon = t
+	var ch := CribData.charm_by_id(id)
+	if icon != null:
+		chip = icon.get_parent()
+	else:
+		for l in _content.find_children("*", "Label", true, false):
+			if l.text == ch.name and l.get_parent() is Panel:
+				chip = l.get_parent()
+	if chip == null:
+		return
+	if Motion.reduced():
+		motion.fade_in(chip)
+		Haptics.pulse(LAND_HAPTIC)
+		return
+	if icon != null and _flight_from != null:
+		var fly := CharmIcon.make(id, _flight_from.size.x)
+		add_child(fly)
+		fly.global_position = _flight_from.position
+		var to := icon.get_global_rect()
+		icon.modulate.a = 0.0
+		chip.pivot_offset = chip.size / 2.0
+		var tw := fly.create_tween()
+		tw.tween_property(fly, "global_position", to.position, Motion.SPRING).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(fly, "size", to.size, Motion.SPRING)
+		tw.tween_callback(func():
+			if is_instance_valid(icon):
+				icon.modulate.a = 1.0
+			if is_instance_valid(fly):
+				fly.visible = false
+			if is_instance_valid(chip):
+				chip.scale = Vector2.ONE * 1.12
+			Haptics.pulse(LAND_HAPTIC))     # the charm lands: a light tap
+		tw.tween_property(chip, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		motion.add(tw, func():
+			if is_instance_valid(icon):
+				icon.modulate.a = 1.0
+			if is_instance_valid(chip):
+				chip.scale = Vector2.ONE
+			if is_instance_valid(fly):
+				fly.queue_free())
+	else:
+		motion.settle(chip)
+		Haptics.pulse(LAND_HAPTIC)
+
+
+## Pass 21: no animation outlives its screen (a running job would keep a
+## reference cycle alive: screen_leak_test).
+func _exit_tree() -> void:
+	motion.skip()

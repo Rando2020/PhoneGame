@@ -1,0 +1,15 @@
+[config]
+name="MeldShare"
+binary="meld_share.xcframework"
+initialization="init_meld_share"
+deinitialization="deinit_meld_share"
+
+[dependencies]
+linked=[]
+embedded=[]
+system=["UIKit.framework"]
+capabilities=[]
+files=[]
+linker_flags=[]
+
+[plist]

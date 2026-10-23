@@ -27,7 +27,7 @@ const STREETS := [
 	{"id": 1, "name": "First Street", "text": "The road as it comes.", "mods": {}},
 	{"id": 2, "name": "Second Street", "text": "Targets +25%. The Crib scores at half.",
 		"mods": {"targetMul": 1.25, "cribHalf": true}},
-	{"id": 3, "name": "Third Street", "text": "Spoilers hold rounds 3 and 5.",
+	{"id": 3, "name": "Third Street", "text": "Spoilers hold rounds 2 and 3.",
 		"mods": {"targetMul": 1.25, "extraSpoiler": true}},
 	{"id": 4, "name": "Fourth Street", "text": "One fewer charm slot. Marks cost double.",
 		"mods": {"targetMul": 1.3, "slots": -1, "extraSpoiler": true, "markCostMul": 2}},
@@ -68,7 +68,7 @@ const TRIALS := [
 ]
 
 ## Past Act 5, the ladder keeps going.
-const ENDLESS_FROM := 26
+const ENDLESS_FROM := 16   ## past the last round (5 acts x 3 rounds)
 
 const MELDLING_UNLOCKS := {
 	"pip": null, "thump": null, "clover": null, "facet": null,
@@ -118,6 +118,23 @@ const LENSES := [
 	{"id": "odds", "name": "Odds Glass", "cost": 45,
 		"text": "Shows how many live cards would improve each keep."},
 ]
+
+
+## Pegs for a run that ended in a loss (port only: the web pays nothing for a
+## loss, which kept the Peddler shut until a full clear; LOOP_AUDIT.md). A floor
+## plus a little per round cleared, so every run moves the meta forward.
+const LOSS_PEGS_FLOOR := 5
+const LOSS_PEGS_PER_ROUND := 2
+
+
+static func pegs_for_loss(cleared_rounds: int) -> int:
+	return LOSS_PEGS_FLOOR + LOSS_PEGS_PER_ROUND * maxi(0, cleared_rounds)
+
+
+## Systems every player has from the first run (port only): The Play is the
+## game's best second loop, too good to hide behind a rare exact-score Wager.
+## Wagers still win the other five.
+const STARTER_SYSTEMS := ["the_play"]
 
 
 static func pegs_for_run(reached: int, cleared: bool, street: int, deeds: int) -> int:

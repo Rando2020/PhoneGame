@@ -59,6 +59,9 @@ func _go() -> void:
 		var done = Achv.daily_done(key)
 		ok(done != null and int(done.reached) == int(out.idx) - 1 and int(done.score) == int(out.score), "daily %s: recorded %s" % [key, done])
 		ok(Achv.daily_done("1999-01-01") == null, "another date stays open")
+		var h: Array = Achv.history()
+		ok(h.size() == 1 and not JS.truthy(h[0].get("cleared")) and int(h[0].reached) == int(out.idx) - 1 and int(h[0].score) == int(out.score),
+			"daily %s: lost run in the history %s" % [key, h])
 		f.show_front_door("road")
 		f.front.today = key
 		f.front.render()
@@ -74,7 +77,12 @@ func _go() -> void:
 		ok(not out2.won and Achv.best_endless() == int(out2.idx) - 1, "endless %s: best %d, expected %d" % [meld, Achv.best_endless(), int(out2.idx) - 1])
 		Achv.set_endless(5)
 		ok(Achv.best_endless() == int(out2.idx) - 1, "a worse Long Count lowered the best")
+	Achv.save_store({"__v": 3})
+	RunRecord.record(CribRun.new("pip", Meta.STREETS[0]), 0, 7)
+	ok(RunRecord.line().contains("Best: no round cleared") and not RunRecord.line().contains("1-0"), "line: " + RunRecord.line())
+	RunRecord.record(CribRun.new("pip", Meta.STREETS[0]), 6, 7)
+	ok(RunRecord.line().contains("Best Act %d-%d" % [(6 - 1) / CribData.ROUNDS + 1, (6 - 1) % CribData.ROUNDS + 1]), "line after 6 cleared: " + RunRecord.line())
 	print("record checks: %d, failures: %d" % [checks, fails])
-	var good := fails == 0 and checks >= 19
+	var good := fails == 0 and checks >= 24
 	print("RECORD OK" if good else "RECORD FAILED")
 	quit(0 if good else 1)
