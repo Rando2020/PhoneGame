@@ -549,3 +549,14 @@ seconds, the mulligans and whether the round cleared. The summary turns those
 into the sims' own measures, e.g. lead changes % (autopilot predicted 66.8%).
 PLAYTEST.md ties 6 questions to those numbers. No real session has been run
 yet: every claim about feel is still unverified.
+
+## Pass 23: reading a playtest (none yet)
+
+No session arrived, so all six verdicts are unverified and the game is unchanged. This follows the rule of acting only where two or more signals agree, and there are zero.
+
+The bot check (300 autopilot runs with no shop, through the real log hooks) gives:
+- lead changes 74.9%, against the sim's 66.8%
+- reach of the first Spoiler 53.3%, against 51.1%
+- Shortage rounds cleared 53.6%, against 93.8% for twist rounds
+
+That last gap is the one to watch in Ziah's question 1. With one weakened bot as its only signal, it's not grounds for a change.

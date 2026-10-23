@@ -65,3 +65,68 @@ Read the numbers from the THIS SESSION block in the menu. The same numbers come 
 6. **Is the difficulty fair for a first session?** Look at the overall cleared %. Then look at the Spoiler cleared % (the act-end boss). A Spoiler near 0% at act 1 means the wall comes too early.
 
 Write the six answers and the raw numbers into a dated note under `docs/playtests/`, then attach `playtest.log`.
+
+## 6. Reading a session (pass 23)
+
+```
+python3 tools/playtest_report.py path/to/playtest.log [--session ID] [--json]
+```
+
+This prints the 6 numbers. Where the sims made a prediction, it prints it alongside. Each share gets a 95% Wilson interval, and the line ends with one of three marks:
+
+- **within:** the prediction sits inside the interval.
+- **outside:** it doesn't.
+- **unverified:** fewer than 8 observations, so the session can't settle it.
+
+The math matches `Playtest.summary()` (tools/test_playtest_report.py checks it on the same entries as pass22_test).
+
+| Question | Log number | Sim prediction |
+|---|---|---|
+| 2 Lead changes | lead_changes_pct | 66.8% (autopilot; a player who adapts should be at or above it) |
+| 6 Reach | runs reaching act 1, round 3 | 51.1% (beginner bot) |
+| 6 Game wins | runs that clear act 5's Spoiler | 15.3% (strong bot; one session will not test this) |
+
+Questions 1, 3, 4 and 5 have no sim prediction, so they're read against the rules in section 5.
+
+Session notes go in `docs/playtests/YYYY-MM-DD.md`:
+
+```
+# Playtest YYYY-MM-DD
+Device / OS:            Build: (git hash)
+Report: (paste tools/playtest_report.py output)
+Clock notes: (mm:ss  what happened  what it felt like)
+Q1..Q6: (verdict: keep / tune / cut, and the number that drove it)
+```
+
+### Verdicts so far
+
+**No session has been logged yet** (2026-10-23): there's no playtest.log and no notes, so all six verdicts are open.
+
+| # | Question | Verdict | Number |
+|---|---|---|---|
+| 1 | Round 2: puzzle or tax | unverified | none yet |
+| 2 | Shortage moves keeps | unverified | none yet |
+| 3 | Twist read before the keep | unverified | none yet |
+| 4 | Mulligans are a choice | unverified | none yet |
+| 5 | Pace | unverified | none yet |
+| 6 | Difficulty | unverified | none yet |
+
+Following pass 23's rule (change only what two or more signals agree on), **no game change was made**. The twist-read fix (prompt item 4) is conditional on question 3 reading "not read", so it hasn't been built.
+
+### Bot check of the log (not a playtest)
+
+`tests/bot_log.gd` makes the best-keep autopilot write a real log through the same hooks: 300 runs, no shop, 60 s a round on a fake clock. The report then shows:
+
+- lead changes 74.9% (95% 70 to 79), against the sim's 66.8%
+- reach of the first Spoiler 53.3% (95% 48 to 59), against 51.1%
+- Shortage rounds cleared 53.6%, against 93.8% for twist rounds
+
+The bot doesn't shop, while the sims do, so these numbers aren't a calibration. The lead-change gap is unverified. The Shortage clear gap is one signal from a weakened bot; it's worth watching in question 1, not acting on alone.
+
+### Still unverified
+
+- The Windows and macOS builds have never been launched; there's no hardware for them here. Only the Linux build was run (headless, under xvfb, with no script errors).
+- Haptics on a real phone. Desktop only logs the pulse.
+- Whether the 5-tap target is easy to hit with a finger (tested by calls, not a hand).
+- The log paths on Windows and macOS (taken from Godot's documented defaults).
+- Every feel question above.

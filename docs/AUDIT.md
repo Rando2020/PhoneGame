@@ -439,3 +439,11 @@ tag, which the iOS preset lacks. Haptics: 10 ms when a bought charm lands and
 
 `pass22_test`: 50 checks, 16 of 16 mutants caught after two checks were added
 (a lost round; a run that restarts on the same act and round).
+
+# Re-check, 2026-10-23 (pass 23)
+
+There's no playtest session yet: no playtest.log and no docs/playtests notes.
+- New: `tools/playtest_report.py`, which prints the 6 PLAYTEST.md numbers. Where the sims made a prediction, it marks each one within, outside or unverified (95% Wilson interval, at least 8 observations).
+- `tools/test_playtest_report.py`: 7 tests, 15 of 16 mutants caught. The survivor is equivalent: removing `best == ""` in `lead()` changes nothing, because a missing key reads as 0.
+- `tests/bot_log.gd` (not in the suite) makes the autopilot write a real log, which the report reads end to end.
+- No game code changed.
