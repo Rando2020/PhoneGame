@@ -3,7 +3,7 @@
 //   purchase(id)                          -> signal purchased(id) or failed(id, reason)
 //   restore()                             -> signal restored(ids)
 // The game side: godot/engine/entitlement.gd, godot/ui/run_flow.gd.
-// UNVERIFIED: written without a Mac; never compiled or run.
+// Compiled in CI (.github/workflows/ios-plugins.yml, ios-build.yml); never run on a device.
 #ifndef MELD_STORE_H
 #define MELD_STORE_H
 

@@ -1,10 +1,12 @@
 // MeldStoreKit: StoreKit 2 for the MeldStore plugin (Swift; StoreKit 2 has no
 // Objective-C API, so meld_store.mm calls this @objc wrapper).
-// UNVERIFIED: written without a Mac; never compiled or run.
+// Compiled in CI (ios-plugins workflow); run on a device: unverified.
+// Everything lives on the main actor: Godot calls in on the main thread and
+// the callbacks go back to Godot there, so no state crosses threads.
 import Foundation
 import StoreKit
 
-@objc public class MeldStoreKit: NSObject {
+@MainActor @objc public class MeldStoreKit: NSObject {
     @objc public static let shared = MeldStoreKit()
 
     /// Called on the main queue with results; meld_store.mm forwards them
@@ -20,11 +22,11 @@ import StoreKit
     /// Load the products and listen for transactions made elsewhere
     /// (Ask to Buy approved later, a purchase on another device).
     @objc public func start(_ ids: [String]) {
-        updates = Task.detached { [weak self] in
+        updates = Task { [weak self] in
             for await result in Transaction.updates {
                 if case .verified(let t) = result {
                     await t.finish()
-                    await MainActor.run { self?.onPurchased?(t.productID) }
+                    self?.onPurchased?(t.productID)
                 }
             }
         }
@@ -36,9 +38,9 @@ import StoreKit
                     products[p.id] = p
                     out.append(["id": p.id, "price": p.displayPrice])
                 }
-                await MainActor.run { self.onProducts?(out) }
+                self.onProducts?(out)
             } catch {
-                await MainActor.run { self.onProducts?([]) }
+                self.onProducts?([])
             }
         }
     }
@@ -46,7 +48,7 @@ import StoreKit
     @objc public func purchase(_ id: String) {
         Task {
             guard let p = products[id] else {
-                await MainActor.run { self.onFailed?(id, "not available") }
+                self.onFailed?(id, "not available")
                 return
             }
             do {
@@ -54,19 +56,19 @@ import StoreKit
                 case .success(let result):
                     if case .verified(let t) = result {
                         await t.finish()
-                        await MainActor.run { self.onPurchased?(id) }
+                        self.onPurchased?(id)
                     } else {
-                        await MainActor.run { self.onFailed?(id, "not verified") }
+                        self.onFailed?(id, "not verified")
                     }
                 case .userCancelled:
-                    await MainActor.run { self.onFailed?(id, "cancelled") }
+                    self.onFailed?(id, "cancelled")
                 case .pending:
-                    await MainActor.run { self.onFailed?(id, "waiting for approval") }
+                    self.onFailed?(id, "waiting for approval")
                 @unknown default:
-                    await MainActor.run { self.onFailed?(id, "unknown") }
+                    self.onFailed?(id, "unknown")
                 }
             } catch {
-                await MainActor.run { self.onFailed?(id, error.localizedDescription) }
+                self.onFailed?(id, error.localizedDescription)
             }
         }
     }
@@ -81,7 +83,7 @@ import StoreKit
                     owned.append(t.productID)
                 }
             }
-            await MainActor.run { self.onRestored?(owned) }
+            self.onRestored?(owned)
         }
     }
 }

@@ -3,7 +3,7 @@
 //                       ProjectSettings.globalize_path("user://run_card_....png"))
 //   signal finished(completed: bool)   the sheet closed (true: something was done with it)
 // The game side: godot/ui/fx/run_card.gd (RunCard.share), godot/ui/run_flow.gd.
-// UNVERIFIED: written without a Mac; never compiled or run.
+// Compiled in CI (.github/workflows/ios-plugins.yml, ios-build.yml); never run on a device.
 #ifndef MELD_SHARE_H
 #define MELD_SHARE_H
 

@@ -25,13 +25,13 @@ In `godot/export_presets.cfg` replace the placeholders:
 Keep `export_project_only=true`: Godot writes the Xcode project and Xcode
 does the build.
 
-## 3. Build the MeldAccess plugin (1 to 3 h, guess; the least certain step)
+## 3. The plugins (done: nothing to build)
 
-Optional for a first submission. Without it, the game's own Text size and
-Reduce Motion settings still work; with it, the game also follows the
-phone's settings. Steps: `ios_plugin/meld_access/README.md`. The source has
-never been compiled, so expect small fixes. If it fights you, skip it and
-ship without it.
+All three plugins (MeldAccess, MeldStore, MeldShare) are compiled by CI and
+committed, prebuilt, in `godot/ios/plugins/`; the iOS preset turns them on
+and its minimum is iOS 15.0 (StoreKit 2). `ios-build.yml` proves the
+exported project compiles and links with them for iPhone. To rebuild them on
+a Mac: `tools/ios/build_plugins.sh` (README in each `ios_plugin/` folder).
 
 ## 3b. The in-app purchase (2 to 4 h, guess)
 
@@ -44,9 +44,8 @@ The game is free to try; one non-consumable unlocks it (`docs/MONETIZATION.md`).
    review screenshot (the end card: `godot/tests/free_end_shot.gd` renders it).
 2. Agreements, Tax, and Banking: the Paid Apps agreement must be active, or
    no purchase works (not even in TestFlight).
-3. Build the MeldStore plugin: `ios_plugin/meld_store/README.md` (StoreKit 2;
-   raise the preset's minimum iOS to 15.0). **Without it the shipped game is
-   free-only and can't sell.**
+3. The MeldStore plugin is already in the build (step 3). Without it the
+   shipped game would be free-only and couldn't sell.
 4. Test in Xcode with a StoreKit Configuration file first (the README says
    how): buy, cancel, Restore, Ask to Buy.
 5. Then in TestFlight with a Sandbox account (Settings > App Store > Sandbox
@@ -55,11 +54,9 @@ The game is free to try; one non-consumable unlocks it (`docs/MONETIZATION.md`).
 
 ## 3c. The share sheet (30 min to 1 h, guess)
 
-Optional. Without it, Share on a run's end saves the run card and says so.
-With it, Share opens the iOS share sheet. Build `ios_plugin/meld_share/`
-(README there), and add `NSPhotoLibraryAddUsageDescription` to the Info.plist
-so "Save Image" appears. Check it on an iPhone and, if you can, an iPad (the
-sheet must anchor there).
+Already in the build (step 3), with the Photos permission text added by its
+`.gdip`. Share on a run's end opens the iOS share sheet. Check it on an
+iPhone.
 
 ## 4. Export and open in Xcode (15 min, guess)
 
@@ -73,9 +70,12 @@ You need Godot 4.3 and its iOS export template (Editor > Manage Export Templates
 In Xcode, select the target > Signing & Capabilities: tick
 "Automatically manage signing" and pick your team.
 
-## 5. Simulator checks (1 h, guess)
+## 5. Simulator checks: not possible with Godot 4.3
 
-Run it (Product > Run) on these three simulators:
+Godot 4.3 can't render on the iOS Simulator (tried 2026-10-31 in CI on the
+iOS 26.2 simulator: Vulkan fails to start, and the OpenGL fallback fails to
+compile its shaders). Do these checks on a real iPhone (step 6) or a
+TestFlight install instead. The list below still applies, on devices:
 - iPhone 16 Pro Max (Dynamic Island, the store screenshots' size)
 - iPhone SE (3rd generation) (home button, the shortest screen)
 - iPhone 16 (Dynamic Island, standard size)

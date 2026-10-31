@@ -4,7 +4,7 @@
 //   reduce_motion() -> bool     UIAccessibility.isReduceMotionEnabled
 //   content_size()  -> String   UIApplication.preferredContentSizeCategory
 //   signal changed               either setting changed in iOS Settings
-// UNVERIFIED: written without a Mac; never compiled or run.
+// Compiled in CI (.github/workflows/ios-plugins.yml, ios-build.yml); never run on a device.
 #ifndef MELD_ACCESS_H
 #define MELD_ACCESS_H
 

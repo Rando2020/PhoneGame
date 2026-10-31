@@ -13,3 +13,4 @@ files=[]
 linker_flags=[]
 
 [plist]
+NSPhotoLibraryAddUsageDescription:string="Meldlings saves your run card to Photos when you choose Save Image."

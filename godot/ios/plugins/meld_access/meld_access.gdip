@@ -1,0 +1,15 @@
+[config]
+name="MeldAccess"
+binary="meld_access.xcframework"
+initialization="init_meld_access"
+deinitialization="deinit_meld_access"
+
+[dependencies]
+linked=[]
+embedded=[]
+system=["UIKit.framework"]
+capabilities=[]
+files=[]
+linker_flags=[]
+
+[plist]

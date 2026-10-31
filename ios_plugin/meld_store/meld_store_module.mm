@@ -1,4 +1,4 @@
-// UNVERIFIED: written without a Mac; never compiled or run. See README.md.
+// Compiled in CI (.github/workflows/ios-plugins.yml, ios-build.yml); never run on a device.
 #include "core/config/engine.h"
 #include "meld_store.h"
 
