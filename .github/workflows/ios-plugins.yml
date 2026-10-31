@@ -1,0 +1,63 @@
+name: iOS plugins
+
+# Compiles ios_plugin/* into Godot 4.3 xcframeworks on GitHub's macOS runner,
+# so the plugins are proven to build without anyone owning a Mac.
+# No signing, no secrets, no publishing: artifacts only.
+
+on:
+  push:
+    paths:
+      - "ios_plugin/**"
+      - "tools/ios/**"
+      - ".github/workflows/ios-plugins.yml"
+  pull_request:
+    paths:
+      - "ios_plugin/**"
+      - "tools/ios/**"
+      - ".github/workflows/ios-plugins.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          xcrun swiftc --version
+          python3 -m pip install --break-system-packages --quiet "scons==4.8.1"
+
+      - name: Godot 4.3 source and generated headers
+        run: |
+          git clone --quiet --depth 1 --branch 4.3-stable https://github.com/godotengine/godot.git godot-src
+          test "$(git -C godot-src rev-parse HEAD)" = "77dcf97d82cbfe4e4615475fa52ca03da645dbd8"
+          cd godot-src
+          # Only the generated headers the plugins include; no engine build.
+          python3 -m SCons -Q platform=ios target=template_release \
+            core/object/gdvirtual.gen.inc core/version_generated.gen.h \
+            core/disabled_classes.gen.h core/extension/ext_wrappers.gen.inc
+          ls -l core/object/gdvirtual.gen.inc core/version_generated.gen.h core/disabled_classes.gen.h
+
+      - name: Build plugins
+        run: mkdir -p build && tools/ios/build_plugins.sh godot-src build/ios_plugins 2>&1 | tee build/ios_plugins.log
+        shell: bash
+
+      - name: Upload xcframeworks
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-plugins
+          path: |
+            build/ios_plugins/*/*.xcframework
+            build/ios_plugins/*/*.gdip
+            build/ios_plugins.log
+          if-no-files-found: warn
