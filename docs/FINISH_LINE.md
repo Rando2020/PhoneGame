@@ -49,27 +49,29 @@ port, parity and web checks. See `docs/PORT.md` and `docs/AUDIT.md`.
 
 The repo is public, so GitHub's macOS runners (with Xcode) are free.
 
-- [ ] Add a `ios-plugins` workflow on `macos-latest`: Godot 4.3 headers, build
+- [x] Add a `ios-plugins` workflow on `macos-latest`: Godot 4.3 headers, build
       MeldAccess, MeldStore and MeldShare for device and simulator, package each
       as an xcframework, upload them as artifacts. Done when the job is green
       and all three `.xcframework` artifacts exist.
-- [ ] Fix whatever the first compile finds in `ios_plugin/*` (expected: the
+- [x] Fix whatever the first compile finds in `ios_plugin/*` (expected: the
       Swift bridging header name in MeldStore). Note each fix in the plugin
       README and drop "never compiled" from its status.
-- [ ] Commit the built plugins to `godot/ios/plugins/<name>/` with their
+- [x] Commit the built plugins to `godot/ios/plugins/<name>/` with their
       `.gdip`, tick them in the iOS preset, raise `min_ios_version` to 15.0
       (StoreKit 2). Done when gate 8 (iOS export) still passes.
 
 ## Phase 4: Build and run on a simulator in CI
 
-- [ ] Workflow `ios-build`: install Godot 4.3 and its iOS export template,
+- [x] Workflow `ios-build`: install Godot 4.3 and its iOS export template,
       export the Xcode project, `xcodebuild` it unsigned for the iOS
-      Simulator. Done when the build step is green.
-- [ ] Boot iPhone 16 Pro Max and iPhone SE simulators, install, launch, and
-      save screenshots of the title and a deal with `xcrun simctl io
-      screenshot`. Done when the shots are artifacts and nothing sits under
-      the Dynamic Island or home bar (closes AUDIT #18 as far as a simulator
-      can).
+      Simulator. Done when the build step is green. (Also builds the unsigned
+      arm64 iPhone binary and checks the plugins are linked in.)
+- [x] ~~Launch on simulators and screenshot.~~ **Not possible with Godot
+      4.3:** it can't render on the iOS Simulator (Vulkan won't start; the
+      OpenGL fallback's shaders won't compile). Safe areas (AUDIT #18) move to
+      the device check in Phase 6. Godot 4.4+ has a Metal renderer that runs
+      on the simulator; upgrading is an engine change, so it's Ziah's call
+      and not on this list.
 
 ## Phase 5: Signing and upload
 
@@ -92,7 +94,8 @@ Pick one route. Ziah decides which (see the PR).
 
 - [ ] **(Ziah)** Install from TestFlight on an iPhone. Check haptics, sound
       with the ring switch, a purchase with a Sandbox account, Restore, quit and
-      Continue (MAC_HANDOFF steps 5, 6, 3b).
+      Continue, and that nothing sits under the Dynamic Island or home bar
+      (MAC_HANDOFF steps 5, 6, 3b; the simulator can't do this).
 - [ ] Fix anything found; re-run the release gates.
 - [ ] **(Ziah)** Paste `store/listing.md` into App Store Connect, upload
       `store/screenshots/6.9in/` and the preview, add the review note from
@@ -114,3 +117,9 @@ Pick one route. Ziah decides which (see the PR).
   from `main`, which is weeks behind the PR stack, and asked for work that was
   already done (the Godot port, store copy, screenshots). Removed
   `docs/STORE_LISTING.md`; `store/listing.md` is the listing.
+- 2026-10-31: Phase 3 done and Phase 4 build done. The three iOS plugins
+  compile in CI (0 warnings, warnings are errors; the gate fails on the old
+  Swift); first compile found 3 Swift data races and a Swift runtime link
+  failure, both fixed. The exported project builds for the simulator and as
+  an unsigned 69.6 MB arm64 iPhone binary with all plugin entry points
+  linked. Simulator launch is impossible on Godot 4.3.
