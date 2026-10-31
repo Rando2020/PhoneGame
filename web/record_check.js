@@ -41,8 +41,9 @@ for (const key of ["2026-10-18", "2026-11-02", "2027-01-01"]) {
 // the title line after only a round-1 loss
 run(`Achv.save({ __v: 3 }); Meta.record(new CribRun("pip", STREETS[0]), 0, 7)`);
 ok(/Best: no round cleared/.test(run(`Meta.line()`)) && !/Act 1-0/.test(run(`Meta.line()`)), "line: " + run(`Meta.line()`));
-run(`Meta.record(new CribRun("pip", STREETS[0]), 6, 7)`);
-ok(/Best Act 2-1/.test(run(`Meta.line()`)), "line after 6 cleared: " + run(`Meta.line()`));
+// Cross into Act 2 using the configured act length, not the old five-round rule.
+run(`Meta.record(new CribRun("pip", STREETS[0]), CRIB_ROUNDS + 1, 7)`);
+ok(/Best Act 2-1/.test(run(`Meta.line()`)), "line after the first round of Act 2: " + run(`Meta.line()`));
 for (const meld of ["pip", "facet"]) {
   const out = run(`(() => { Achv.save({ __v: 3 });
     Cb.run = new CribRun("${meld}", STREETS[0]); Cb.run.enterEndless(); Cb.run.endlessRound = 2;
