@@ -7,9 +7,13 @@ card (`godot/ui/fx/run_card.gd`), saves it to `user://`, then calls
 plugin (desktop, editor, a build without it) the card is only saved and the
 game says so; nothing else changes.
 
-**Status: unverified.** Written on Linux without Xcode, never compiled.
-Objective-C++ only (no Swift), so it should be the simplest of the three
-plugins to build.
+**Status: compiles, never run on a device.** Built on every push by
+`.github/workflows/ios-plugins.yml` (debug and release, device arm64 and
+simulator arm64 + x86_64, warnings are errors) and linked into the real app
+by `ios-build.yml`. `tools/ios/build_plugins.sh` does the build; no Mac
+needed. Whether it behaves right on an iPhone is unverified until TestFlight.
+The Photos permission text (`NSPhotoLibraryAddUsageDescription`) is in
+`meld_share.gdip`, so the export adds it to Info.plist.
 
 ## Build (on a Mac)
 

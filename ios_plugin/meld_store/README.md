@@ -5,10 +5,20 @@ StoreKit 2 behind an Engine singleton "MeldStore" that the game's
 `godot/ui/run_flow.gd`). The game side is tested with a stand-in
 (`godot/tests/entitlement_test.gd`).
 
-**Status: unverified.** Written on Linux without Xcode, never compiled.
+**Status: compiles, never run on a device.** Built on every push by
+`.github/workflows/ios-plugins.yml` (debug and release, device arm64 and
+simulator arm64 + x86_64, warnings are errors) and linked into the real app
+by `ios-build.yml`. `tools/ios/build_plugins.sh` does the build; no Mac
+needed. Whether it behaves right on an iPhone is unverified until TestFlight.
+
 StoreKit 2 is Swift-only, so `MeldStoreKit.swift` does the store work and
-`meld_store.mm` (Objective-C++) bridges it to Godot. Expect fixes on the
-first build, mostly around the Swift bridging header name.
+`meld_store.mm` (Objective-C++) bridges it to Godot. What the first compile
+found (2026-10-31): three data races (state captured across threads; Swift 6
+makes them errors), fixed by putting `MeldStoreKit` on the main actor; and a
+link failure (`__swift_FORCE_LOAD_$_swiftCompatibility56`) because Godot's
+Xcode project has no Swift of its own, fixed by the Swift library paths and
+the `/usr/lib/swift` rpath in `meld_store.gdip`'s `linker_flags`. The bridging
+header name (`meld_store-Swift.h`) was right.
 
 ## Build (on a Mac)
 
@@ -18,8 +28,7 @@ in the target (Swift 5.5 or later; iOS 15 or later for StoreKit 2). Copy
 `meld_store.gdip` and the xcframework to `godot/ios/plugins/meld_store/`,
 tick Plugins > MeldStore in the iOS export preset, export again.
 
-Note: StoreKit 2 needs iOS 15. The preset's minimum is iOS 14.0; raise it to
-15.0 when this plugin goes in (`application/min_ios_version`).
+StoreKit 2 needs iOS 15: the preset's minimum is 15.0 (`application/min_ios_version`).
 
 ## Test in Xcode without App Store Connect
 

@@ -125,7 +125,7 @@ Every new check was mutation-tested.
 | Drag in The Play | tap only | 1:1 drag; flick up onto the pile lays it; 16 lays across 4 seeds: drag and tap leave the same play, step for step |
 | Text size changes (#10) | next screen | the screen you're on, from Settings or from iOS (5 screens, 3 sizes, 43 checks) |
 | Drag hint | none | one line on the first deal ever, saved at the first Keep; a 7th How to play step after the web's 6 (which still match the web word for word) |
-| iOS plugin (#9, #10) | spec only | source in `ios_plugin/meld_access/`; **unverified**: never compiled (needs a Mac) |
+| iOS plugin (#9, #10) | compiles | built in CI (`ios-plugins.yml`) and linked into the iPhone build (`ios-build.yml`), 2026-10-31; never run on a device |
 
 Bugs found by the new checks, fixed:
 - Gallery and How to play cards were drawn shifted (a card scales about its

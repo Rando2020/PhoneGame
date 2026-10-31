@@ -105,7 +105,7 @@ jobs:
           grep -cE "warning:" logs/xcodebuild.log || true
           ls build/dd/Build/Products/Release-iphonesimulator/
 
-      - name: xcodebuild for iPhone (arm64, unsigned: the shipping slice)
+      - name: "xcodebuild for iPhone, arm64, unsigned (the shipping slice)"
         run: |
           xcodebuild -project build/ios/Meldlings.xcodeproj -scheme Meldlings \
             -configuration Release -sdk iphoneos \

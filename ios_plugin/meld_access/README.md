@@ -4,8 +4,11 @@ Lets the game follow the phone's Reduce Motion and text size (Dynamic Type).
 Godot 4.3 can't read either. The game side is already wired and tested with
 a stand-in (`godot/tests/os_access_test.gd`).
 
-**Status: unverified.** Written on Linux without Xcode. It has never been
-compiled or run. Expect small fixes on the first build.
+**Status: compiles, never run on a device.** Built on every push by
+`.github/workflows/ios-plugins.yml` (debug and release, device arm64 and
+simulator arm64 + x86_64, warnings are errors) and linked into the real app
+by `ios-build.yml`. `tools/ios/build_plugins.sh` does the build; no Mac
+needed. Whether it behaves right on an iPhone is unverified until TestFlight.
 
 ## Build (on a Mac)
 
