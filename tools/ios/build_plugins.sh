@@ -48,6 +48,7 @@ for p in "${PLUGINS[@]}"; do
 			obj="$OUT/obj/$p/$variant/$slice"
 			mkdir -p "$obj"
 			objs=()
+			slice_ok=1
 			# Swift first: it writes the <module>-Swift.h header the .mm imports.
 			for s in "$src"/*.swift; do
 				[ -e "$s" ] || continue
@@ -57,16 +58,17 @@ for p in "${PLUGINS[@]}"; do
 				xcrun swiftc -parse-as-library -module-name "$p" -warnings-as-errors \
 					-target "$triple" -sdk "$sdk" "$sopt" \
 					-emit-objc-header -emit-objc-header-path "$obj/$p-Swift.h" \
-					-c "$s" -o "$obj/$(basename "$s" .swift).o" || { fail=1; continue; }
+					-c "$s" -o "$obj/$(basename "$s" .swift).o" || { fail=1; slice_ok=0; continue; }
 				objs+=("$obj/$(basename "$s" .swift).o")
 			done
 			for m in "$src"/*.mm; do
 				echo "== clang++ $p $variant $slice $(basename "$m")"
 				xcrun clang++ -target "$triple" -isysroot "$sdk" "${COMMON[@]}" "${vflags[@]}" \
-					-I"$obj" -c "$m" -o "$obj/$(basename "$m" .mm).o" || { fail=1; continue; }
+					-I"$obj" -c "$m" -o "$obj/$(basename "$m" .mm).o" || { fail=1; slice_ok=0; continue; }
 				objs+=("$obj/$(basename "$m" .mm).o")
 			done
-			[ "${#objs[@]}" -gt 0 ] || continue
+			# A slice with any failed source gets no library, so no partial xcframework.
+			[ "$slice_ok" = 1 ] && [ "${#objs[@]}" -gt 0 ] || continue
 			xcrun libtool -static -o "$obj/$p.a" "${objs[@]}"
 			if [ "$slice" = dev_arm64 ]; then libs_dev+=("$obj/$p.a"); else libs_sim+=("$obj/$p.a"); fi
 		done
