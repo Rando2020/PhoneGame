@@ -1,0 +1,135 @@
+name: iOS build
+
+# Builds the real App Store project without a Mac or a signing identity:
+# plugins -> Godot 4.3 iOS export -> xcodebuild for the iOS Simulator ->
+# launch on two simulators and take screenshots (safe areas, AUDIT #18).
+# No signing, no secrets, no upload: artifacts only.
+
+on:
+  push:
+    paths:
+      - "godot/**"
+      - "ios_plugin/**"
+      - "tools/ios/**"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    paths:
+      - "godot/**"
+      - "ios_plugin/**"
+      - "tools/ios/**"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: "4.3"
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Godot 4.3 and its export templates (official release, SHA-512 checked)
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          app="Godot_v${GODOT_VERSION}-stable_macos.universal.zip"
+          tpz="Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mkdir -p "$RUNNER_TEMP/godot" && cd "$RUNNER_TEMP/godot"
+          curl -L --fail --retry 3 -o SHA512-SUMS.txt "$base/SHA512-SUMS.txt"
+          for f in "$app" "$tpz"; do
+            curl -L --fail --retry 3 -o "$f" "$base/$f"
+            awk -v file="$f" '$2 == file || $2 == "*" file {print}' SHA512-SUMS.txt > sel.sha512
+            test "$(wc -l < sel.sha512)" -eq 1
+            shasum -a 512 -c sel.sha512
+          done
+          unzip -q "$app"
+          tdir="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$tdir"
+          unzip -q -j "$tpz" templates/ios.zip templates/version.txt -d "$tdir"
+          ls -l "$tdir"
+          echo "GODOT=$RUNNER_TEMP/godot/Godot.app/Contents/MacOS/Godot" >> "$GITHUB_ENV"
+
+      - name: Godot 4.3 headers for the plugins
+        run: |
+          python3 -m pip install --break-system-packages --quiet "scons==4.8.1"
+          git clone --quiet --depth 1 --branch 4.3-stable https://github.com/godotengine/godot.git "$RUNNER_TEMP/godot-src"
+          test "$(git -C "$RUNNER_TEMP/godot-src" rev-parse HEAD)" = "77dcf97d82cbfe4e4615475fa52ca03da645dbd8"
+          cd "$RUNNER_TEMP/godot-src"
+          python3 -m SCons -Q platform=ios target=template_release \
+            core/object/gdvirtual.gen.inc core/version_generated.gen.h \
+            core/disabled_classes.gen.h core/extension/ext_wrappers.gen.inc
+
+      - name: Build plugins into godot/ios/plugins
+        run: |
+          tools/ios/build_plugins.sh "$RUNNER_TEMP/godot-src" "$RUNNER_TEMP/plugins"
+          for p in meld_access meld_share meld_store; do
+            mkdir -p "godot/ios/plugins/$p"
+            rm -rf "godot/ios/plugins/$p/"*.xcframework
+            cp -R "$RUNNER_TEMP/plugins/$p/"*.xcframework "godot/ios/plugins/$p/"
+            cp "ios_plugin/$p/$p.gdip" "godot/ios/plugins/$p/"
+          done
+          find godot/ios/plugins -maxdepth 2 | sort
+
+      - name: Export the Xcode project
+        run: |
+          mkdir -p build/ios logs
+          "$GODOT" --headless --path godot --import > logs/import.log 2>&1 || true
+          status=0
+          "$GODOT" --headless --path godot --export-release "iOS" ../build/ios/Meldlings.ipa > logs/export.log 2>&1 || status=$?
+          tail -30 logs/export.log
+          ls build/ios
+          test -d build/ios/Meldlings.xcodeproj
+          grep -l "meld_store" -r build/ios/Meldlings.xcodeproj | head -3
+          exit $status
+
+      - name: xcodebuild for the iOS Simulator (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild -project build/ios/Meldlings.xcodeproj -scheme Meldlings \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/dd CODE_SIGNING_ALLOWED=NO build \
+            > logs/xcodebuild.log 2>&1 || { grep -E "error:|Undefined symbols|ld:" logs/xcodebuild.log | head -60; exit 1; }
+          grep -cE "warning:" logs/xcodebuild.log || true
+          ls build/dd/Build/Products/Release-iphonesimulator/
+
+      - name: Launch on simulators and take screenshots
+        run: |
+          mkdir -p shots
+          app="$(find build/dd/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -1)"
+          bundle="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")"
+          runtime="$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(r[-1]["identifier"])')"
+          echo "app=$app bundle=$bundle runtime=$runtime"
+          for dev in iPhone-16-Pro-Max iPhone-SE-3rd-generation; do
+            udid="$(xcrun simctl create "ci-$dev" "com.apple.CoreSimulator.SimDeviceType.$dev" "$runtime")"
+            xcrun simctl boot "$udid"
+            xcrun simctl bootstatus "$udid" -b
+            xcrun simctl install "$udid" "$app"
+            xcrun simctl launch "$udid" "$bundle"
+            sleep 25
+            xcrun simctl io "$udid" screenshot "shots/$dev-title.png"
+            # still running after 25 s? (a crash on launch would end it)
+            xcrun simctl spawn "$udid" launchctl list | grep -i "$bundle" > "shots/$dev-alive.txt" || echo "NOT RUNNING" > "shots/$dev-alive.txt"
+            cat "shots/$dev-alive.txt"
+            xcrun simctl spawn "$udid" log show --last 2m --predicate "process == \"Meldlings\"" --style compact > "shots/$dev-log.txt" 2>&1 || true
+            tail -20 "shots/$dev-log.txt"
+            xcrun simctl shutdown "$udid"
+          done
+          ! grep -l "NOT RUNNING" shots/*-alive.txt
+
+      - name: Upload logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-build
+          path: |
+            logs/
+            shots/
+          if-no-files-found: warn
