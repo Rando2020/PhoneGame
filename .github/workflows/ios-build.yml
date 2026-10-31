@@ -112,11 +112,14 @@ jobs:
             xcrun simctl boot "$udid"
             xcrun simctl bootstatus "$udid" -b
             xcrun simctl install "$udid" "$app"
-            xcrun simctl launch "$udid" "$bundle"
+            # Godot 4.3's Vulkan (mobile) renderer can't start on the iOS Simulator
+            # ("Failed to initialize driver for device"); real iPhones run it. The
+            # simulator gets the OpenGL compatibility renderer by launch argument.
+            xcrun simctl launch "$udid" "$bundle" --rendering-method gl_compatibility --rendering-driver opengl3
             sleep 25
             xcrun simctl io "$udid" screenshot "shots/$dev-title.png"
             # still running after 25 s? (a crash on launch would end it)
-            xcrun simctl spawn "$udid" launchctl list | grep -i "$bundle" > "shots/$dev-alive.txt" || echo "NOT RUNNING" > "shots/$dev-alive.txt"
+            xcrun simctl spawn "$udid" launchctl list | grep "UIKitApplication:$bundle" > "shots/$dev-alive.txt" || echo "NOT RUNNING" > "shots/$dev-alive.txt"
             cat "shots/$dev-alive.txt"
             xcrun simctl spawn "$udid" log show --last 2m --predicate "process == \"Meldlings\"" --style compact > "shots/$dev-log.txt" 2>&1 || true
             tail -20 "shots/$dev-log.txt"
