@@ -31,7 +31,7 @@ slice_info() {
 
 COMMON=(
 	-std=gnu++17 -fobjc-arc -fblocks -fno-exceptions -fvisibility=hidden
-	-fno-strict-aliasing -Wall -Werror=return-type -Wno-ambiguous-macro
+	-fno-strict-aliasing -Wall -Werror -Wno-ambiguous-macro
 	-DIOS_ENABLED -DUNIX_ENABLED -DCOREAUDIO_ENABLED -DPTRCALL_ENABLED
 	-I"$GODOT" -I"$GODOT/platform/ios"
 )
@@ -54,7 +54,7 @@ for p in "${PLUGINS[@]}"; do
 				echo "== swiftc $p $variant $slice $(basename "$s")"
 				sopt=-Onone
 				[ "$variant" = release ] && sopt=-O
-				xcrun swiftc -parse-as-library -module-name "$p" \
+				xcrun swiftc -parse-as-library -module-name "$p" -warnings-as-errors \
 					-target "$triple" -sdk "$sdk" "$sopt" \
 					-emit-objc-header -emit-objc-header-path "$obj/$p-Swift.h" \
 					-c "$s" -o "$obj/$(basename "$s" .swift).o" || { fail=1; continue; }
