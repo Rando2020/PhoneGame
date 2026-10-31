@@ -10,6 +10,6 @@ embedded=[]
 system=["StoreKit.framework"]
 capabilities=[]
 files=[]
-linker_flags=[]
+linker_flags=["-L$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)", "-L$(SDKROOT)/usr/lib/swift", "-Wl,-rpath,/usr/lib/swift"]
 
 [plist]
