@@ -227,4 +227,15 @@ func _go() -> void:
 	var good := fails == 0 and kills >= 40 and killed_on.size() >= 6 and killed_on.has("shop")
 	print("resume checks: %d, failures: %d" % [checks, fails])
 	print("RESUME OK" if good else "RESUME FAILED")
+	# Stop the root-level audio singleton before engine shutdown. These tests
+	# end while music/one-shots may still play; let the audio server release
+	# playback references instead of reporting resource leaks after assertions.
+	if is_instance_valid(Sound._node):
+		for player in Sound._node.get_children():
+			if player is AudioStreamPlayer:
+				player.stop()
+				player.stream = null
+		Sound._node.queue_free()
+		await process_frame
+		await create_timer(0.1, true, false, true).timeout
 	quit(0 if good else 1)
