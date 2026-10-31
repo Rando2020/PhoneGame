@@ -6,23 +6,94 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   compile:
+    name: ${{ matrix.project == '.' && 'compile' || 'port' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: .
+            version: 4.6.2
+          - project: godot
+            version: '4.3'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
-      - name: Download Godot 4.6.2
+      - name: Download official Godot and verify release checksum
+        env:
+          GODOT_VERSION: ${{ matrix.version }}
         run: |
-          curl -L --fail --retry 3 \
-            -o godot.zip \
-            https://github.com/godotengine/godot/releases/download/4.6.2-stable/Godot_v4.6.2-stable_linux.x86_64.zip
-          unzip -q godot.zip
-          chmod +x Godot_v4.6.2-stable_linux.x86_64
+          archive="Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          mkdir -p "$RUNNER_TEMP/godot-bin"
+          cd "$RUNNER_TEMP/godot-bin"
+          curl -L --fail --retry 3 -o "$archive" "$base/$archive"
+          curl -L --fail --retry 3 -o SHA512-SUMS.txt "$base/SHA512-SUMS.txt"
+          awk -v file="$archive" '$2 == file || $2 == "*" file {print}' SHA512-SUMS.txt > selected.sha512
+          test "$(wc -l < selected.sha512)" -eq 1
+          sha512sum --check selected.sha512
+          unzip -q "$archive"
+          chmod +x "${archive%.zip}"
+          echo "GODOT=$RUNNER_TEMP/godot-bin/${archive%.zip}" >> "$GITHUB_ENV"
 
-      - name: Validate project with Godot 4.6.2
+      - name: Import and parse the selected project
+        env:
+          PROJECT_PATH: ${{ matrix.project }}
         run: |
-          ./Godot_v4.6.2-stable_linux.x86_64 --version
-          ./Godot_v4.6.2-stable_linux.x86_64 --headless --path . --editor --quit
+          "$GODOT" --version
+          python3 tools/ci/run_godot.py "$GODOT" --headless --path "$PROJECT_PATH" --editor --import
+
+      - name: Parse every port script, including unattached scripts
+        if: matrix.project == 'godot'
+        run: |
+          while IFS= read -r -d '' script; do
+            python3 tools/ci/run_godot.py "$GODOT" --headless --path godot --check-only --script "res://${script#godot/}"
+          done < <(find godot -path godot/.godot -prune -o -type f -name '*.gd' -print0)
+
+      - name: Port parity and persistence regressions
+        if: matrix.project == 'godot'
+        run: |
+          for test in parity_test save_test resume_test record_test; do
+            python3 tools/ci/run_godot.py "$GODOT" --headless --path godot --script "res://tests/${test}.gd"
+          done
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Test diagnostic guard
+        run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
+      - name: Build web bundle
+        id: build
+        run: python3 tools/build_web.py
+      - name: Web UI and persistence regressions
+        working-directory: web
+        run: |
+          status=0
+          for test in runtest.js cascadecheck.js cribend_check.js record_check.js save_check.js; do
+            node "$test" || status=1
+          done
+          exit "$status"
+      - name: Check parity fixture reproducibility
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          OUT="$RUNNER_TEMP/parity-first.json" node tools/parity/gen_fixtures.js
+          OUT="$RUNNER_TEMP/parity-second.json" node tools/parity/gen_fixtures.js
+          cmp "$RUNNER_TEMP/parity-first.json" "$RUNNER_TEMP/parity-second.json"
