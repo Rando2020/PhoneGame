@@ -68,7 +68,7 @@ jobs:
           size=$(stat -c %s build/playtest/windows/Meldlings.exe)
           echo "Meldlings.exe: $size bytes"
           test "$size" -gt 50000000
-          ! grep -E "^ERROR|SCRIPT ERROR" export.log
+          if grep -E "^ERROR|SCRIPT ERROR" export.log; then exit 1; fi
 
       - name: Add the how-to note
         run: |

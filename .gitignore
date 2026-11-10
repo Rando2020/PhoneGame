@@ -7,3 +7,6 @@ export_credentials.cfg
 Thumbs.db
 build/
 __pycache__/
+/export.log
+/list.txt
+godot/android/

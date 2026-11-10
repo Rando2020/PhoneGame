@@ -128,8 +128,16 @@ Ziah has a Mac Studio, so this goes through Xcode on the Mac (decided
 
 ## After launch (not blocking)
 
-- Google Play: Godot Android export, $25 account, closed test with 12 testers
-  for 14 days, then production.
+- [x] Android build ready: an "Android" preset (Gradle build, AAB, arm64-v8a
+      and armeabi-v7a, unsigned) and `android-build.yml`, which uploads
+      `meldlings-android-aab-unsigned`. Local export: 56 MB .aab.
+- Google Play, when iOS is out: **(Ziah)** $25 Play Console account, pick the
+  real package name (the preset says `com.example.meldlings`, NEEDS ZIAH) and
+  create an upload key (keep it safe; Play App Signing holds the app key). An
+  AI session then adds signing to the workflow with the key as repo secrets.
+  Closed test with 12 testers for 14 days, then production. Android has no
+  store plugin yet, so a Play build would be free-only until a Play Billing
+  plugin is added (unverified effort).
 - Game Center Daily leaderboard, iCloud save sync (both need new capabilities
   on the App ID).
 
@@ -162,3 +170,5 @@ Ziah has a Mac Studio, so this goes through Xcode on the Mac (decided
   updated for Apple's newer questionnaire (simulated gambling: None).
 - 2026-11-09: Launch kit: landing page (`docs/index.html`, the Pages root),
   press kit and three captioned 9:16 social clips.
+- 2026-11-09: Android: unsigned AAB preset and CI job (`android-build.yml`),
+  checked for both ABIs and no signature. Not on a device yet.
