@@ -75,18 +75,17 @@ The repo is public, so GitHub's macOS runners (with Xcode) are free.
 
 ## Phase 5: Signing and upload
 
-Pick one route. Ziah decides which (see the PR).
+Ziah has a Mac Studio, so this goes through Xcode on the Mac (decided
+2026-11-09). There is no CI upload route.
 
 - [ ] **(Ziah)** Apple Developer Program membership. Note the Team ID.
 - [ ] **(Ziah)** Create the App ID and the App Store Connect app
       (`docs/MAC_HANDOFF.md` step 1). Pick the real bundle id.
 - [ ] Put the Team ID and bundle id in `godot/export_presets.cfg`.
-- [ ] **Route A, Ziah has a Mac:** follow MAC_HANDOFF steps 4 to 7.
-- [ ] **Route B, no Mac:** a `testflight` workflow that signs and uploads
-      with an App Store Connect API key. **(Ziah)** creates the key (Users and
-      Access > Integrations > App Store Connect API, role App Manager) and adds
-      `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` as repo secrets. Done when a
-      build appears in TestFlight.
+- [ ] **(Ziah)** On the Mac Studio: install Xcode, sign in with the Apple
+      ID in Xcode > Settings > Accounts, then follow MAC_HANDOFF steps 4 to 7
+      (export, open in Xcode, one run on a real iPhone, archive and upload).
+      Done when a build appears in TestFlight.
 - [ ] **(Ziah)** Create the in-app purchase `com.meldlings.full` and sign the
       Paid Apps agreement (MAC_HANDOFF step 3b).
 
@@ -125,3 +124,6 @@ Pick one route. Ziah decides which (see the PR).
   linked. Simulator launch is impossible on Godot 4.3.
 - 2026-11-09: The PR stack #3 to #11 folded into one PR, #12 (`release/1.0`).
   Same commits, so `main` fast-forwards; Ziah merges once.
+- 2026-11-09: Phase 5 is Mac only. Ziah has a Mac Studio, so the CI upload
+  route (API key secrets, `testflight` workflow) is dropped; MAC_HANDOFF
+  steps 4 to 7 are the route.

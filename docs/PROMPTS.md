@@ -40,13 +40,14 @@ iPhone 16 Pro Max and iPhone SE. Iterate by pushing and reading the job logs
 with `gh api`. Pin actions to SHAs, read-only token, verify downloads.
 ```
 
-## Phase 5 route B: TestFlight from CI
+## Phase 5: TestFlight from the Mac Studio
 
 ```
-Act as a release engineer. Repo Rando2020/PhoneGame. Read CLAUDE.md and
-docs/FINISH_LINE.md Phase 5. Write a manually triggered workflow that exports
-the iOS project, archives it with automatic signing via an App Store Connect
-API key (secrets ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8), and uploads to
-TestFlight with xcrun altool or notarytool equivalents. Never print secrets.
-Tell me exactly which secrets to add and where.
+Act as a release engineer pairing with me on my Mac Studio (link this chat to
+the Mac first). Repo Rando2020/PhoneGame. Read CLAUDE.md, docs/FINISH_LINE.md
+Phase 5 and docs/MAC_HANDOFF.md steps 1 to 7. Walk me through them one step at
+a time: put my Team ID and bundle id in godot/export_presets.cfg, run the
+release gates, export, open in Xcode, run once on my iPhone, archive and
+upload. Run every command you can on the Mac yourself; stop and tell me
+exactly what to click for anything only I can do.
 ```
