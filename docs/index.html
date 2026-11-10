@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meldlings: Cribbage Roguelite</title>
+<meta name="description" content="Cribbage hands meet roguelite runs. Keep four, throw two, then the cut decides. Free to try on iPhone. No ads, no account.">
+<meta property="og:title" content="Meldlings: Cribbage Roguelite">
+<meta property="og:description" content="Keep four. Count big. Go deep. Free to try. No ads, no account.">
+<meta property="og:image" content="https://rando2020.github.io/PhoneGame/site/hero_poster.jpg">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#161423">
+<link rel="icon" href="site/icon_32.png">
+<link rel="apple-touch-icon" href="site/icon_180.png">
+<style>
+  :root { --bg: #161423; --panel: #231f35; --ink: #f6eee0; --dim: #b9b0a3; --gold: #e8b54c; --felt: #1f5a3c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.55 -apple-system, system-ui, "Segoe UI", sans-serif; }
+  a { color: var(--gold); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+
+  header.hero { padding: 48px 0 32px; background: radial-gradient(ellipse at 70% 30%, #2a2445 0%, var(--bg) 70%); }
+  .hero .wrap { display: grid; grid-template-columns: 1fr 300px; gap: 40px; align-items: center; }
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .brand img { width: 64px; height: 64px; border-radius: 15px; }
+  .brand span { font-weight: 800; letter-spacing: .04em; color: var(--dim); }
+  h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.05; margin: 0 0 14px; color: var(--gold); }
+  .lede { font-size: 20px; color: var(--ink); margin: 0 0 22px; max-width: 34ch; }
+  .cta { display: inline-block; background: var(--gold); color: #1a1426; font-weight: 800; text-decoration: none;
+         padding: 14px 22px; border-radius: 12px; }
+  .cta.soon { background: transparent; color: var(--gold); border: 2px solid var(--gold); }
+  .fine { color: var(--dim); font-size: 15px; margin-top: 12px; }
+  .phone { width: 300px; aspect-ratio: 9 / 16; border-radius: 28px; overflow: hidden; border: 3px solid #3a3352;
+           box-shadow: 0 20px 50px rgba(0,0,0,.5); background: #000; }
+  .phone video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  section { padding: 44px 0; }
+  h2 { color: var(--gold); font-size: 28px; margin: 0 0 18px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .step { background: var(--panel); border: 1px solid rgba(232,181,76,.25); border-radius: 14px; padding: 18px; }
+  .step b { color: var(--gold); display: block; font-size: 19px; margin-bottom: 6px; }
+
+  .shots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .shots figure { margin: 0; }
+  .shots img { width: 100%; height: auto; border-radius: 16px; border: 2px solid #2f2945; display: block; }
+
+  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; text-align: center; }
+  .facts div { background: var(--panel); border-radius: 12px; padding: 16px 8px; }
+  .facts strong { display: block; font-size: 30px; color: var(--gold); }
+  .facts span { color: var(--dim); font-size: 14px; }
+
+  .fair { background: var(--panel); border-radius: 14px; padding: 20px 22px; }
+  .fair ul { margin: 8px 0 0; padding-left: 20px; }
+
+  footer { border-top: 1px solid #2f2945; padding: 26px 0 40px; color: var(--dim); font-size: 15px; }
+  footer nav a { margin-right: 18px; }
+
+  @media (max-width: 760px) {
+    .hero .wrap { grid-template-columns: 1fr; }
+    .phone { margin: 0 auto; width: min(300px, 80vw); }
+    .steps { grid-template-columns: 1fr; }
+    .shots { grid-template-columns: repeat(2, 1fr); }
+    .facts { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (prefers-reduced-motion: reduce) { .phone video { display: none; } .phone { background: url(site/hero_poster.jpg) center / cover; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <div class="brand"><img src="site/icon_256.png" alt="Meldlings app icon"><span>MELDLINGS</span></div>
+      <h1>Cribbage hands.<br>Roguelite runs.</h1>
+      <p class="lede">Keep four, throw two to your Crib, then the cut decides. Count big, beat the Spoilers, go deep.</p>
+      <!-- NEEDS ZIAH: once the app is live, set href to the App Store URL and change the text to "Download on the App Store" (drop class "soon"). -->
+      <a class="cta soon" href="#how">Coming soon to iPhone</a>
+      <p class="fine">Free to try. One purchase unlocks the full game. No ads, no account, plays offline.</p>
+    </div>
+    <div class="phone">
+      <video src="clips/clip_1_count.mp4" poster="site/hero_poster.jpg" autoplay muted loop playsinline aria-label="A Meldlings hand being kept, cut and counted"></video>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How a round plays</h2>
+    <div class="steps">
+      <div class="step"><b>1. Keep four</b>Six cards. Keep four, throw two to your Crib. Your first throws fill it, so feed it well.</div>
+      <div class="step"><b>2. The cut</b>The starter is cut after you commit. Fifteens, pairs, runs and flushes count up, then your multiplier slams down.</div>
+      <div class="step"><b>3. The Play</b>Peg to 31 against the Spoiler. What you peg rides your multiplier into your score.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>A look inside</h2>
+    <div class="shots">
+      <figure><img src="site/shot_count.jpg" alt="A hand counted for 48 points" loading="lazy" width="540" height="1173"></figure>
+      <figure><img src="site/shot_play.jpg" alt="The Play: pegging to 31 against a Spoiler" loading="lazy" width="540" height="1173"></figure>
+      <figure><img src="site/shot_boss.jpg" alt="A Spoiler round with a rule that bends the game" loading="lazy" width="540" height="1173"></figure>
+      <figure><img src="site/shot_shop.jpg" alt="The Peg House shop with charms and marked cards" loading="lazy" width="540" height="1173"></figure>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What's in it</h2>
+    <div class="facts">
+      <div><strong>53</strong><span>charms in 5 rarities</span></div>
+      <div><strong>17</strong><span>Spoilers, 5 a run</span></div>
+      <div><strong>6</strong><span>Meldlings to play as</span></div>
+      <div><strong>8</strong><span>streets and 8 trials</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="fair">
+      <h2>Fair by design</h2>
+      <ul>
+        <li>Every run plays act 1 in full, through its Spoiler, for free.</li>
+        <li>One purchase unlocks the rest for good. Nothing random for sale.</li>
+        <li>No ads, no energy, no timers, no account, no data collected.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <nav>
+      <a href="support.html">Support</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/Rando2020/PhoneGame/blob/main/docs/presskit.md">Press kit</a>
+    </nav>
+    <!-- NEEDS ZIAH: copyright line, e.g. "© 2026 Josiah Parve" -->
+    <p>&copy; NEEDS ZIAH. Meldlings is a cribbage roguelite for iPhone.</p>
+  </div>
+</footer>
+
+</body>
+</html>

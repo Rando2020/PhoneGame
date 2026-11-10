@@ -113,6 +113,19 @@ Ziah has a Mac Studio, so this goes through Xcode on the Mac (decided
       `store/screenshots/6.9in/` and the preview, add the review note from
       MAC_HANDOFF step 9, submit.
 
+## Launch kit
+
+- [x] `docs/index.html`: a landing page for GitHub Pages (hero clip, how a
+      round plays, screenshots, facts, fair-by-design, links to support,
+      privacy and the press kit). Art in `docs/site/`.
+- [x] `docs/presskit.md`: fact sheet, 50-word and long descriptions,
+      features, media links, three suggested posts.
+- [x] Three 9:16 clips under 15 s in `docs/clips/`, cut from the preview by
+      `tools/make_clips.sh` (re-run it after a new preview).
+- [ ] **(Ziah)** Fill the NEEDS ZIAH lines in `docs/presskit.md` (developer
+      name, contact, price, release date, about) and `docs/index.html`
+      (copyright, App Store link once live).
+
 ## After launch (not blocking)
 
 - Google Play: Godot Android export, $25 account, closed test with 12 testers
@@ -147,3 +160,5 @@ Ziah has a Mac Studio, so this goes through Xcode on the Mac (decided
   Restore and the unlock are reachable only after beating act 1, and there is
   no in-app privacy link. Fix added as a Phase 1 task. Age rating answers
   updated for Apple's newer questionnaire (simulated gambling: None).
+- 2026-11-09: Launch kit: landing page (`docs/index.html`, the Pages root),
+  press kit and three captioned 9:16 social clips.
