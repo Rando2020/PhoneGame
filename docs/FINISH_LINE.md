@@ -36,6 +36,15 @@ port, parity and web checks. See `docs/PORT.md` and `docs/AUDIT.md`.
       `https://rando2020.github.io/PhoneGame/privacy.html` loads.
 - [ ] Fill the email and copyright into the pages and `store/listing.md`;
       `python3 tools/check_listing.py` passes. Done when no NEEDS ZIAH is left.
+- [x] Review preflight: `docs/REVIEW_PREFLIGHT.md` (App Privacy and age rating
+      answers, the purchase flow checked against 3.1.1 and 5.1).
+- [ ] Fix the preflight's F1 to F3 (no Ziah needed): a **Full game** row in
+      Settings (`Unlock · price` when locked, `Restore Purchases` always,
+      `Unlocked` once owned, same Entitlement and MeldStore calls as the end
+      card) and a **Privacy policy** row that opens the Pages URL. Tests in
+      `godot/tests/` with a fake MeldStore (purchase, restore, failure,
+      no store). Done when gate 1 passes and the review notes in the preflight
+      match the labels.
 
 ## Phase 2: One real playtest
 
@@ -134,3 +143,7 @@ Ziah has a Mac Studio, so this goes through Xcode on the Mac (decided
 - 2026-11-09: Windows playtest build in CI (`playtest-windows.yml`): Godot
   4.3 export of the "Playtest Windows" preset, uploaded as a downloadable
   artifact, so Ziah needs nothing installed to playtest.
+- 2026-11-09: Review preflight written. Found three gaps before submission:
+  Restore and the unlock are reachable only after beating act 1, and there is
+  no in-app privacy link. Fix added as a Phase 1 task. Age rating answers
+  updated for Apple's newer questionnaire (simulated gambling: None).
