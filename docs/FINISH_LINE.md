@@ -39,8 +39,12 @@ port, parity and web checks. See `docs/PORT.md` and `docs/AUDIT.md`.
 
 ## Phase 2: One real playtest
 
-- [ ] **(Ziah)** Play the 20-minute script in `docs/PLAYTEST.md` on the
-      Windows playtest build and send back `playtest.log`.
+- [x] CI builds the Windows playtest version (`playtest-windows.yml`) and
+      uploads it as the `meldlings-playtest-windows` artifact (exe plus a
+      README with the log path).
+- [ ] **(Ziah)** Download that artifact (Actions > Playtest build (Windows) >
+      newest run > Artifacts), play the 20-minute script in `docs/PLAYTEST.md`
+      and send back `playtest.log`.
 - [ ] Run `tools/playtest_report.py` on the log, fill the six verdicts in
       PLAYTEST.md, and act only where two or more signals agree (sim first).
       Done when every verdict reads within, outside or unverified, with numbers.
@@ -127,3 +131,6 @@ Ziah has a Mac Studio, so this goes through Xcode on the Mac (decided
 - 2026-11-09: Phase 5 is Mac only. Ziah has a Mac Studio, so the CI upload
   route (API key secrets, `testflight` workflow) is dropped; MAC_HANDOFF
   steps 4 to 7 are the route.
+- 2026-11-09: Windows playtest build in CI (`playtest-windows.yml`): Godot
+  4.3 export of the "Playtest Windows" preset, uploaded as a downloadable
+  artifact, so Ziah needs nothing installed to playtest.

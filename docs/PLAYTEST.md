@@ -2,7 +2,16 @@
 
 This page covers a 20-minute session with a real person: the build, a script to follow, and 6 questions. Each question is answered by a number in the log.
 
-## 1. Build it (one command)
+## 1. Get the build
+
+**Easiest (Windows, nothing to install):** GitHub builds it for you. Go to
+the repo's **Actions** tab > **Playtest build (Windows)** > the newest green
+run > **Artifacts** > `meldlings-playtest-windows`. Unzip, double-click
+`Meldlings.exe` (SmartScreen: More info, Run anyway), and follow the
+`README.txt` inside. To make a fresh one: same page, **Run workflow**. It
+rebuilds by itself whenever the game changes on `main`. Downloads last 30 days.
+
+**Or build all three yourself (one command):**
 
 ```
 tools/playtest_build.sh

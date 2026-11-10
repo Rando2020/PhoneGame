@@ -1,0 +1,93 @@
+name: Playtest build (Windows)
+
+# Builds the Windows playtest export ("Playtest Windows" preset: the hidden
+# dev menu and the private session log, docs/PLAYTEST.md) and uploads it as a
+# zip Ziah can download from the run page: Actions > this workflow > the run >
+# Artifacts > meldlings-playtest-windows.
+#
+# Runs on demand, and on pushes to main that touch the game.
+# No signing, no secrets, no publishing: one artifact, kept 30 days.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "godot/**"
+      - ".github/workflows/playtest-windows.yml"
+  pull_request:
+    paths:
+      - ".github/workflows/playtest-windows.yml"
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: "4.3"
+
+jobs:
+  windows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Godot 4.3 and the Windows export template (official release, SHA-512 checked)
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          bin="Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          tpz="Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mkdir -p "$RUNNER_TEMP/godot" && cd "$RUNNER_TEMP/godot"
+          curl -L --fail --retry 3 -o SHA512-SUMS.txt "$base/SHA512-SUMS.txt"
+          for f in "$bin" "$tpz"; do
+            curl -L --fail --retry 3 -o "$f" "$base/$f"
+            awk -v file="$f" '$2 == file || $2 == "*" file {print}' SHA512-SUMS.txt > sel.sha512
+            test "$(wc -l < sel.sha512)" -eq 1
+            sha512sum -c sel.sha512
+          done
+          unzip -q "$bin"
+          tdir="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$tdir"
+          unzip -q -j "$tpz" templates/windows_release_x86_64.exe templates/version.txt -d "$tdir"
+          rm "$tpz"
+          echo "GODOT=$RUNNER_TEMP/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" >> "$GITHUB_ENV"
+
+      - name: Import the project
+        run: timeout 600 "$GODOT" --headless --path godot --editor --import
+
+      - name: Export "Playtest Windows"
+        run: |
+          mkdir -p build/playtest/windows
+          timeout 900 "$GODOT" --headless --path godot --export-release "Playtest Windows" ../build/playtest/windows/Meldlings.exe 2>&1 | tee export.log
+          test -s build/playtest/windows/Meldlings.exe
+          # A Windows PE that is not a stub: the game data is embedded, so it is big.
+          test "$(head -c 2 build/playtest/windows/Meldlings.exe)" = "MZ"
+          size=$(stat -c %s build/playtest/windows/Meldlings.exe)
+          echo "Meldlings.exe: $size bytes"
+          test "$size" -gt 50000000
+          ! grep -E "^ERROR|SCRIPT ERROR" export.log
+
+      - name: Add the how-to note
+        run: |
+          cat > build/playtest/windows/README.txt <<'EOF'
+          Meldlings playtest build (Windows)
+
+          1. Unzip this folder anywhere and double-click Meldlings.exe.
+          2. If Windows SmartScreen warns you: More info, then Run anyway
+             (the build is not code-signed).
+          3. Play the 20-minute script in docs/PLAYTEST.md.
+          4. Send back this file:
+             %APPDATA%\Godot\app_userdata\Meldlings\playtest.log
+             (paste that path into the File Explorer address bar)
+          EOF
+
+      - name: Upload the playtest build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: meldlings-playtest-windows
+          path: build/playtest/windows/
+          retention-days: 30
+          if-no-files-found: error
