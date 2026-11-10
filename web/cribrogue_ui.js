@@ -3,10 +3,11 @@
 
 /* Cross-run persistence — the "one more run" hook. This is a standalone local
    file, so localStorage is available and appropriate here. */
+/* Meta shares the one store rather than racing Achv for the same key. */
 const Meta = {
-  KEY: "meldlings.meta.v1",
-  load() { try { return JSON.parse(localStorage.getItem(this.KEY) || "{}"); } catch (e) { return {}; } },
-  save(o) { try { localStorage.setItem(this.KEY, JSON.stringify(o)); } catch (e) {} },
+  KEY: SAVE_KEY,
+  load() { return Store.read(); },
+  save(o) { Store.write(o); },
   record(run, reached, score) {
     const m = this.load();
     m.runs = (m.runs || 0) + 1;
@@ -21,67 +22,328 @@ const Meta = {
   line() {
     const m = this.load();
     if (!m.runs) return "No runs yet.";
-    const act = Math.ceil((m.bestRound || 1) / CRIB_ROUNDS);
-    const rd = ((m.bestRound - 1) % CRIB_ROUNDS) + 1;
-    return `Runs ${m.runs}  ·  Best Act ${act}-${rd}  ·  Cleared ${m.clears || 0}  ·  Best hand ${m.bestScore || 0}`;
+    const best = m.bestRound || 0;
+    const act = Math.ceil(Math.max(best, 1) / CRIB_ROUNDS);
+    const rd = ((Math.max(best, 1) - 1) % CRIB_ROUNDS) + 1;
+    const bestTxt = best > 0 ? `Best Act ${act}-${rd}` : "Best: no round cleared";
+    return `Runs ${m.runs}  ·  ${bestTxt}  ·  Cleared ${m.clears || 0}  ·  Best hand ${m.bestScore || 0}`;
   },
 };
 
 const Cb = { run: null, round: null, keep: [], busy: false };
 
-const cbCard = (card, scale = 1.7) => cardEl(card, scale);
+/* ---------------------------------------------------------------- save */
+/* Save and resume a run exactly, mid-round included (Godot: engine/save_game.gd).
+   The engine compares cards and charms by IDENTITY, so the whole state is saved
+   as one object graph: every object is written once and referenced after
+   ({$r: id}); shared catalog objects (charms, Spoilers, Streets, Trials,
+   Meldlings) by name; class instances are rebuilt without running their
+   constructors, so nothing draws from the rng on load. A seeded run's rng is
+   saved as its state; an unseeded one is Math.random, which stays unseeded. */
+const RunSave = {
+  KEY: "meldlings.run.v1",
+  VERSION: 1,
+  CLASSES: () => ({ CribRun, CribRound, PegPlay }),
+  CATALOGS() {
+    if (this._cats) return this._cats;
+    const lists = [["charm", CCHARMS], ["boss", BOSS_POOL], ["street", STREETS], ["trial", TRIALS],
+                   ["meld", Object.values(CRIB_DECKS)]];
+    // functions copied out of those (the Meldling's charm is a copy of its deck's)
+    const fns = [];
+    const scan = (o, depth) => {
+      if (!o || typeof o !== "object" || depth > 3) return;
+      for (const k of Object.keys(o)) {
+        const v = o[k];
+        if (typeof v === "function") { if (!fns.includes(v)) fns.push(v); }
+        else scan(v, depth + 1);
+      }
+    };
+    for (const [, list] of lists) list.forEach((o) => scan(o, 0));
+    lists.push(["fn", fns]);
+    return (this._cats = lists);
+  },
+
+  dump(state) {
+    const seen = new Map();
+    let n = 0;
+    const cats = this.CATALOGS(), classes = this.CLASSES();
+    const enc = (v) => {
+      if (v === undefined) return { $u: 1 };
+      if (typeof v === "number" && !Number.isFinite(v)) return { $num: String(v) };
+      if (v === null || typeof v !== "object" && typeof v !== "function") return v;
+      for (const [name, list] of cats) {
+        const i = list.indexOf(v);
+        if (i >= 0) return { $cat: name, i };
+      }
+      if (seen.has(v)) return { $r: seen.get(v) };
+      const id = n++;
+      seen.set(v, id);
+      if (typeof v === "function") {
+        if (v === Math.random) return { $math: id };
+        if (typeof v.state === "function") return { $rng: id, s: v.state() };
+        throw new Error("RunSave: can't save a function");
+      }
+      if (Array.isArray(v)) return { $a: id, v: v.map(enc) };
+      const proto = Object.getPrototypeOf(v);
+      let cls = null;
+      for (const k in classes) if (classes[k].prototype === proto) cls = k;
+      // a plain object (by shape, so it also holds across realms)
+      if (!cls && proto !== null && !(proto.constructor && proto.constructor.name === "Object"
+          && Object.getPrototypeOf(proto) === null))
+        throw new Error("RunSave: can't save " + (proto.constructor && proto.constructor.name));
+      const o = {};
+      for (const k of Object.keys(v)) o[k] = enc(v[k]);
+      return cls ? { $cls: cls, id, v: o } : { $o: id, v: o };
+    };
+    return JSON.stringify({ v: this.VERSION, s: enc(state) });
+  },
+
+  load(text) {
+    const d = JSON.parse(text);
+    if (!d || d.v !== this.VERSION) return null;
+    const byId = new Map();
+    const cats = Object.fromEntries(this.CATALOGS()), classes = this.CLASSES();
+    const dec = (v) => {
+      if (v === null || typeof v !== "object") return v;
+      if (Array.isArray(v)) return v.map(dec);        // never written bare; kept for safety
+      if ("$u" in v) return undefined;
+      if ("$num" in v) return Number(v.$num);
+      if ("$cat" in v) return cats[v.$cat][v.i];
+      if ("$r" in v) return byId.get(v.$r);
+      if ("$math" in v) { byId.set(v.$math, Math.random); return Math.random; }
+      if ("$rng" in v) { const r = makeRng(v.s); byId.set(v.$rng, r); return r; }
+      if ("$a" in v) { const a = []; byId.set(v.$a, a); for (const x of v.v) a.push(dec(x)); return a; }
+      const o = "$cls" in v ? Object.create(classes[v.$cls].prototype) : {};
+      byId.set("$cls" in v ? v.id : v.$o, o);
+      for (const k of Object.keys(v.v)) o[k] = dec(v.v[k]);
+      return o;
+    };
+    return dec(d.s);
+  },
+
+  /* Save at a step. Not during the guided first round. */
+  write(screenName, extra = {}) {
+    if (typeof Guide !== "undefined" && Guide.on) return;
+    if (!Cb.run) return;
+    try {
+      const text = this.dump(Object.assign({ screen: screenName, run: Cb.run,
+        round: screenName === "intro" || screenName === "shop" ? null : Cb.round,
+        peg: screenName === "peg" ? Cb.peg : null, pegMult: Cb.pegMult || 1 }, extra));
+      localStorage.setItem(this.KEY, text);
+      this.saves = (this.saves || 0) + 1;
+    } catch (e) { console.log("RunSave.write", e && e.message); }
+  },
+  has() { try { return !!localStorage.getItem(this.KEY); } catch (e) { return false; } },
+  clear() { try { localStorage.removeItem(this.KEY); } catch (e) {} },
+
+  /* Pick the run up where it was saved. */
+  resume() {
+    let st = null;
+    try { st = this.load(localStorage.getItem(this.KEY)); } catch (e) { st = null; }
+    if (!st || !st.run) { this.clear(); return false; }
+    Cb.run = st.run; Cb.round = st.round; Cb.peg = st.peg; Cb.pegMult = st.pegMult;
+    Cb.keep = (st.keep || []).slice(); Cb.street = st.run.street;
+    switch (st.screen) {
+      case "intro": cribRoundIntro(); break;
+      case "crib": renderCrib(); break;
+      case "counted": cribAfterCount(st.kept); break;
+      case "peg": {
+        const p = Cb.peg;
+        // killed between your lay and the Spoiler's answer: play the answer
+        if (!p.over && p.turn === "them") p.step();
+        renderPegging(cribAfterPlay);
+        break;
+      }
+      case "roundwon": Cb.run.openShop(); showCribShop(); break;
+      default: showCribShop();
+    }
+    return true;
+  },
+};
+
+const cbCard = (card, scale = 1.45) => cardEl(card, scale);
 
 /* ---------------------------------------------------------------- select */
+/* The select flow is three small steps instead of one long screen:
+   road -> street -> Meldling. Each step shows one decision. */
 function showCribSelect() {
   Audio16.playMusic("menu");
-  screen("cribSelect");
-  const c = el("div", "col");
-  c.append(el("h2", "title", "TAKE THE ROAD"));
-  c.append(el("p", "small gold", Meta.line()));
-  c.append(el("p", "small dim",
-    `${Achv.count()} / ${ACHIEVEMENTS.length} deeds  ·  ${STREETS[Achv.streetUnlocked()-1].name} unlocked`));
+  Cb.step = Cb.step || "road";
+  ({ road: selRoad, street: selStreet, meld: selMeld, trial: selTrial }[Cb.step] || selRoad)();
+}
 
-  // --- street picker
-  c.append(sectionHead("THE STREET", "how hard the road runs"));
-  const srow = el("div", "row gap wrap streetrow");
-  const maxStreet = Achv.streetUnlocked();
-  Cb.street = Cb.street && Cb.street.id <= maxStreet ? Cb.street : STREETS[0];
-  for (const st of STREETS) {
-    const b = el("button", "streetbtn" + (Cb.street.id === st.id ? " on" : ""));
-    b.append(el("div", "small", st.name));
-    b.append(el("div", "tiny dim", st.id <= maxStreet ? st.text : "locked"));
-    b.disabled = st.id > maxStreet;
-    b.onclick = () => { Cb.street = st; sfx16("select"); showCribSelect(); };
-    srow.append(b);
-  }
-  c.append(srow);
+function selHeader(c, kicker, title) {
+  c.append(el("p", "small gold selkicker", kicker));
+  c.append(el("h2", "title", title));
+}
 
-  // --- meldling picker
-  c.append(sectionHead("YOUR MELDLING", "keep four of six, then cut"));
-  for (const id of Object.keys(CRIB_DECKS)) {
-    const d = CRIB_DECKS[id];
-    const open = Achv.meldlingUnlocked(id);
-    const b = el("button", "deckcard" + (open ? "" : " locked"));
-    const left = el("div", "");
-    left.append(creatureEl(id, "idle", 2));
-    const right = el("div", "col tight grow");
-    right.append(el("div", open ? "gold" : "dim",
-      open ? `${d.name}  ${SUIT_SYM[d.suit]}` : "???"));
-    right.append(el("div", "small dim", open ? d.text
-      : `Locked — ${ACHIEVEMENTS.find((a) => a.id === MELDLING_UNLOCKS[id]).name}`));
-    b.append(left, right);
+function selRoad() {
+  screen("selRoad");
+  const c = el("div", "col center");
+  selHeader(c, "STEP ONE", "CHOOSE YOUR ROAD");
+
+  const dk = dailyKey();
+  const doneToday = Achv.dailyDone(dk);
+  const streak = Achv.dailyStreak();
+
+  const ROADS = [
+    { id: "daily", name: "The Daily", art: "facet",
+      note: doneToday
+        ? `Done: reached ${doneToday.reached}. Come back tomorrow.`
+        : `Everyone gets the same deck today. One attempt.${streak ? `  Streak ${streak}.` : ""}` },
+    { id: "run", name: "The Five Acts", art: "pip",
+      note: "Twenty-five rounds. Five Spoilers. The road as it was meant." },
+    { id: "trial", name: "Trials", art: "muggins",
+      note: `One rule taken to its limit. ${TRIALS.filter((t) => Achv.trialDone(t.id)).length} of ${TRIALS.length} done.` },
+    { id: "endless", name: "The Long Count", art: "nib",
+      note: Achv.has("long_road")
+        ? `No ceiling. Best round ${Achv.bestEndless() || 0}.`
+        : "Locked. Clear the Five Acts first." },
+  ];
+  for (const r of ROADS) {
+    const open = (r.id !== "endless" || Achv.has("long_road")) &&
+                 (r.id !== "daily" || !doneToday);
+    const b = el("button", "roadcard" + (open ? "" : " locked"));
+    b.append(creatureEl(r.art, "idle", 1.8));
+    const t = el("div", "col tight grow");
+    t.append(el("div", "roadname", r.name));
+    t.append(el("div", "small dim", r.note));
+    b.append(t);
     b.disabled = !open;
-    b.onclick = () => { sfx16("buy"); Cb.run = new CribRun(id, Cb.street); cribRoundIntro(); };
+    b.onclick = () => {
+      Cb.mode = r.id;
+      sfx16("select");
+      if (r.id === "daily") {
+        // fixed deck, fixed Meldling, one attempt
+        const seed = dailySeed(dk);
+        const decks = ["pip", "thump", "clover", "facet"];
+        Cb.run = new CribRun(decks[seed % decks.length], STREETS[0], null, seed);
+        Cb.run.daily = dk;
+        Cb.step = "road";
+        return cribRoundIntro();
+      }
+      Cb.step = r.id === "trial" ? "trial" : (r.id === "endless" ? "meld" : "street");
+      showCribSelect();
+    };
     c.append(b);
   }
-  const meta = el("div", "row gap");
-  meta.append(btn("DEEDS", showDeeds, "small"));
-  meta.append(btn(`PEDDLER  ·  ${Achv.pegs()}`, showPeddler, "small"));
-  meta.append(btn("GALLERY", showGallery, "small"));
-  meta.append(btn("RECORD", showHistory, "small"));
-  meta.append(btn("How to play", showTutorial, "small"));
-  c.append(meta);
   c.append(btn("Back", showTitle, "small"));
+  root().append(c);
+}
+
+function selStreet() {
+  screen("selStreet");
+  const c = el("div", "col center");
+  selHeader(c, "STEP TWO", "HOW HARD");
+
+  const maxStreet = Achv.streetUnlocked();
+  Cb.street = Cb.street && Cb.street.id <= maxStreet ? Cb.street : STREETS[0];
+  const i = STREETS.indexOf(Cb.street);
+
+  const stepper = el("div", "row center stepper");
+  const prev = btn("\u25C0", () => {
+    Cb.street = STREETS[Math.max(0, i - 1)]; sfx16("click"); showCribSelect();
+  }, "small");
+  prev.disabled = i === 0;
+  const next = btn("\u25B6", () => {
+    Cb.street = STREETS[Math.min(maxStreet - 1, i + 1)]; sfx16("click"); showCribSelect();
+  }, "small");
+  next.disabled = i >= maxStreet - 1;
+  const face = el("div", "col tight streetface");
+  face.append(el("div", "streetnum", ["I","II","III","IV","V","VI","VII","VIII"][i]));
+  face.append(el("div", "gold", Cb.street.name));
+  face.append(el("div", "small dim", Cb.street.text));
+  stepper.append(prev, face, next);
+  c.append(stepper);
+
+  const pips = el("div", "row center gap");
+  STREETS.forEach((st, k) => {
+    const d = el("div", "streetpip" + (k === i ? " on" : "") + (k >= maxStreet ? " locked" : ""));
+    pips.append(d);
+  });
+  c.append(pips);
+  if (maxStreet < STREETS.length)
+    c.append(el("p", "tiny dim", `Clear ${STREETS[maxStreet - 1].name} to open the next.`));
+
+  c.append(btn("CONTINUE", () => { Cb.step = "meld"; sfx16("select"); showCribSelect(); }, "big"));
+  c.append(btn("Back", () => { Cb.step = "road"; showCribSelect(); }, "small"));
+  root().append(c);
+}
+
+function selTrial() {
+  screen("selTrial");
+  const c = el("div", "col center");
+  selHeader(c, "STEP TWO", "PICK A TRIAL");
+  for (const t of TRIALS) {
+    const done = Achv.trialDone(t.id);
+    const b = el("button", "roadcard" + (done ? " done" : ""));
+    b.append(creatureEl(t.deck, "idle", 1.5));
+    const l = el("div", "col tight grow");
+    l.append(el("div", "roadname", t.name + (done ? "  \u2714" : "")));
+    l.append(el("div", "small dim", t.text));
+    b.append(l);
+    b.onclick = () => {
+      sfx16("buy");
+      Cb.run = new CribRun(t.deck, STREETS[0], t);
+      Cb.step = "road";
+      cribRoundIntro();
+    };
+    c.append(b);
+  }
+  c.append(btn("Back", () => { Cb.step = "road"; showCribSelect(); }, "small"));
+  root().append(c);
+}
+
+/* A carousel, not a list — one Meldling at a time, large. */
+function selMeld() {
+  screen("selMeld");
+  const c = el("div", "col center");
+  selHeader(c, "STEP THREE", "YOUR MELDLING");
+
+  const ids = Object.keys(CRIB_DECKS);
+  Cb.meldIdx = ((Cb.meldIdx || 0) + ids.length) % ids.length;
+  const id = ids[Cb.meldIdx];
+  const d = CRIB_DECKS[id];
+  const open = Achv.meldlingUnlocked(id);
+
+  const stage = el("div", "row center meldstage");
+  const prev = btn("\u25C0", () => { Cb.meldIdx--; sfx16("click"); showCribSelect(); }, "small");
+  const next = btn("\u25B6", () => { Cb.meldIdx++; sfx16("click"); showCribSelect(); }, "small");
+  const mid = el("div", "col center tight");
+  const cre = creatureEl(id, "idle", 4);
+  if (!open) cre.classList.add("silhouette");
+  mid.append(cre);
+  mid.append(el("div", "meldname", open ? d.name : "???"));
+  mid.append(el("div", "small gold", open ? SUIT_SYM[d.suit] : ""));
+  stage.append(prev, mid, next);
+  c.append(stage);
+
+  const info = el("div", "panel col tight meldinfo");
+  if (open) info.append(el("div", "small", d.text));
+  else if (d.ascended)
+    info.append(el("div", "small dim", `Locked. Clear a run with ${CRIB_DECKS[d.art].name}.`));
+  else {
+    const req = ACHIEVEMENTS.find((a) => a.id === MELDLING_UNLOCKS[id]);
+    info.append(el("div", "small dim", req ? `Locked: ${req.name}` : "Locked."));
+  }
+  c.append(info);
+
+  const dots = el("div", "row center gap");
+  ids.forEach((k, n) => dots.append(el("div", "streetpip" + (n === Cb.meldIdx ? " on" : ""))));
+  c.append(dots);
+
+  const go = btn("BEGIN", () => {
+    sfx16("buy");
+    Cb.run = new CribRun(id, Cb.street || STREETS[0]);
+    if (Cb.mode === "endless") { Cb.run.enterEndless(); Cb.run.endlessRound = 0; }
+    Cb.step = "road";
+    cribRoundIntro();
+  }, "big");
+  go.disabled = !open;
+  c.append(go);
+  c.append(btn("Back", () => {
+    Cb.step = Cb.mode === "endless" ? "road" : "street"; showCribSelect();
+  }, "small"));
   root().append(c);
 }
 
@@ -120,25 +382,6 @@ function showPeddler() {
     grid.append(slot);
   }
   c.append(grid);
-  c.append(sectionHead("LENSES", "keep panels on screen"));
-  for (const l of LENSES) {
-    const owned = Achv.ownsLens(l.id);
-    const on = Achv.lensOn(l.id);
-    const b = el("button", "shopitem" + (owned ? " r-rare" : ""));
-    const left = el("div", "col tight grow");
-    left.append(el("div", owned ? "gold" : "", l.name));
-    left.append(el("div", "small dim", l.text));
-    b.append(left, el("div", "cost", owned ? (on ? "ON" : "OFF") : `${l.cost}`));
-    b.onclick = () => {
-      if (owned) { Achv.toggleLens(l.id); sfx16("click"); }
-      else if (Achv.buyLens(l.id)) {
-        sfx16("buy");
-        Juice.burst(window.innerWidth / 2, window.innerHeight * 0.5, 16, ["gold", "white"]);
-      } else { sfx16("bad"); flash("Not enough Pegs"); }
-      showPeddler();
-    };
-    c.append(b);
-  }
 
   c.append(btn("Back", showCribSelect, "small"));
   root().append(c);
@@ -173,12 +416,14 @@ function showHistory() {
   if (!h.length) c.append(el("p", "small dim", "No runs recorded yet."));
   for (const r of h) {
     const row = el("div", "row between histrow" + (r.cleared ? " cleared" : ""));
-    const act = Math.max(1, Math.ceil(r.reached / CRIB_ROUNDS));
-    const rd = ((Math.max(1, r.reached) - 1) % CRIB_ROUNDS) + 1;
+    // a lost run shows the round it fell on (reached counts rounds cleared)
+    const at = r.cleared ? r.reached : r.reached + 1;
+    const act = Math.max(1, Math.ceil(at / CRIB_ROUNDS));
+    const rd = ((Math.max(1, at) - 1) % CRIB_ROUNDS) + 1;
     row.append(el("span", "small", CRIB_DECKS[r.deck] ? CRIB_DECKS[r.deck].name : r.deck));
     row.append(el("span", "small dim", STREETS[r.street - 1].name));
     row.append(el("span", r.cleared ? "small gold" : "small",
-      r.cleared ? "CLEARED" : `Act ${act}-${rd}`));
+      r.cleared ? "CLEARED" : `Fell ${act}-${rd}`));
     c.append(row);
   }
   c.append(btn("Back", showCribSelect, "small"));
@@ -198,6 +443,161 @@ function announceSystem(sys) {
   Juice.burst(window.innerWidth / 2, window.innerHeight * 0.4, 46, ["gold", "white", "green"]);
   Juice.shake(14, 500);
   setTimeout(() => overlay.remove(), 4200);
+}
+
+/* The Play — pegging toward 31 against the Spoiler. */
+function showPegging(hand, done) {
+  Audio16.playMusic("play");
+  const rd = Cb.round;
+  const opp = rd.stock.splice(0, 4);
+  Cb.peg = new PegPlay(rd, hand, opp);
+  // the play rides your multiplier, so it scales with your build instead of
+  // becoming irrelevant by Act 3
+  Cb.pegMult = Math.max(1, (rd.lastCount && rd.lastCount.mult) || 1);
+  Cb.peg.step();
+  renderPegging(done);
+}
+
+function renderPegging(done) {
+  const p = Cb.peg;
+  RunSave.write("peg");
+  const rd = Cb.round;
+  const run = Cb.run;
+  const boss = run.boss();
+  screen("pegging");
+  const c = el("div", "col center pegscreen");
+
+  c.append(el("p", "small gold pegkicker", "THE PLAY"));
+
+  // --- the two sides, facing each other across the count
+  const field = el("div", "row between pegfield");
+  const mine = el("div", "col center tight");
+  const meSprite = creatureEl(run.meldling, "idle", 1.8);
+  meSprite.id = "pegMe";
+  mine.append(meSprite);
+  mine.append(el("div", "small gold", String(p.score)));
+  field.append(mine);
+
+  const middle = el("div", "col center tight grow");
+  const tot = el("div", "pegtotal", String(p.total));
+  if (p.total >= 26) tot.classList.add("near");
+  if (p.total === PEG_TARGET) tot.classList.add("hit");
+  middle.append(tot);
+  middle.append(el("div", "tiny dim", `of ${PEG_TARGET}`));
+  const bar = el("div", "pegbar");
+  const fill = el("div", "pegfill");
+  fill.style.width = Math.min(100, 100 * p.total / PEG_TARGET) + "%";
+  bar.append(fill);
+  middle.append(bar);
+  field.append(middle);
+
+  const theirs = el("div", "col center tight");
+  const foeSprite = creatureEl(boss ? boss.art : "shuffler", "idle", 1.8);
+  foeSprite.id = "pegFoe";
+  if (boss) foeSprite.style.filter = `hue-rotate(${(boss.id.charCodeAt(0) * 37) % 360}deg)`;
+  theirs.append(foeSprite);
+  theirs.append(el("div", "small red", String(p.oppScore)));
+  const backs = el("div", "row center pegbacks");
+  for (let i = 0; i < p.theirs.length; i++) backs.append(backEl(0.34));
+  theirs.append(backs);
+  field.append(theirs);
+  c.append(field);
+
+  // --- the pile, newest card arriving
+  const pile = el("div", "row center pegpile");
+  if (!p.pile.length) pile.append(el("div", "small dim", "the pile is clear"));
+  p.pile.forEach((cd, i) => {
+    const n = cardEl(cd, 0.68);
+    if (i === p.pile.length - 1 && Cb.pegAnim) {
+      n.classList.add(Cb.pegAnim === "you" ? "pegfromyou" : "pegfromfoe");
+    }
+    pile.append(n);
+  });
+  c.append(pile);
+
+  // --- what the last lay earned
+  const last = p.lastLay;
+  if (last && last.events && last.events.length) {
+    const call = el("div", "pegcall " + (last.who === "you" ? "mineCall" : "foeCall"));
+    call.textContent = last.events.map((e) => `${e.label} +${e.points}`).join("   ");
+    c.append(call);
+  } else if (last) {
+    c.append(el("div", "small dim pegcall", "-"));
+  }
+  Cb.pegAnim = null;
+
+  if (p.over) {
+    /* The Spoiler's pegging eats into yours — otherwise it's a score you cannot
+       lose to, which makes the whole exchange decorative. */
+    const net = Math.max(0, p.score - Math.floor(p.oppScore / 2));
+    const gain = Math.round(net * (Cb.pegMult || 1));
+    const winner = p.score >= p.oppScore;
+    c.append(el("h3", winner ? "green" : "red",
+      winner ? `You pegged ${p.score}` : `The Spoiler pegged ${p.oppScore}`));
+    const box = el("div", "panel col tight pegresult");
+    box.append(rowLR("Your pegs", `+${p.score}`, "green"));
+    if (p.oppScore) box.append(rowLR("Spoiler's pegs", `−${Math.floor(p.oppScore / 2)}`, "red"));
+    box.append(rowLR("Net", String(net), "gold"));
+    if ((Cb.pegMult || 1) > 1.01)
+      box.append(rowLR("× your multiplier", `×${(Cb.pegMult || 1).toFixed(2)}`, "blue"));
+    box.append(rowLR("TO YOUR SCORE", `+${gain}`, "gold"));
+    c.append(box);
+    c.append(btn("CONTINUE", () => {
+      Cb.round.score += gain;
+      Audio16.sfx(gain > 0 ? "win" : "bad");
+      done();
+    }, "big"));
+  } else {
+    const row = el("div", "row center gap peghand");
+    p.mine.forEach((cd, i) => {
+      const n = cardEl(cd, 0.82);
+      if (!p.playable(i)) n.classList.add("unplayable");
+      else {
+        n.classList.add("pegplayable");
+        n.onclick = () => pegLay(cd, done);
+      }
+      row.append(n);
+    });
+    c.append(row);
+    const canAny = p.canPlay(p.mine);
+    c.append(el("p", "small " + (canAny ? "dim" : "gold"),
+      canAny ? "Lay a card. You cannot pass 31."
+             : "Nothing fits. The Spoiler must play on."));
+  }
+  root().append(c);
+}
+
+/* One lay: animate it in, call the score, then let the Spoiler answer. */
+function pegLay(card, done) {
+  const p = Cb.peg;
+  const gained = p.lay("you", card);
+  Cb.pegAnim = "you";
+  if (gained) {
+    Audio16.tick(Math.min(6, gained), "pair");
+    Juice.shake(3 + gained, 180);
+    const me = document.getElementById("pegMe");
+    if (me) playAnim(me, Cb.run.meldling, "attack", 1.8);
+  } else {
+    Audio16.sfx("place");
+  }
+  if (p.lastLay && p.lastLay.hit31) { Audio16.slam(1.2); Juice.shake(9, 280); }
+  p.turn = "them";
+  renderPegging(done);
+
+  // the Spoiler answers after a beat, so the exchange reads as turns
+  setTimeout(() => {
+    const before = p.oppScore;
+    p.step();
+    if (p.oppScore > before) {
+      Audio16.voice(196, 0.22, { type: "sawtooth", gain: 0.1, detune: 10 });
+      const foe = document.getElementById("pegFoe");
+      const boss = Cb.run.boss();
+      if (foe && boss) playAnim(foe, boss.art, "attack", 1.8);
+      Juice.shake(4, 160);
+    }
+    Cb.pegAnim = "foe";
+    renderPegging(done);
+  }, Speed.ms(620));
 }
 
 function showDeeds() {
@@ -257,7 +657,8 @@ function pumpDeeds() {
 
 function cribRoundIntro() {
   const run = Cb.run, boss = run.boss(), m = run.rules();
-  Audio16.playMusic(boss ? "boss" : "run");
+  Audio16.playMusic(boss ? "boss" : run.endless ? "endless" : `act${Math.min(5, run.act)}`);
+  setSurface(boss ? "felt_boss" : "felt_table");
   screen("cribIntro");
   const c = el("div", "col center");
   c.append(el("p", "dim", `ACT ${run.act}  ·  ROUND ${run.round} / ${CRIB_ROUNDS}`));
@@ -270,7 +671,7 @@ function cribRoundIntro() {
     w.append(el("div", "", `Finish on exactly ${run.target()}. Not one point more.`));
     const locked = Achv.lockedSystems();
     if (locked.length)
-      w.append(el("div", "small green", `Win and you keep: ${locked[0].name} — ${locked[0].text}`));
+      w.append(el("div", "small green", `Win and you keep: ${locked[0].name}. ${locked[0].text}`));
     w.append(el("div", "small dim", "Lose and the run ends. You may walk away instead."));
     c.append(w);
   } else if (boss) {
@@ -298,7 +699,12 @@ function cribRoundIntro() {
     c.append(el("h2", "title", `TARGET ${run.target()}`));
     c.append(creatureEl(run.meldling, "idle", 4));
   }
-  c.append(el("p", "gold", `Score ${run.target()} in ${CRIB_DEALS + m.dealBonus} deals`));
+  /* the plain round's twist (LOOP_AUDIT 5), in the place of the Score line */
+  const tw = !run.isBoss() && !run.isWager() ? run.twist() : null;
+  const short = !run.isBoss() ? run.shortage() : null;
+  if (short) c.append(el("p", "bad", `SHORTAGE: ${SHORTAGE_NAMES[short]} score half this round, your best so far. ${CRIB_DEALS + m.dealBonus} deals.`));
+  else if (tw) c.append(el("p", "gold", `${tw.name.toUpperCase()}: ${tw.text}  Target +${Math.round((TWIST_TARGET - 1) * 100)}%, ${CRIB_DEALS + m.dealBonus} deals.`));
+  else c.append(el("p", "gold", `Score ${run.target()} in ${CRIB_DEALS + m.dealBonus} deals`));
   c.append(cribCharmRow(run));
   c.append(cribLevelRow(run));
   c.append(el("p", "small dim", `${run.street.name}  ·  deck ${run.deckSize()}  ·  charms ${run.charms.length}/${run.slots()}`));
@@ -307,24 +713,13 @@ function cribRoundIntro() {
     const chip = el("div", "planchip sev" + b.sev + (i + 1 < run.act ? " past" : i + 1 === run.act ? " now" : ""));
     chip.textContent = `A${i + 1} ${b.name}`;
     tip(chip, `${b.name}  ·  Act ${i + 1}`,
-      `${b.text}${b.align ? `  Aligned to ${SUIT_SYM[b.align]} — those cards score weakly against it, ${SUIT_SYM[SUIT_OPPOSE[b.align]]} scores strongly.` : ""}`);
+      `${b.text}${b.align ? `  Aligned to ${SUIT_SYM[b.align]}: those cards score weakly against it, ${SUIT_SYM[SUIT_OPPOSE[b.align]]} scores strongly.` : ""}`);
     plan.append(chip);
   });
   c.append(el("p", "small gold", "SPOILERS ON THE ROAD"), plan);
-  if (run.skips > 0 && !boss) {
-    const sk = btn(`SKIP THIS ROUND  ·  ${run.skips} banked`, () => {
-      run.skips--;
-      run.essence += 8 + Math.round(run.roundIndex() * 0.6);
-      sfx16("buy");
-      flash("Round skipped — you take the Glim and move on.");
-      run.openShop();
-      showCribShop();
-    }, "small");
-    sk.classList.add("skipbtn");
-    c.append(sk);
-    c.append(el("p", "tiny dim",
-      "Skips are earned by overshooting targets. Spoilers can never be skipped."));
-  }
+  /* Skips were removed: nothing ever earned one, and as DEPTH.md designed them a
+     skipped round costs more Glim than it pays (simulated). */
+
   if (run.isWager()) {
     c.append(btn("WALK AWAY", () => {
       run.wagerAt[`${run.act}-${run.round}`] = false;
@@ -333,6 +728,7 @@ function cribRoundIntro() {
       cribRoundIntro();
     }, "small"));
   }
+  RunSave.write("intro");
   c.append(btn("DEAL", () => {
     Cb.round = new CribRound(run);
     Cb.round.newDeal();
@@ -394,12 +790,7 @@ function cribHUD(rd, run, opts = {}) {
   b.id = "hudBar";
   wrap.append(b);
 
-  if (run.skips > 0 || run.surplus > 0) {
-    const sr = el("div", "row between small");
-    sr.append(el("span", "gold", `SURPLUS ${run.surplus}/${SURPLUS_PER_SKIP}`));
-    if (run.skips > 0) sr.append(el("span", "green", `${run.skips} SKIP${run.skips > 1 ? "S" : ""} BANKED`));
-    wrap.append(sr);
-  }
+
   const need = Math.max(0, rd.target - shown);
   const deals = Math.max(1, rd.dealsLeft);
   const per = Math.ceil(need / deals);
@@ -462,7 +853,7 @@ function charmOrderPanel(run) {
   if (run.charms.length >= 2 && Cb.orderProbe) {
     const p = Cb.orderProbe;
     box.append(el("p", "small " + (p.gain > 0 ? "gold" : "dim"),
-      p.gain > 0 ? `A better arrangement exists — worth about ${p.gain} more on a typical hand.`
+      p.gain > 0 ? `A better arrangement exists, worth about ${p.gain} more on a typical hand.`
                  : "This is the strongest arrangement for a typical hand."));
   }
   const test = btn("Test arrangement", () => {
@@ -494,22 +885,54 @@ function cribLevelRow(run) {
 /* ---------------------------------------------------------------- play */
 function renderCrib() {
   const rd = Cb.round, run = Cb.run;
+  if (!rd.over) RunSave.write("crib", { keep: Cb.keep.slice() });
   screen("crib");
   const c = el("div", "col tight");
 
   c.append(cribHUD(rd, run));
+
+  if (Cb.shuffled) {
+    // the deck ran dry and gathered itself back up
+    const sh = el("div", "shufflebanner");
+    sh.append(el("span", "small gold", "THE DECK IS GATHERED"));
+    c.append(sh);
+    const deck = el("div", "row center shuffledeck");
+    for (let i = 0; i < 5; i++) {
+      const b = backEl(0.55);
+      b.classList.add("shuffcard");
+      b.style.animationDelay = (i * 60) + "ms";
+      deck.append(b);
+    }
+    c.append(deck);
+    Cb.shuffled = false;
+    setTimeout(() => sfx16("cut"), 60);
+  }
+
+  // On a Spoiler round the Spoiler sits across the table and reacts to the play.
+  const bossNow = run.boss();
+  if (bossNow) {
+    const stage = el("div", "row center spoilerStage");
+    const foe = creatureEl(bossNow.art, "idle", 2.2);
+    foe.id = "spoilerSprite";
+    foe.classList.add("bossart", `sev${bossNow.sev}`);
+    foe.style.filter =
+      `hue-rotate(${(bossNow.id.charCodeAt(0) * 37) % 360}deg) saturate(${1 + bossNow.sev * 0.3})`;
+    tip(foe, bossNow.name, bossNow.text);
+    stage.append(foe);
+    c.append(stage);
+  }
   c.append(cribCharmRow(run));
 
   // the cut — unknown until you commit, unless you own Foresight
   const st = el("div", "row center gap");
   if (rd.starter) {
     const w = el("div", "pilewrap");
-    const n = cbCard(rd.starter, 1.5); n.classList.add("starterflip");
+    const n = cbCard(rd.starter, 1.3); n.classList.add("starterflip");
     w.append(n, el("p", "small gold", "STARTER"));
     st.append(w);
     if (rd.starter2) {
       const w2 = el("div", "pilewrap");
-      const n2 = cbCard(rd.starter2, 1.5); n2.classList.add("starterflip");
+      const n2 = cbCard(rd.starter2, 1.3); n2.classList.add("starterflip");
       w2.append(n2, el("p", "small gold", "STARTER 2"));
       st.append(w2);
     }
@@ -517,7 +940,7 @@ function renderCrib() {
       st.append(btn("Recut", () => { rd.recut(); sfx16("cut"); renderCrib(); }, "small"));
   } else {
     const w = el("div", "pilewrap");
-    const n = backEl(1.5); n.classList.add("cutwait");
+    const n = backEl(1.3); n.classList.add("cutwait");
     w.append(n, el("p", "small dim", "THE CUT"));
     st.append(w);
     st.append(el("p", "small dim cutnote",
@@ -526,28 +949,28 @@ function renderCrib() {
   c.append(st);
 
   // ---- the Table: reference material, collapsed unless you've pinned it
-  const pinCrib = Achv.lensOn("crib");
-  const pinDeck = Achv.lensOn("counter");
-  const pinCharms = Achv.lensOn("ledger");
+  const pinCrib = Achv.pinned("crib");
+  const pinDeck = Achv.pinned("counter");
+  const pinCharms = Achv.pinned("ledger");
 
   const cribBlock = () => {
     const w = el("div", "cribwrap");
     const h = el("div", "row between");
     h.append(el("span", "small gold", `YOUR CRIB  (${rd.crib.length}/${CRIB_SIZE})`),
       el("span", "small dim", rd.mods.cribZero ? "scores nothing"
-        : rd.crib.length >= CRIB_SIZE ? "full — later throws burn"
+        : rd.crib.length >= CRIB_SIZE ? "full: later throws burn"
         : `first ${CRIB_SIZE} throws land here`));
     w.append(h);
     const r = el("div", "cribrow");
     if (!rd.crib.length) r.append(el("div", "small dim", "empty"));
-    for (const cc of rd.crib) r.append(cardEl(cc, 0.8));
+    for (const cc of rd.crib) r.append(cardEl(cc, 0.7));
     w.append(r);
     return w;
   };
   const deckBlock = () => {
     const w = el("div", "col tight");
     if (rd.mods.hideTracker) {
-      w.append(el("p", "small red", "The Fog — your tracker is hidden this round."));
+      w.append(el("p", "small red", "The Fog: your tracker is hidden this round."));
       return w;
     }
     const trk = el("div", "decktrack");
@@ -601,6 +1024,10 @@ function renderCrib() {
   const hand = el("div", "hand cribhand");
   rd.dealt.forEach((card, i) => {
     const n = cbCard(card);
+    if (Cb.dealAnim) {
+      n.classList.add("dealin");
+      n.style.animationDelay = (i * 65) + "ms";
+    }
     n.dataset.i = i;
     if (Cb.keep.includes(i)) n.classList.add("sel");
     else {
@@ -625,16 +1052,20 @@ function renderCrib() {
 
   // live preview: locked-in points vs expected value of the cut
   const need = rd.keepCount();
+  if (Cb.keep.length === need && typeof Guide !== "undefined" && Guide.on)
+    setTimeout(() => guideShow("kept"), 120);
   if (Cb.keep.length === need) {
     const p = rd.preview(Cb.keep);
     const box = el("div", "panel col tight");
     if (p.blind) {
-      for (const e of p.events) box.append(rowLR(e.label, `+${e.points}`, "blue"));
-      if (!p.events.length) box.append(el("p", "small dim", "Nothing locked in yet."));
+      // one compact line instead of a row per event
+      if (p.events.length)
+        box.append(el("div", "small blue previewline",
+          p.events.map((e) => `${e.label} +${e.points}`).join("   ")));
+      else box.append(el("p", "small dim", "Nothing locked in yet."));
       box.append(rowLR("LOCKED IN", String(p.sure), "green"));
       box.append(rowLR("EXPECTED AFTER CUT", p.ev.toFixed(1), "gold"));
-      box.append(el("p", "small dim",
-        "The cut is unknown. Higher expected value beats higher certainty."));
+
     } else {
       for (const e of p.events) box.append(rowLR(e.label, `+${e.points}`, "blue"));
       if (p.levelBonus) box.append(rowLR("Category levels", `+${p.levelBonus}`, "gold"));
@@ -645,7 +1076,7 @@ function renderCrib() {
     c.append(box);
   } else {
     c.append(el("div", "selcount",
-      `${Cb.keep.length} / ${need} kept — select ${need - Cb.keep.length} more`));
+      `${Cb.keep.length} / ${need} kept. Select ${need - Cb.keep.length} more`));
   }
 
   if (rd.score >= rd.target) {
@@ -666,7 +1097,7 @@ function renderCrib() {
     sfx16("toCrib");
     renderCrib();
   }, "small");
-  mull.disabled = rd.mulligansLeft <= 0 || rd.stock.length < rd.dealtCount();
+  mull.disabled = !rd.canMulligan();
   c.append(mull);
 
 
@@ -718,14 +1149,32 @@ function doCribCount() {
   const quality = rd.cutQuality(keptCards, starter);
   rd.stock = liveStock;
 
-  const go = () => cribCascade(res, rank, keptCards, starter, scoreBefore, () => {
-    if (rd.dealsLeft > 0 && rd.score < rd.target) {
-      rd.newDeal(); Cb.dealAnim = true; renderCrib();
-    } else cribRoundEnd();
-  });
+  // the count is settled: a kill from here on resumes after it (no replayed cascade)
+  RunSave.write("counted", { kept: keptCards });
+  const afterCount = () => cribAfterCount(keptCards);
+  const go = () => cribCascade(res, rank, keptCards, starter, scoreBefore, afterCount);
 
+  if (typeof Guide !== "undefined" && Guide.on) setTimeout(() => guideShow("cut"), 200);
   if (knew) return go();
   cutCeremony(starter, quality, go);
+}
+
+/* After a count: The Play if it's owed, then the next deal or the round end. */
+function cribAfterCount(keptCards) {
+  const rd = Cb.round;
+  if (typeof Achv !== "undefined" && Achv.hasSystem("the_play") && rd.stock.length >= 4)
+    return showPegging(keptCards, cribAfterPlay);
+  cribAfterPlay();
+}
+function cribAfterPlay() {
+  const rd = Cb.round;
+  if (rd.dealsLeft > 0 && rd.score < rd.target) {
+    const before = rd.cycle;
+    rd.newDeal();
+    Cb.dealAnim = true;
+    Cb.shuffled = rd.cycle > before;
+    renderCrib();
+  } else cribRoundEnd();
 }
 
 /* The reveal, tiered by how lucky the cut actually was.
@@ -836,8 +1285,11 @@ function cutCeremony(starter, quality, done) {
 
 function cribRoundEnd() {
   const rd = Cb.round, run = Cb.run;
-  const cribRes = rd.cribResult || rd.settleCrib();
+  /* settle() settles the Crib once if the round isn't settled yet. Settling the
+     Crib here first, then calling settle(), paid it twice (and drew a second
+     Crib's Own Cut). */
   rd.settle();
+  const cribRes = rd.cribResult;
   sfx16(rd.won ? "win" : "lose");
 
   screen("cribEnd");
@@ -877,7 +1329,7 @@ function cribRoundEnd() {
     box.append(el("div", "small gold", `+${Math.round(m.points)} points`));
     if (m.decisive)
       box.append(el("div", "small red",
-        `Without it you'd have finished on ${Math.round(m.without)} — you needed ${rd.target}.`));
+        `Without it you'd have finished on ${Math.round(m.without)}. You needed ${rd.target}.`));
     c.append(box);
     if (m.decisive) {
       Audio16.sfx("milestone");
@@ -906,13 +1358,21 @@ function cribRoundEnd() {
   c.append(box);
 
   if (!rd.won) {
+    RunSave.clear();
     const m = Meta.record(run, run.roundIndex() - 1, rd.score);
+    // lost runs go in the Record too, not only wins
+    Achv.logRun({ deck: run.meldling, reached: run.roundIndex() - 1,
+                  street: run.street.id, score: rd.score, cleared: false, when: Date.now() });
+    // the Daily is one attempt; the Long Count keeps its best (both were never saved)
+    if (run.daily) Achv.recordDaily(run.daily, { reached: run.roundIndex() - 1, score: rd.score });
+    if (run.endless) Achv.setEndless(run.roundIndex() - 1);
     c.append(el("p", "dim", `Reached Act ${run.act}, Round ${run.round}.`));
     c.append(el("p", "small gold", Meta.line()));
     c.append(btn("New Run", showCribSelect, "big"));
     c.append(btn("Title", showTitle, "small"));
   } else {
     run.essence += rd.essenceEarned;
+    RunSave.write("roundwon");
     c.append(btn("SHOP", () => { run.openShop(); showCribShop(); }, "big"));
   }
   root().append(c);
@@ -937,8 +1397,15 @@ function shareCard(run, rd) {
   box.append(el("div", "small dim", charmLine));
 
   const copy = btn("COPY RESULT", () => {
-    const txt = [
-      `MELDLINGS — ${CRIB_DECKS[run.meldling].name} ${SUIT_SYM[CRIB_DECKS[run.meldling].suit]}`,
+    const streak = Achv.dailyStreak();
+    const bar = (n) => "\u25A0".repeat(Math.min(10, Math.ceil(n / 2.5))) +
+                       "\u25A1".repeat(Math.max(0, 10 - Math.ceil(n / 2.5)));
+    const txt = run.daily ? [
+      `MELDLINGS Daily ${run.daily}`,
+      `${bar(rd.score / Math.max(1, rd.target) * 10)}  Act ${run.act}-${run.round}`,
+      streak > 1 ? `Streak ${streak}` : "",
+    ].filter(Boolean).join("\n") : [
+      `MELDLINGS · ${CRIB_DECKS[run.meldling].name} ${SUIT_SYM[CRIB_DECKS[run.meldling].suit]}`,
       `Act ${run.act}-${run.round}   ${rd.score}/${rd.target}` + (rd.soClose ? `  (${-rd.margin} short!)` : ""),
       m && m.decisive ? `Carried by ${m.name}` : (rm ? `MVP ${rm.name}` : ""),
       charmLine,
@@ -961,9 +1428,11 @@ function sectionHead(title, note) {
 }
 
 function showCribShop() {
-  Audio16.playMusic("menu");
+  Audio16.playMusic("shop");
   const run = Cb.run;
   if (!run.shopState) run.openShop();
+  RunSave.write("shop");
+  setSurface("felt_shop");
   screen("cribShop");
   const c = el("div", "col");
 
@@ -1024,12 +1493,12 @@ function showCribShop() {
     };
     c.append(b);
   }
-  if (full) c.append(el("p", "small red", "Every charm slot is spoken for — pawn one first."));
+  if (full) c.append(el("p", "small red", "Every charm slot is spoken for. Pawn one first."));
 
   // ---- the card market
   c.append(sectionHead("THE STALL", "take a card into your deck"));
   c.append(el("p", "small dim",
-    "Fives are scarce and dear — a five makes fifteen with every court card."));
+    "Fives are scarce and dear: a five makes fifteen with every court card."));
   const mrow = el("div", "row gap cardmarket");
   for (const entry of run.shopState.cards) {
     if (entry.sold) continue;
@@ -1081,10 +1550,11 @@ function showCribShop() {
   c.append(el("p", "small dim", `+${LEVEL_GAIN} base per scoring event of that kind, per Reckoning.`));
 
   c.append(el("p", "small dim",
-    "Marks on cards do the rest — buy them at The Stall."));
+    "Marks on cards do the rest. Buy them at The Stall."));
 
   c.append(btn("NEXT ROUND", () => {
     run.shopState = null;
+    if (run.endless) { run.endlessRound = (run.endlessRound || 0) + 1; cribRoundIntro(); return; }
     if (run.advance()) { screen("cribWon"); return cribRunWon(); }
     cribRoundIntro();
   }, "big"));
@@ -1103,22 +1573,25 @@ function flash(msg) {
 
 function cribRunWon() {
   const run = Cb.run;
+  RunSave.clear();
   const c = el("div", "col center");
   c.append(el("h2", "title", "TWENTY-NINE"));
   c.append(creatureEl(run.meldling, "idle", 5));
   announceDeeds(Achv.check("run", { cleared: true, street: run.street.id }));
+  Achv.markCleared(run.meldling);
+  if (run.trial) Achv.markTrial(run.trial.id);
   const pegsWon = pegsForRun(CRIB_ACTS * CRIB_ROUNDS, true, run.street.id, Achv.count());
   Achv.addPegs(pegsWon);
   Achv.logRun({ deck: run.meldling, reached: CRIB_ACTS * CRIB_ROUNDS,
                 street: run.street.id, score: 0, cleared: true, when: Date.now() });
   c.append(el("p", "gold", `+${pegsWon} Pegs`));
   Meta.record(run, CRIB_ACTS * CRIB_ROUNDS, 0);
+  if (run.daily) Achv.recordDaily(run.daily, { reached: CRIB_ACTS * CRIB_ROUNDS, score: 0, cleared: true });
   const rmv = run.runMVP();
-  if (rmv) c.append(el("p", "gold", `Carried by ${rmv.name} — ${rmv.points} points.`));
+  if (rmv) c.append(el("p", "gold", `Carried by ${rmv.name}: ${rmv.points} points.`));
   c.append(el("p", "gold", `All ${CRIB_ACTS * CRIB_ROUNDS} rounds cleared on ${run.street.name}.`));
   if (run.street.id < STREETS.length)
     c.append(el("p", "small gold", `${STREETS[run.street.id].name} is open.`));
-  c.append(el("p", "small gold", Meta.line()));
   c.append(el("p", "small gold", Meta.line()));
   c.append(cribCharmRow(run));
   c.append(cribLevelRow(run));

@@ -1,0 +1,61 @@
+--- a/web/cribbage.js
++++ b/web/cribbage.js
+@@ -144,7 +144,12 @@
+        fifteens and runs do */
+     const bySuit = {};
+     const src = mods.deadSuit ? all.filter((c) => c.suit !== mods.deadSuit) : all;
+-    for (const c of src) (bySuit[c.suit] ||= []).push(c);
++    // Mimic wears one suit: it joins your largest natural suit group (Clover
++    // Ascended's Mimics did nothing here before; Ziah's call, 5.4% -> 10.3%)
++    const wild = (c) => c.enh === "chameleon" || c.enh === "wild";
++    for (const c of src) if (!wild(c)) (bySuit[c.suit] ||= []).push(c);
++    let big = null; for (const su in bySuit) if (!big || bySuit[su].length > bySuit[big].length) big = su;
++    for (const c of src) if (wild(c)) (bySuit[big || c.suit] ||= []).push(c);
+     for (const su in bySuit) {
+       const g = bySuit[su];
+       for (let i = 0; i < g.length; i++)
+--- a/web/cribrogue.js
++++ b/web/cribrogue.js
+@@ -259,11 +259,17 @@
+   /* ---- MYTHIC. Only rolls on Street IV and deeper. Each one bends a rule the
+      rest of the game treats as fixed. ---- */
+   { id: "collector", name: "The Collector", tier: 3, cost: 16, rarity: "mythic", cat: "rule",
+-    text: "The last card you counted joins your deck, permanently.",
++    text: "Once a round, your best counted card joins your deck. +2 base for every card collected this run.",
+     onCount: (ctx) => {
+-      const c = ctx.all[ctx.all.length - 1];
+-      if (c) ctx.addCards.push(Object.assign({}, c));
+-      return true;
++      // Redesigned (was: copy the last counted card, i.e. the random starter, every
++      // count: worse than no charm). The card in the most scoring events joins once
++      // a round, and every card collected so far adds +2 base. 22.0% vs 12.0% forced.
++      const n = ctx.run.collectedCount || 0;
++      if (n) ctx.base += 2 * n;
++      let best = null, bestN = 0;
++      for (const c of ctx.all) { const k = ctx.events.filter((e) => e.cards.includes(c)).length; if (k > bestN) { best = c; bestN = k; } }
++      if (best) ctx.addCards.push(Object.assign({}, best));
++      return n > 0 || !!best;
+     } },
+   { id: "exchange", name: "The Exchange", tier: 3, cost: 18, rarity: "mythic", cat: "rule",
+     text: "After the cut, your hand and your Crib trade places.",
+@@ -277,8 +283,9 @@
+       return true;
+     } },
+   { id: "usury", name: "Usury", tier: 3, cost: 15, rarity: "mythic", cat: "mult",
+-    text: "x3 mult, but you lose 4 Glim every count.",
+-    onCount: (ctx) => { ctx.mult *= 3; ctx.essence = Math.max(0, ctx.essence - 4); return true; } },
++    text: "x2 mult, but you lose 4 Glim every count.",
++    // was x3: 64.6% clear when owned early vs 13.8% with no charm; x2 is 30.8%
++    onCount: (ctx) => { ctx.mult *= 2; ctx.essence = Math.max(0, ctx.essence - 4); return true; } },
+   { id: "thelong", name: "The Long Game", tier: 3, cost: 20, rarity: "mythic", cat: "mult",
+     text: "+0.5 mult for every round you have already cleared this run.",
+     onCount: (ctx) => { const n = ctx.run.roundIndex() - 1;
+@@ -891,7 +898,7 @@
+     if (res.essence === undefined) { res.glim = 0; return; }
+     res.glim = res.essence - res.essenceStart;
+     if (res.glim) this.run.essence = Math.max(0, this.run.essence + res.glim);
+-    for (const c of res.addCards || []) this.run.cards.push(c);
++    for (const c of res.addCards || []) if (!this.collected) { this.run.cards.push(c); this.collected = true; this.run.collectedCount = (this.run.collectedCount || 0) + 1; }
+   }
+ 
+   runCount(hand, isCrib = false, starterOverride = null, opts = {}) {

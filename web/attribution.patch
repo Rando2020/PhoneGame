@@ -1,0 +1,16 @@
+--- a/web/cribrogue.js
++++ b/web/cribrogue.js
+@@ -586,7 +586,12 @@
+   /* Deck bonus behaves as a permanent charm. */
+   activeCharms() {
+     const list = this.charms.slice();
+-    if (this.deck.charm) list.unshift(Object.assign({ name: this.deck.name, tier: 0 }, this.deck.charm));
++    // ONE object per run: commit's counterfactual skips charms by identity, and a
++    // fresh object per call meant the Meldling was never credited.
++    if (this.deck.charm) {
++      if (!this.deckCharm) this.deckCharm = Object.assign({ name: this.deck.name, tier: 0 }, this.deck.charm);
++      list.unshift(this.deckCharm);
++    }
+     return list;
+   }
+ 

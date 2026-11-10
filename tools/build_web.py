@@ -12,8 +12,7 @@ CARDS = os.path.join(BASE, "assets", "cards")
 CREAT = os.path.join(BASE, "assets", "meldlings")
 OUT = os.path.join(BASE, "meldlings.html")
 
-CREATURES = ["pip", "thump", "clover", "facet", "nib", "muggins",
-             "deadwood", "shuffler", "jokester", "kingpin"]
+CREATURES = ["pip", "thump", "clover", "facet", "nib", "muggins", "auditor", "famine", "leaden", "fog", "thief", "eclipse", "deadwood", "shuffler", "jokester", "kingpin"]
 ANIMS = ["idle", "attack", "hurt"]
 ICON_DIR = os.path.join(BASE, "assets", "icons")
 ICONS = ["fifteen", "pair", "run", "flush", "nobs"]
@@ -69,9 +68,9 @@ def build():
         return t
 
     rules = (js("rules.js") + "\n" + js("gin.js") + "\n" + js("roguelite.js") + "\n"
-             + js("cribbage.js") + "\n" + js("meta.js") + "\n" + js("cribrogue.js"))
+             + js("cribbage.js") + "\n" + js("meta.js") + "\n" + js("pegging.js") + "\n" + js("cribrogue.js"))
     app = (js("audio.js") + "\n" + js("app.js") + "\n" + js("gin_ui.js") + "\n"
-           + js("roguelite_ui.js") + "\n" + js("cascade.js") + "\n" + js("cribrogue_ui.js") + "\n" + js("tutorial.js") + "\n" + js("gallery.js"))
+           + js("roguelite_ui.js") + "\n" + js("cascade.js") + "\n" + js("cribrogue_ui.js") + "\n" + js("tutorial.js") + "\n" + js("gallery.js") + "\n" + js("admin.js"))
     css = open(os.path.join(WEB, "style.css"), encoding="utf-8").read()
 
     html = f"""<!DOCTYPE html>

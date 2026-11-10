@@ -1,0 +1,43 @@
+--- a/web/cribrogue.js
++++ b/web/cribrogue.js
+@@ -787,9 +787,16 @@
+ 
+   /* Mulligan: the current six go to the Crib and you draw fresh.
+      Costs a mulligan and depletes your deck, so it is never free. */
++  /* A mulligan must leave a card to cut for the starter (unless it is already
++     cut, as with Foresight). Checking only dealtCount let a mulligan empty the
++     stock, and commit() then crashed cutting a starter from nothing. */
++  canMulligan() {
++    if (this.mulligansLeft <= 0 || this.phase !== "keep") return false;
++    return this.stock.length >= this.dealtCount() + (this.starter ? 0 : 1);
++  }
++
+   mulligan() {
+-    if (this.mulligansLeft <= 0 || this.phase !== "keep") return null;
+-    if (this.stock.length < this.dealtCount()) return null;
++    if (!this.canMulligan()) return null;
+     this.mulligansLeft--;
+     const room = Math.max(0, CRIB_SIZE - this.crib.length);
+     this.crib.push(...this.dealt.slice(0, room));
+@@ -1045,8 +1052,9 @@
+     const room = Math.max(0, CRIB_SIZE - this.crib.length);
+     this.crib.push(...thrown.slice(0, room));
+     this.burned = (this.burned || []).concat(thrown.slice(room));
++    // counted cards go back for the next recycle, once (this line used to run
++    // twice, so every recycle put duplicates of the hand and starter in the deck)
+     this.used = (this.used || []).concat(hand, this.starter ? [this.starter] : []);
+-    this.used = (this.used || []).concat(hand, this.starter);
+     res.toCrib = Math.min(room, thrown.length);
+     res.burnedNow = thrown.length - res.toCrib;
+     this.score += res.total;
+--- a/web/cribrogue_ui.js
++++ b/web/cribrogue_ui.js
+@@ -972,7 +972,7 @@
+     sfx16("toCrib");
+     renderCrib();
+   }, "small");
+-  mull.disabled = rd.mulligansLeft <= 0 || rd.stock.length < rd.dealtCount();
++  mull.disabled = !rd.canMulligan();
+   c.append(mull);
+ 
+ 

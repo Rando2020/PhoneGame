@@ -5,3 +5,8 @@ export_credentials.cfg
 *.tmp
 .DS_Store
 Thumbs.db
+build/
+__pycache__/
+/export.log
+/list.txt
+godot/android/

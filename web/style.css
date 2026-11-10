@@ -757,3 +757,267 @@ h1.title.pulse { animation: numpulse .3s ease-out; }
   padding: 6px 9px; align-items: center; }
 .galrow.dimmed { opacity: .5; }
 .galnote { text-align: center; max-width: 340px; margin: 0 auto; }
+
+/* --- the play (pegging) --- */
+.pegbar { width: 100%; max-width: 300px; height: 14px; background: #191627;
+  border: 2px solid var(--line); border-radius: 7px; overflow: hidden; }
+.pegfill { height: 100%; background: linear-gradient(90deg, var(--green), var(--gold));
+  transition: width .25s ease-out; }
+.pegpile { flex-wrap: wrap; min-height: 70px; }
+.pegpile .card, .peghand .card { margin: 0; }
+.pegscore { width: 100%; max-width: 300px; }
+.card.unplayable { filter: grayscale(1) brightness(.45); cursor: default; }
+.creature.ascended {
+  filter: drop-shadow(0 0 10px rgba(255,107,138,.8)) saturate(1.5) contrast(1.15);
+  animation: ascpulse 1.8s ease-in-out infinite;
+}
+@keyframes ascpulse { 50% { filter: drop-shadow(0 0 18px rgba(255,107,138,1)) saturate(1.8) contrast(1.25); } }
+
+/* ============ TITLE ============ */
+.titlescreen { gap: 14px; padding-top: 8px; }
+.titlemark { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.titlesuits { gap: 12px; margin-bottom: 2px; }
+.titlesuit {
+  font-size: 20px; color: var(--gold); opacity: .85;
+  animation: suitfloat 3.4s ease-in-out infinite;
+}
+.titlesuit:nth-child(2) { color: var(--red); animation-delay: .35s; }
+.titlesuit:nth-child(3) { animation-delay: .7s; }
+.titlesuit:nth-child(4) { color: var(--red); animation-delay: 1.05s; }
+@keyframes suitfloat { 50% { transform: translateY(-5px); opacity: 1; } }
+
+.gametitle {
+  font-size: 44px; letter-spacing: 7px; color: #fff; margin: 0; line-height: 1;
+  text-shadow: 0 3px 0 #0d0b16, 0 0 26px rgba(232,182,76,.55);
+  animation: titlein .7s cubic-bezier(.2,1.5,.3,1);
+}
+@keyframes titlein { from { opacity: 0; transform: scale(.85) translateY(-8px); } }
+.tagline { color: var(--dim); letter-spacing: 3px; font-size: 11px; margin: 4px 0 0; }
+
+.titlestage {
+  width: 100%; display: flex; justify-content: center; padding: 6px 0 10px;
+  border-bottom: 2px solid var(--line);
+  background: radial-gradient(ellipse at 50% 100%, rgba(232,182,76,.10), transparent 70%);
+}
+.titleparade { gap: 2px; flex-wrap: nowrap; }
+.paradebob { animation: paradebob 2.6s ease-in-out infinite; }
+@keyframes paradebob { 50% { transform: translateY(-7px); } }
+
+.playbtn {
+  font-size: 26px; letter-spacing: 6px; padding: 15px; max-width: 300px;
+  border-color: var(--gold); color: var(--gold);
+  background: linear-gradient(180deg, #2c2436, var(--panel));
+  box-shadow: 0 0 22px rgba(232,182,76,.35);
+  animation: playpulse 2.2s ease-in-out infinite;
+}
+@keyframes playpulse { 50% { box-shadow: 0 0 34px rgba(232,182,76,.7); } }
+
+.iconbar { gap: 4px; flex-wrap: wrap; }
+.iconbtn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: transparent; border: 2px solid var(--line); border-radius: 9px;
+  padding: 7px 9px; min-width: 58px; font: inherit; color: var(--dim); cursor: pointer;
+}
+.iconbtn:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-2px); }
+.iconglyph { font-size: 18px; line-height: 1; }
+.iconlabel { font-size: 9px; letter-spacing: 1px; }
+
+/* ============ SELECT ============ */
+.selkicker { letter-spacing: 4px; opacity: .8; }
+.roadcard {
+  display: flex; align-items: center; gap: 11px; width: 100%; max-width: 340px;
+  background: var(--panel); border: 2px solid var(--line); border-left-width: 5px;
+  border-radius: 10px; padding: 10px 12px; font: inherit; color: var(--ink);
+  cursor: pointer; text-align: left;
+}
+.roadcard:hover:not(:disabled) { border-color: var(--gold); transform: translateX(3px); }
+.roadcard.locked { opacity: .45; cursor: default; }
+.roadcard.done { border-left-color: var(--green); }
+.roadname { font-size: 17px; color: #fff; }
+
+.stepper { gap: 10px; align-items: center; }
+.streetface {
+  align-items: center; min-width: 190px; padding: 12px 10px;
+  background: var(--panel); border: 2px solid var(--gold); border-radius: 10px;
+  box-shadow: 0 0 16px rgba(232,182,76,.3);
+}
+.streetnum { font-size: 30px; color: #fff; letter-spacing: 2px; line-height: 1; }
+.streetpip { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.streetpip.on { background: var(--gold); transform: scale(1.35); }
+.streetpip.locked { opacity: .35; }
+
+.meldstage { gap: 6px; align-items: center; min-height: 190px; }
+.meldname { font-size: 20px; color: #fff; letter-spacing: 1px; margin-top: 4px; }
+.meldinfo { max-width: 320px; text-align: center; border-color: var(--gold); }
+.creature.silhouette { filter: brightness(0) opacity(.4); }
+
+/* hand fans tighter now the cards are smaller, so the row still reads as a hand */
+.cribhand .card { margin: 0 2px; }
+@media (max-height: 780px) {
+  .cribhand .card { margin: 0 1px; }
+  .hud .bar { height: 12px; }
+  .hudscore { font-size: 26px; }
+}
+.previewline { line-height: 1.5; }
+/* short screens: tighten everything a notch */
+@media (max-height: 740px) {
+  .col { gap: 6px; }
+  .panel { padding: 7px 9px; }
+  .btn { padding: 10px; }
+  .btn.big { font-size: 17px; padding: 12px; }
+}
+
+/* ============ SURFACE & DEPTH ============ */
+body { background-color: #12101a; background-attachment: fixed; }
+body::after {           /* vignette, so the edges recede */
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 1;
+  background: radial-gradient(ellipse at 50% 45%, transparent 42%, rgba(6,5,10,.72) 100%);
+}
+#app { position: relative; z-index: 2; }
+
+/* panels lift off the felt instead of sitting flat on it */
+.panel, .cribwrap, .tablestrip, .galrow, .histrow, .roadcard, .marketslot, .shopitem {
+  box-shadow: 0 3px 0 rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.hud { box-shadow: 0 4px 0 rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.07); }
+.card { box-shadow: 0 2px 3px rgba(0,0,0,.55); }
+.card.sel { box-shadow: 0 0 0 2px var(--gold), 0 4px 6px rgba(0,0,0,.6); }
+.creature { filter: drop-shadow(0 3px 2px rgba(0,0,0,.5)); }
+
+
+/* ============ THEMES ============
+   Text on a bone card face measured 1.1:1 — unreadable. Anything drawn over a
+   card now uses --on-light, and the whole palette can flip. */
+:root {
+  --on-light: #23202c;      /* ink for anything sitting on a card face */
+  --on-light-dim: #5c5568;
+  --on-light-gold: #8a6410;
+}
+.onlight { color: var(--on-light) !important; }
+.onlight-dim { color: var(--on-light-dim) !important; }
+
+body.theme-light {
+  --bg: #ded7c6;
+  --panel: #f2ecdd;
+  --panel2: #e7dfcd;
+  --ink: #23202c;
+  --dim: #5c5568;
+  --gold: #6b4c07;
+  --green: #2b6b38;
+  --red: #a3282d;
+  --blue: #274f8c;
+  --line: #b8ae98;
+  color: var(--ink);
+}
+body.theme-light::after {
+  background: radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(90,80,60,.35) 100%);
+}
+body.theme-light .hudscore,
+body.theme-light .gametitle,
+body.theme-light .meldname,
+body.theme-light .sysname,
+body.theme-light .deedname,
+body.theme-light .streetnum,
+body.theme-light .sharescore,
+body.theme-light .shoptitle,
+body.theme-light .roadname { color: #17141f; text-shadow: none; }
+body.theme-light .card { box-shadow: 0 2px 4px rgba(60,50,35,.35); }
+body.theme-light .panel, body.theme-light .cribwrap, body.theme-light .tablestrip,
+body.theme-light .galrow, body.theme-light .histrow, body.theme-light .roadcard,
+body.theme-light .marketslot, body.theme-light .shopitem, body.theme-light .hud {
+  box-shadow: 0 2px 0 rgba(120,105,80,.35), inset 0 1px 0 rgba(255,255,255,.5);
+}
+body.theme-light .creature { filter: drop-shadow(0 3px 2px rgba(90,80,60,.4)); }
+body.theme-light .gametitle { text-shadow: 0 2px 0 rgba(255,255,255,.6); }
+.devbtn { text-align: center; }
+.devicon { border-color: var(--red); color: var(--red); }
+.devicon:hover { border-color: var(--red); color: #fff; }
+
+/* ============ MOTION ============ */
+/* cards arrive from the deck rather than appearing */
+.card.dealin { animation: dealin .34s cubic-bezier(.2,1.3,.35,1) backwards; }
+@keyframes dealin {
+  from { transform: translate(38vw, -30vh) rotate(22deg) scale(.6); opacity: 0; }
+  60%  { opacity: 1; }
+}
+/* and leave when the count lands */
+.card.sweepaway { animation: sweepaway .5s cubic-bezier(.5,0,.85,.4) forwards; }
+@keyframes sweepaway {
+  to { transform: translate(-26vw, 34vh) rotate(-24deg) scale(.55); opacity: 0; }
+}
+/* the Spoiler at the table */
+.spoilerStage { margin: -2px 0 2px; }
+.spoilerStage .creature { animation: foehover 2.8s ease-in-out infinite; }
+@keyframes foehover { 50% { transform: translateY(-5px) scale(1.02); } }
+.cascadefoe { min-height: 44px; margin-bottom: 2px; }
+.creature.bossstrike { animation: bossstrike .42s cubic-bezier(.3,1.6,.4,1); }
+@keyframes bossstrike {
+  0%   { transform: translateY(0) scale(1); }
+  35%  { transform: translateY(14px) scale(1.16); filter: brightness(1.7); }
+  100% { transform: translateY(0) scale(1); }
+}
+.shufflebanner { text-align: center; letter-spacing: 2px; animation: tipin .3s ease-out; }
+.shuffledeck { gap: 2px; }
+.shuffcard { animation: shuffcard .55s cubic-bezier(.3,1.4,.4,1) backwards; }
+@keyframes shuffcard {
+  from { transform: translateX(30vw) rotate(30deg); opacity: 0; }
+  70%  { transform: translateX(-6px) rotate(-4deg); opacity: 1; }
+}
+
+/* ---- guided first round ---- */
+.guidebox {
+  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+  width: min(360px, calc(100vw - 24px)); z-index: 850;
+  background: linear-gradient(180deg, #2a2338, #15121f);
+  border: 3px solid var(--gold); border-radius: 12px; padding: 12px 14px;
+  box-shadow: 0 10px 36px rgba(0,0,0,.75), 0 0 24px rgba(232,182,76,.35);
+  animation: guidein .34s cubic-bezier(.2,1.5,.3,1);
+  display: flex; flex-direction: column; gap: 6px;
+}
+@keyframes guidein { from { opacity: 0; transform: translate(-50%, 22px); } }
+.guidekicker { font-size: 9px; letter-spacing: 3px; color: var(--gold); }
+.guidetitle { font-size: 17px; color: #fff; }
+.guidebody { font-size: 13px; line-height: 1.5; color: var(--ink); }
+.guidelook {
+  outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 10px;
+  animation: guidepulse 1.4s ease-in-out infinite; position: relative; z-index: 840;
+}
+@keyframes guidepulse { 50% { outline-color: #fff; } }
+
+/* ---- respect a system preference for less motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .paradebob, .titlesuit, .playbtn, .bossart, .creature { animation: none !important; }
+}
+
+/* ============ THE PLAY ============ */
+.pegscreen { gap: 8px; }
+.pegkicker { letter-spacing: 5px; }
+.pegfield { width: 100%; max-width: 340px; align-items: flex-start; }
+.pegtotal {
+  font-size: 42px; line-height: 1; color: #fff;
+  text-shadow: 0 3px 0 #0d0b16; transition: color .2s;
+}
+.pegtotal.near { color: var(--gold); text-shadow: 0 0 18px rgba(232,182,76,.7); }
+.pegtotal.hit  { color: var(--green); text-shadow: 0 0 24px rgba(115,199,122,.9);
+  animation: clutchin .4s cubic-bezier(.2,1.7,.3,1); }
+.pegbar { width: 120px; height: 10px; background: #191627;
+  border: 2px solid var(--line); border-radius: 6px; overflow: hidden; }
+.pegfill { height: 100%; background: linear-gradient(90deg, var(--green), var(--gold));
+  transition: width .3s cubic-bezier(.2,.8,.3,1); }
+.pegbacks { gap: 1px; margin-top: 2px; }
+.pegbacks .card { margin: 0; }
+.pegpile { flex-wrap: wrap; min-height: 72px; gap: 3px; }
+.pegpile .card, .peghand .card { margin: 0; }
+.pegcall { min-height: 20px; font-size: 13px; letter-spacing: 1px; }
+.pegcall.mineCall { color: var(--green); animation: clutchin .35s cubic-bezier(.2,1.7,.3,1); }
+.pegcall.foeCall { color: var(--red); animation: clutchin .35s cubic-bezier(.2,1.7,.3,1); }
+.card.pegfromyou { animation: pegfromyou .34s cubic-bezier(.25,1.2,.4,1); }
+@keyframes pegfromyou { from { transform: translateY(70px) scale(.85); opacity: .2; } }
+.card.pegfromfoe { animation: pegfromfoe .34s cubic-bezier(.25,1.2,.4,1); }
+@keyframes pegfromfoe { from { transform: translate(60px, -60px) scale(.85) rotate(14deg); opacity: .2; } }
+.card.pegplayable:hover { transform: translateY(-6px); }
+.pegresult { max-width: 280px; border-color: var(--gold); }

@@ -91,7 +91,7 @@ function renderGin() {
   const dw = el("div", "panel col tight");
   dw.append(rowLR("DEADWOOD", String(arr.deadwood), dwClass));
   dw.append(el("p", "small dim",
-    arr.deadwood === 0 ? "GIN — every card melded."
+    arr.deadwood === 0 ? "GIN! Every card melded."
       : arr.deadwood <= limit ? `You may knock (limit ${limit}).`
       : `Knock at ${limit} or less.`));
   c.append(dw);
@@ -129,8 +129,8 @@ function renderGin() {
   c.append(bar1);
 
   c.append(el("p", "small dim",
-    phase === "draw" ? "Phase: DRAW — take the stock or the discard."
-      : "Phase: DISCARD — pick a card to throw."));
+    phase === "draw" ? "Phase: DRAW. Take the stock or the discard."
+      : "Phase: DISCARD. Pick a card to throw."));
 
   root().append(c);
 }
@@ -146,7 +146,7 @@ function knockable() {
 function discardViewer() {
   const h = GinUI.hand;
   const p = el("div", "panel col tight");
-  p.append(el("p", "gold small", "DISCARD PILE — newest first"));
+  p.append(el("p", "gold small", "DISCARD PILE · newest first"));
   const strip = el("div", "row wrap gap");
   h.discard.slice().reverse().forEach((card) => strip.append(cardEl(card, 1.1)));
   p.append(strip);
@@ -170,7 +170,7 @@ function doDraw(src) {
   sfx("draw");
   GinUI.msg = src === "stock"
     ? `Drew ${cardLabel(c)} from the stock.`
-    : `Took ${cardLabel(c)} from the discard — the CPU saw that.`;
+    : `Took ${cardLabel(c)} from the discard. The CPU saw that.`;
   GinUI.sel = -1;
   if (h.over) return finishHand();
   renderGin();
@@ -235,7 +235,7 @@ function ginSummary() {
       `knocker deadwood ${r.knockerDw} · opponent ${r.oppDw}` +
       (r.laidOff ? ` · laid off ${r.laidOff}` : "")));
     p.append(el("p", "", `${r.points} points to ${r.winner === "player" ? "you" : ROSTER[GinUI.enemy].name}`));
-  } else p.append(el("p", "small dim", "Stock ran out — no score."));
+  } else p.append(el("p", "small dim", "Stock ran out. No score."));
 
   const done = GinUI.scores.player >= GinUI.target || GinUI.scores.cpu >= GinUI.target;
   if (done) {

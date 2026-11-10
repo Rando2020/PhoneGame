@@ -54,7 +54,7 @@ function galCards(box) {
 
 function galSplit(box) {
   galNote(box, "Split cards count as either rank. Four shared images compose all " +
-    "2,704 combinations — nothing here is a pre-rendered asset.");
+    "2,704 combinations. Nothing here is a pre-rendered asset.");
   const samples = [
     [2, 3, "H", "H"], [1, 13, "S", "D"], [10, 11, "C", "C"], [5, 9, "D", "S"],
     [7, 8, "H", "S"], [4, 12, "C", "H"], [6, 6, "D", "D"], [3, 10, "S", "C"],
@@ -77,7 +77,7 @@ function galSplit(box) {
   box.append(el("p", "small gold", "How it scores"));
   const demo = el("div", "panel col tight");
   demo.append(el("div", "small",
-    "A hand of [2/3] 4 5 10 with a 6 cut scores 8 — the split takes the 3 to " +
+    "A hand of [2/3] 4 5 10 with a 6 cut scores 8: the split takes the 3 to " +
     "complete a run of four. Held as a 2 it would score 7."));
   box.append(demo);
 }

@@ -141,7 +141,7 @@ const MELDLING_DECKS = {
 /* ---------------------------------------------------------------- bosses */
 const BOSSES = [
   { act: 1, art: "deadwood", name: "Deadwood",      text: "Unmelded cards cost double at round end.", rule: { deadwoodMult: 2 } },
-  { act: 2, art: "shuffler", name: "The Shuffler",  text: "The discard pile is face down — no digging.", rule: { noDig: true } },
+  { act: 2, art: "shuffler", name: "The Shuffler",  text: "The discard pile is face down. No digging.", rule: { noDig: true } },
   { act: 3, art: "jokester", name: "Jokester",      text: "Runs score half.",                        rule: { runMult: 0.5 } },
   { act: 4, art: "shuffler", name: "The Reshuffler",text: "Only one meld may be laid per turn.",     rule: { oneLayPerTurn: true } },
   { act: 5, art: "kingpin",  name: "Kingpin",       text: "PREP melds score nothing.",               rule: { prepZero: true } },

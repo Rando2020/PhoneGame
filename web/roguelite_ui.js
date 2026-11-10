@@ -80,7 +80,7 @@ function renderRound() {
     `${rd.score} / ${rd.target}`, rd.score >= rd.target ? "green" : "gold"));
   head.append(bar(rd.score / rd.target, rd.score >= rd.target ? "green" : "red"));
   head.append(el("p", "small dim",
-    `TURNS ${rd.turnsLeft}   DIGS ${rd.mods.noDig ? "—" : (rd.mods.freeDig ? "∞" : rd.digsLeft)}   ` +
+    `TURNS ${rd.turnsLeft}   DIGS ${rd.mods.noDig ? "-" : (rd.mods.freeDig ? "∞" : rd.digsLeft)}   ` +
     `DEADWOOD ${rd.deadwood()}`));
   if (boss) head.append(el("p", "small red", boss.text));
   c.append(head);
@@ -118,7 +118,7 @@ function renderRound() {
   c.append(piles);
 
   c.append(el("p", "banner", rd.phase === "draw"
-    ? "DRAW — take the stock, or dig the discard."
+    ? "DRAW: take the stock, or dig the discard."
     : "LAY melds, then discard to end your turn."));
 
   // --- hand
@@ -147,7 +147,7 @@ function renderRound() {
   c.append(bar1);
 
   if (rd.score >= rd.target)
-    c.append(btn("CASH OUT — target met", doCashOut, "big"));
+    c.append(btn("CASH OUT · target met", doCashOut, "big"));
 
   // --- preview of the lay
   if (kind || offTarget) {
