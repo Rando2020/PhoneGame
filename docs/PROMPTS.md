@@ -9,11 +9,11 @@ Act as the lead engineer and producer shipping Meldlings, a cribbage roguelite
 built in Godot 4.3, to the iOS App Store. You have full access to the GitHub
 repo Rando2020/PhoneGame.
 
-1. Clone the repo. If the PR stack (#3 to #9) is still unmerged, check out the
-   tip of the stack, not main. Read CLAUDE.md, then docs/FINISH_LINE.md.
+1. Clone the repo. If PR #12 (`release/1.0`) is still unmerged, check out
+   `release/1.0`, not main. Read CLAUDE.md, then docs/FINISH_LINE.md.
 2. Take the first unchecked task not marked (Ziah). If a (Ziah) task blocks
    it, tell me exactly what to click, then move to the next unblocked task.
-3. Work on a new branch based on the stack tip (or main once merged). Follow
+3. Work on a new branch based on `release/1.0` (or main once merged). Follow
    CLAUDE.md: JS and GDScript change together, parity stays green, tests are
    bounded and mutation-tested, no em dashes, say "unverified" when it is.
 4. Prove it: the task's "done when" line, with numbers, logs or screenshots.

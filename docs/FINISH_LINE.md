@@ -17,11 +17,11 @@ port, parity and web checks. See `docs/PORT.md` and `docs/AUDIT.md`.
 
 ## Phase 0: Land the work on main
 
-- [ ] **(Ziah)** Merge the stack in order on GitHub: #3, #4, #5, #6, #7, #8,
-      then #9 (mark it Ready for review first), then this plan's PR. Each one's
-      base is the one before, so merge oldest first and let GitHub retarget.
-      Done when `main` has `godot/`, `store/` and this file, and CI on `main`
-      is green.
+- [x] Fold the PR stack (#3 to #11) into one PR, #12 (`release/1.0`), and
+      close the old ones with a link to it.
+- [ ] **(Ziah)** Merge #12 on GitHub (Merge pull request, not squash, so the
+      history is kept). Done when `main` has `godot/`, `store/` and this file,
+      and CI on `main` is green.
 
 ## Phase 1: Answers only Ziah has (about 15 minutes)
 
@@ -123,3 +123,5 @@ Pick one route. Ziah decides which (see the PR).
   failure, both fixed. The exported project builds for the simulator and as
   an unsigned 69.6 MB arm64 iPhone binary with all plugin entry points
   linked. Simulator launch is impossible on Godot 4.3.
+- 2026-11-09: The PR stack #3 to #11 folded into one PR, #12 (`release/1.0`).
+  Same commits, so `main` fast-forwards; Ziah merges once.

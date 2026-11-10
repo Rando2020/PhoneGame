@@ -13,7 +13,7 @@ Charms, Marks and Reckonings bend the math. Owner: Ziah (GitHub `Rando2020`).
 State (2026-10-31): the web game is finished and the **Godot port is done**:
 every screen, audio, haptics, save and resume, the free-to-try unlock, store
 shots, preview video and listing. The engine is proven identical to the JS.
-What is left is release work: merging the PR stack, a playtest, and the App
+What is left is release work: merging PR #12, a playtest, and the App
 Store steps only Ziah can do. Godot 4.3 cannot run on the iOS Simulator;
 test on a device.
 
@@ -64,8 +64,9 @@ Mimic, Offering, Minted, Fickle.
 
 ## Working rules for any AI session
 
-- Branch, PR, one task per PR. The PR stack (#3 to #9) is unmerged: until Ziah
-  merges it, base new work on the stack tip, not `main`.
+- Branch, PR, one task per PR. Everything so far is in PR #12 (`release/1.0`,
+  which replaced the old stack #3 to #11). Until Ziah merges it, base new work
+  on `release/1.0`, not `main`.
 - Never fix one engine side only. JS and GDScript change together and parity
   stays green (`godot/tests/parity_test.gd`).
 - After any `web/` change: `python3 tools/build_web.py`, then the web checks in
